@@ -319,6 +319,10 @@ function Annotate() {
 
   const deleteSelectedLayer = () => {
     if (selectedLayerId) {
+      // Don't allow deleting the last layer
+      if (layerManagerRef.current.getAllLayers().length <= 1) {
+        return
+      }
       layerManagerRef.current.deleteLayer(selectedLayerId)
       updateLayersState()
       setSelectedLayerId(layerManagerRef.current.selectedId)
@@ -805,11 +809,16 @@ function Annotate() {
                           className="layer-btn layer-btn-delete"
                           onClick={(e) => {
                             e.stopPropagation()
+                            // Don't allow deleting the last layer
+                            if (layers.length <= 1) {
+                              return
+                            }
                             layerManagerRef.current.deleteLayer(layer.id)
                             updateLayersState()
                             setSelectedLayerId(layerManagerRef.current.selectedId)
                           }}
-                          title="Delete layer"
+                          disabled={layers.length <= 1}
+                          title={layers.length <= 1 ? "Cannot delete last layer" : "Delete layer"}
                         >
                           <X size={14} />
                         </button>
