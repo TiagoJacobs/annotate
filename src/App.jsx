@@ -47,6 +47,8 @@ function Annotate() {
   const [zoom, setZoom] = useState(1)
   const [selectedShape, setSelectedShape] = useState(null) // { layerId, shapeType, shapeIndex }
   const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
+  const [renamingLayerId, setRenamingLayerId] = useState(null)
+  const [renamingLayerName, setRenamingLayerName] = useState('')
 
   // ==================== Utility Functions (must be before hooks) ====================
 
@@ -337,6 +339,50 @@ function Annotate() {
     // Select layer (no toggle behavior)
     layerManagerRef.current.selectLayer(layerId)
     setSelectedLayerId(layerId)
+  }
+
+  /**
+   * Start renaming a layer
+   */
+  const startRenamingLayer = (layer) => {
+    setRenamingLayerId(layer.id)
+    setRenamingLayerName(layer.name)
+  }
+
+  /**
+   * Save layer name change
+   */
+  const saveLayerRename = () => {
+    if (renamingLayerId && renamingLayerName.trim()) {
+      const layer = layerManagerRef.current.getLayer(renamingLayerId)
+      if (layer) {
+        layer.name = renamingLayerName.trim()
+        layerManagerRef.current.updateLayerWithHistory(renamingLayerId, { name: layer.name })
+        updateLayersState()
+      }
+    }
+    setRenamingLayerId(null)
+    setRenamingLayerName('')
+  }
+
+  /**
+   * Cancel layer rename
+   */
+  const cancelLayerRename = () => {
+    setRenamingLayerId(null)
+    setRenamingLayerName('')
+  }
+
+  /**
+   * Handle key press for layer rename
+   */
+  const handleLayerRenameKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      saveLayerRename()
+    } else if (e.key === 'Escape') {
+      cancelLayerRename()
+    }
   }
 
   // ==================== Text Editing (Inline) ====================
@@ -887,6 +933,7 @@ function Annotate() {
                 <>
                   {[...layers].reverse().map((layer, displayIndex) => {
                     const actualIndex = layers.length - 1 - displayIndex
+                    const isRenaming = renamingLayerId === layer.id
 
                     return (
                       <div
@@ -905,9 +952,28 @@ function Annotate() {
                             {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                           </button>
                           <div className="layer-info">
-                            <span className="layer-name">
-                              {layer.name} {actualIndex + 1}
-                            </span>
+                            {isRenaming ? (
+                              <input
+                                type="text"
+                                value={renamingLayerName}
+                                onChange={(e) => setRenamingLayerName(e.target.value)}
+                                onKeyDown={handleLayerRenameKeyPress}
+                                onBlur={saveLayerRename}
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                                className="layer-text-input"
+                              />
+                            ) : (
+                              <span
+                                className="layer-name"
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation()
+                                  startRenamingLayer(layer)
+                                }}
+                              >
+                                {layer.name}
+                              </span>
+                            )}
                           </div>
                         </div>
                       <div className="layer-actions">
