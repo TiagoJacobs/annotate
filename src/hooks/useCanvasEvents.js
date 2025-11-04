@@ -109,6 +109,100 @@ export const useCanvasEvents = ({
   }, [getCanvasCoordinates, selectedShapeRef, toolHandlerRef, canvasManagerRef, setInlineEditingText])
 
   /**
+   * Update cursor based on hover state and selected shapes
+   */
+  const updateCursor = useCallback((coords, canvas) => {
+    if (!canvas) return
+
+    // Only show resize cursor when select tool is active and something is selected
+    if (tool === 'select' && selectedShapeRef.current) {
+      const shapes = Array.isArray(selectedShapeRef.current)
+        ? selectedShapeRef.current
+        : [selectedShapeRef.current]
+
+      const selectedShape = shapes[0]
+      const layer = layerManagerRef.current?.getLayer(selectedShape.layerId)
+      if (layer) {
+        // Get bounds of selected shape(s) for resize detection
+        const bounds = shapes.length > 1
+          ? toolHandlerRef.current?.getMultiShapeBounds?.(shapes)
+          : toolHandlerRef.current?.getShapeBounds?.(layer, selectedShape.shapeType, selectedShape.shapeIndex)
+
+        if (bounds) {
+          const handle = toolHandlerRef.current?.getResizeHandle(coords, bounds)
+          if (handle && RESIZE_CURSOR_MAP[handle]) {
+            canvas.style.cursor = RESIZE_CURSOR_MAP[handle]
+            return
+          }
+        }
+      }
+    }
+
+    // Check if hovering over any shape when select tool is active
+    if (tool === 'select') {
+      // Check if clicking here would allow dragging/moving
+      // This uses the same logic as selectObject to ensure consistency
+
+      let canDrag = false
+
+      // First check if clicking inside multi-selection bounds allows dragging
+      if (selectedShapeRef.current && Array.isArray(selectedShapeRef.current)) {
+        const bounds = toolHandlerRef.current?.getMultiShapeBounds?.(selectedShapeRef.current)
+        if (bounds) {
+          const { ShapeOperations } = toolHandlerRef.current?.constructor.prototype || {}
+          // Import needed for isPointInRect - check if point is in bounds
+          const x = coords.x, y = coords.y
+          if (x >= bounds.x && x <= bounds.x + bounds.width &&
+              y >= bounds.y && y <= bounds.y + bounds.height) {
+            canDrag = true
+          }
+        }
+      }
+
+      // If not in multi-selection bounds, check if hovering over a shape at all
+      const shape = toolHandlerRef.current?.findShapeAtPosition?.(coords)
+      if (shape) {
+        // Check if this is a selected shape (can drag it)
+        const isSelectedShape = selectedShapeRef.current &&
+          ((Array.isArray(selectedShapeRef.current) &&
+            selectedShapeRef.current.some(s =>
+              s.layerId === shape.layerId &&
+              s.shapeType === shape.shapeType &&
+              s.shapeIndex === shape.shapeIndex
+            )) ||
+          (!Array.isArray(selectedShapeRef.current) &&
+            selectedShapeRef.current.layerId === shape.layerId &&
+            selectedShapeRef.current.shapeType === shape.shapeType &&
+            selectedShapeRef.current.shapeIndex === shape.shapeIndex))
+
+        if (isSelectedShape) {
+          canvas.style.cursor = 'move'  // Move cursor when hovering over selected shape
+          return
+        } else {
+          canvas.style.cursor = 'pointer'  // Regular cursor when hovering over an unselected shape
+          return
+        }
+      }
+
+      // Show move cursor if we're inside multi-selection bounds
+      if (canDrag) {
+        canvas.style.cursor = 'move'
+        return
+      }
+
+      canvas.style.cursor = 'crosshair'  // Thin crosshair when not hovering over anything
+      return
+    }
+
+    // Default cursor based on tool
+    if (tool === 'pan') {
+      canvas.style.cursor = 'grab'
+    } else {
+      canvas.style.cursor = 'crosshair'
+    }
+  }, [tool, selectedShapeRef, layerManagerRef, toolHandlerRef])
+
+  /**
    * Handle mouse down
    */
   const handleCanvasMouseDown = useCallback((e) => {
@@ -140,52 +234,13 @@ export const useCanvasEvents = ({
 
       selectedShapeRef.current = shape
       setSelectedShape(shape)
-      setTimeout(() => renderCanvas(), 0)
+
+      // Update cursor immediately to show move cursor for selected shape
+      updateCursor(coords, e.currentTarget)
+
+      renderCanvas()
     }
-  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas])
-
-  /**
-   * Handle mouse move
-   */
-  /**
-   * Update cursor based on hover state and selected shapes
-   */
-  const updateCursor = useCallback((coords, canvas) => {
-    if (!canvas) return
-
-    // Only show resize cursor when select tool is active and something is selected
-    if (tool === 'select' && selectedShapeRef.current) {
-      const shapes = Array.isArray(selectedShapeRef.current)
-        ? selectedShapeRef.current
-        : [selectedShapeRef.current]
-
-      const selectedShape = shapes[0]
-      const layer = layerManagerRef.current?.getLayer(selectedShape.layerId)
-      if (layer) {
-        // Get bounds of selected shape(s) for resize detection
-        const bounds = shapes.length > 1
-          ? toolHandlerRef.current?.getMultiShapeBounds?.(shapes)
-          : toolHandlerRef.current?.getShapeBounds?.(layer, selectedShape.shapeType, selectedShape.shapeIndex)
-
-        if (bounds) {
-          const handle = toolHandlerRef.current?.getResizeHandle(coords, bounds)
-          if (handle && RESIZE_CURSOR_MAP[handle]) {
-            canvas.style.cursor = RESIZE_CURSOR_MAP[handle]
-            return
-          }
-        }
-      }
-    }
-
-    // Default cursor based on tool
-    if (tool === 'select') {
-      canvas.style.cursor = 'pointer'
-    } else if (tool === 'pan') {
-      canvas.style.cursor = 'grab'
-    } else {
-      canvas.style.cursor = 'crosshair'
-    }
-  }, [tool, selectedShapeRef, layerManagerRef, toolHandlerRef])
+  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateCursor])
 
   /**
    * Handle canvas mouse move (for drawing and dragging)

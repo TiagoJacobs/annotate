@@ -410,6 +410,10 @@ export class ToolHandler {
       const newGroupBounds = { x: newX, y: newY, width: newWidth, height: newHeight }
       console.log(`CalculatedNewGroupBounds: ${JSON.stringify(newGroupBounds)}`)
 
+      // Check if any shape in the group is an image - if so, always preserve aspect ratio
+      const hasImage = this.selectedShapes.some(shape => shape.shapeType === 'image')
+      const preserveAspectRatio = hasImage ? true : isShiftHeld
+
       // Resize all shapes as a group
       const updatedLayers = ShapeOperations.resizeShapeGroup(
         this.selectedShapes,
@@ -417,7 +421,7 @@ export class ToolHandler {
         originalGroupBounds,
         newGroupBounds,
         this.resizeHandle,
-        isShiftHeld
+        preserveAspectRatio
       )
 
       // After transformation, recalculate actual group bounds
@@ -449,6 +453,9 @@ export class ToolHandler {
 
       const { shapeType, shapeIndex } = this.selectedShape
 
+      // Always preserve aspect ratio for images
+      const preserveAspectRatio = shapeType === 'image' ? true : isShiftHeld
+
       ShapeOperations.resizeShape(
         layer,
         shapeType,
@@ -457,7 +464,7 @@ export class ToolHandler {
         this.resizeStartBounds,
         pos.x - this.resizeStartPos.x,
         pos.y - this.resizeStartPos.y,
-        isShiftHeld
+        preserveAspectRatio
       )
 
       // Don't save history during resize, only update the layer

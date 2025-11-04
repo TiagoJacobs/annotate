@@ -57,6 +57,66 @@ export class ShapeOperations {
     return normalized <= 1
   }
 
+  static isPointNearEllipse(px, py, ellipse, threshold = LINE_HIT_THRESHOLD) {
+    const cx = ellipse.x + ellipse.width / 2
+    const cy = ellipse.y + ellipse.height / 2
+    const rx = ellipse.width / 2
+    const ry = ellipse.height / 2
+
+    // Calculate the ellipse equation value at the point
+    const normalized = ((px - cx) ** 2) / (rx ** 2) + ((py - cy) ** 2) / (ry ** 2)
+
+    // Check if point is reasonably close to the ellipse
+    // Points should be detected if they're roughly within threshold of the edge
+    // For a point at normalized value of 1, it's on the ellipse
+    // We want to detect points from approximately (1 - margin) to (1 + margin)
+    const marginRatio = threshold / Math.min(rx, ry)
+    const lowerBound = Math.max(0.5, 1 - marginRatio)
+    const upperBound = 1 + marginRatio
+
+    return normalized >= lowerBound && normalized <= upperBound
+  }
+
+  static isPointNearRect(px, py, rect, threshold = LINE_HIT_THRESHOLD) {
+    const left = rect.x
+    const right = rect.x + rect.width
+    const top = rect.y
+    const bottom = rect.y + rect.height
+
+    // Expand the rect bounds by the threshold to detect strokes outside the shape
+    const expandedLeft = left - threshold
+    const expandedRight = right + threshold
+    const expandedTop = top - threshold
+    const expandedBottom = bottom + threshold
+
+    // Check if point is within expanded bounds
+    if (px < expandedLeft || px > expandedRight || py < expandedTop || py > expandedBottom) {
+      return false
+    }
+
+    // Calculate distance to the nearest edge of the rect
+    let distToEdge = Infinity
+
+    if (px >= left && px <= right) {
+      // Inside or aligned horizontally
+      distToEdge = Math.min(Math.abs(py - top), Math.abs(py - bottom))
+    } else if (py >= top && py <= bottom) {
+      // Inside or aligned vertically
+      distToEdge = Math.min(Math.abs(px - left), Math.abs(px - right))
+    } else {
+      // At a corner - calculate distance to nearest corner
+      const cornerDistances = [
+        Math.hypot(px - left, py - top),    // top-left
+        Math.hypot(px - right, py - top),   // top-right
+        Math.hypot(px - left, py - bottom), // bottom-left
+        Math.hypot(px - right, py - bottom) // bottom-right
+      ]
+      distToEdge = Math.min(...cornerDistances)
+    }
+
+    return distToEdge <= threshold
+  }
+
   static isPointOnStroke(px, py, stroke, threshold = LINE_HIT_THRESHOLD) {
     for (let i = 0; i < stroke.points.length - 1; i++) {
       const p1 = stroke.points[i]
@@ -614,10 +674,32 @@ export class ShapeOperations {
   static checkLayerShapes(pos, layer) {
     const shapeChecks = [
       { type: 'text', array: layer.texts, test: (shape) => this.isPointOnText(pos.x, pos.y, shape) },
-      { type: 'ellipse', array: layer.ellipses, test: (shape) => this.isPointInEllipse(pos.x, pos.y, shape) },
-      { type: 'rect', array: layer.rects, test: (shape) => this.isPointInRect(pos.x, pos.y, shape) },
-      { type: 'arrow', array: layer.arrows, test: (arrow) => this.isPointNearLine(pos.x, pos.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY) },
-      { type: 'stroke', array: layer.strokes, test: (shape) => this.isPointOnStroke(pos.x, pos.y, shape) },
+      { type: 'ellipse', array: layer.ellipses, test: (shape) => {
+        // Check if point is inside the ellipse (fill) OR near the stroke
+        const isInside = this.isPointInEllipse(pos.x, pos.y, shape)
+        if (isInside) return true
+        // Also check the stroke if not inside
+        const threshold = (shape.size || 3) / 2
+        return this.isPointNearEllipse(pos.x, pos.y, shape, threshold)
+      }},
+      { type: 'rect', array: layer.rects, test: (shape) => {
+        // Check if point is inside the rect (fill) OR near the stroke
+        const isInside = this.isPointInRect(pos.x, pos.y, shape)
+        if (isInside) return true
+        // Also check the stroke if not inside
+        const threshold = (shape.size || 3) / 2
+        return this.isPointNearRect(pos.x, pos.y, shape, threshold)
+      }},
+      { type: 'arrow', array: layer.arrows, test: (arrow) => {
+        // Use arrow's size (line weight) for hit detection threshold
+        const threshold = (arrow.size || 3) / 2
+        return this.isPointNearLine(pos.x, pos.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY, threshold)
+      }},
+      { type: 'stroke', array: layer.strokes, test: (shape) => {
+        // Use stroke's size (line weight) for hit detection threshold
+        const threshold = (shape.size || 3) / 2
+        return this.isPointOnStroke(pos.x, pos.y, shape, threshold)
+      }},
     ]
 
     for (const { type, array, test } of shapeChecks) {

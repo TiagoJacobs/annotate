@@ -49,6 +49,7 @@ function Annotate() {
   const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
   const [renamingLayerId, setRenamingLayerId] = useState(null)
   const [renamingLayerName, setRenamingLayerName] = useState('')
+  const [downloadFormat, setDownloadFormat] = useState('png') // 'png' or 'svg'
 
   // ==================== Utility Functions (must be before hooks) ====================
 
@@ -449,11 +450,67 @@ function Annotate() {
   }
 
   const downloadImage = () => {
+    if (downloadFormat === 'svg') {
+      downloadSVG()
+    } else {
+      downloadPNG()
+    }
+  }
+
+  const downloadPNG = () => {
+    // Render canvas without selection UI
+    renderCanvasForExport()
+
     const canvas = canvasRef.current
     const link = document.createElement('a')
     link.href = canvas.toDataURL('image/png')
     link.download = 'annotated-image.png'
     link.click()
+
+    // Restore normal rendering with selection UI
+    renderCanvas()
+  }
+
+  const downloadSVG = () => {
+    // Render canvas without selection UI
+    renderCanvasForExport()
+
+    const canvas = canvasRef.current
+    const width = canvas.width
+    const height = canvas.height
+
+    // Create SVG element
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('width', width)
+    svg.setAttribute('height', height)
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
+
+    // Draw white background
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+    rect.setAttribute('width', width)
+    rect.setAttribute('height', height)
+    rect.setAttribute('fill', 'white')
+    svg.appendChild(rect)
+
+    // Convert canvas to image and embed in SVG
+    const image = document.createElementNS('http://www.w3.org/2000/svg', 'image')
+    image.setAttribute('width', width)
+    image.setAttribute('height', height)
+    image.setAttribute('href', canvas.toDataURL('image/png'))
+    svg.appendChild(image)
+
+    // Create blob and download
+    const svgString = new XMLSerializer().serializeToString(svg)
+    const blob = new Blob([svgString], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'annotated-image.svg'
+    link.click()
+    URL.revokeObjectURL(url)
+
+    // Restore normal rendering with selection UI
+    renderCanvas()
   }
 
   const clearCanvas = () => {
@@ -549,7 +606,7 @@ function Annotate() {
   // ==================== Custom Hooks (called after all functions are defined) ====================
 
   // Use canvas renderer hook
-  const { renderCanvas } = useCanvasRenderer(
+  const { renderCanvas, renderCanvasForExport } = useCanvasRenderer(
     canvasManagerRef,
     layerManagerRef,
     toolHandlerRef,
@@ -684,6 +741,9 @@ function Annotate() {
               const tempCtx = tempCanvas.getContext('2d')
               tempCtx.drawImage(img, 0, 0)
 
+              // Store image at full original resolution
+              // The canvas zoom will handle scaling the display at different zoom levels
+              // At zoom 100%, the image will display at its actual pixel size
               const imageLayer = layerManagerRef.current.createLayer('Image', {
                 image: {
                   data: tempCanvas.toDataURL(),
@@ -866,10 +926,21 @@ function Annotate() {
               <Copy size={18} />
               Copy
             </button>
-            <button className="action-btn download-btn" onClick={downloadImage} title="Download image">
-              <Download size={18} />
-              Download
-            </button>
+            <div className="download-group">
+              <button className="action-btn download-btn" onClick={downloadImage} title="Download image">
+                <Download size={18} />
+                Download
+              </button>
+              <select
+                className="download-format-select"
+                value={downloadFormat}
+                onChange={(e) => setDownloadFormat(e.target.value)}
+                title="Select download format"
+              >
+                <option value="png">PNG</option>
+                <option value="svg">SVG</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -981,10 +1052,10 @@ function Annotate() {
                           className="layer-btn"
                           onClick={(e) => {
                             e.stopPropagation()
-                            moveLayerInStack(layer.id, 'up')
+                            moveLayerInStack(layer.id, 'down')
                           }}
                           disabled={actualIndex === 0}
-                          title="Move up"
+                          title="Move up in stack (visually higher)"
                         >
                           <ChevronUp size={14} />
                         </button>
@@ -992,10 +1063,10 @@ function Annotate() {
                           className="layer-btn"
                           onClick={(e) => {
                             e.stopPropagation()
-                            moveLayerInStack(layer.id, 'down')
+                            moveLayerInStack(layer.id, 'up')
                           }}
                           disabled={actualIndex === layers.length - 1}
-                          title="Move down"
+                          title="Move down in stack (visually lower)"
                         >
                           <ChevronDown size={14} />
                         </button>

@@ -163,7 +163,52 @@ export const useCanvasRenderer = (
     canvasManager.restore()
   }, [canvasManagerRef, layerManagerRef, toolHandlerRef, selectedShapeRef])
 
+  /**
+   * Render canvas for export (without selection UI)
+   */
+  const renderCanvasForExport = useCallback(() => {
+    if (!canvasManagerRef.current) return
+
+    const canvasManager = canvasManagerRef.current
+    const ctx = canvasManager.getContext()
+
+    // Draw grid background
+    canvasManager.drawGrid(GRID_SIZE)
+
+    // Draw all visible layers
+    const allLayers = layerManagerRef.current.getAllLayers()
+    allLayers.forEach((layer) => {
+      if (!layer.visible) return
+
+      canvasManager.save()
+      canvasManager.applyTransform()
+      ctx.globalAlpha = layer.opacity
+
+      // Draw all shapes using ShapeRenderer
+      if (shapeRendererRef.current) {
+        // Render image FIRST (so it's in the background)
+        if (layer.image) {
+          shapeRendererRef.current.renderShape(ctx, 'image', layer.image)
+        }
+
+        // Render shapes ON TOP of image
+        layer.strokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'stroke', stroke, '#000000'))
+        layer.arrows?.forEach(arrow => shapeRendererRef.current.renderShape(ctx, 'arrow', arrow, '#000000'))
+        layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, '#000000'))
+        layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
+        layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))
+      }
+
+      ctx.globalAlpha = 1
+      canvasManager.resetTransform()
+      canvasManager.restore()
+    })
+
+    // Do NOT draw selection box or marquee for export
+  }, [canvasManagerRef, layerManagerRef, shapeRendererRef])
+
   return {
-    renderCanvas
+    renderCanvas,
+    renderCanvasForExport
   }
 }
