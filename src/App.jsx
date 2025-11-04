@@ -22,7 +22,6 @@ const ZOOM_STEP = 0.1
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 10
 const GRID_SIZE = 50
-const TEXT_PREVIEW_MAX_LENGTH = 30
 
 function Annotate() {
   // Refs
@@ -46,8 +45,6 @@ function Annotate() {
   const [fontSize, setFontSize] = useState(storedProperties.fontSize)
   const [lineStyle, setLineStyle] = useState(storedProperties.lineStyle)
   const [zoom, setZoom] = useState(1)
-  const [editingTextLayerId, setEditingTextLayerId] = useState(null)
-  const [editingTextContent, setEditingTextContent] = useState('')
   const [selectedShape, setSelectedShape] = useState(null) // { layerId, shapeType, shapeIndex }
   const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
 
@@ -334,17 +331,6 @@ function Annotate() {
   }
 
   /**
-   * Get preview text for text layers
-   */
-  const getLayerPreviewText = (layer) => {
-    if (layer.texts?.length > 0) {
-      const text = layer.texts[0].content
-      return text.length > TEXT_PREVIEW_MAX_LENGTH ? text.substring(0, TEXT_PREVIEW_MAX_LENGTH) + '...' : text
-    }
-    return null
-  }
-
-  /**
    * Select a layer
    */
   const selectLayer = (layerId) => {
@@ -353,40 +339,7 @@ function Annotate() {
     setSelectedLayerId(layerId)
   }
 
-  // ==================== Text Editing ====================
-
-  const startEditingText = (layer) => {
-    if (layer.texts?.length > 0) {
-      setEditingTextLayerId(layer.id)
-      setEditingTextContent(layer.texts[0].content)
-    }
-  }
-
-  const saveTextEdit = () => {
-    if (editingTextLayerId && editingTextContent.trim()) {
-      const layer = layerManagerRef.current.getLayer(editingTextLayerId)
-      if (layer?.texts) {
-        layer.texts[0].content = editingTextContent
-        layerManagerRef.current.updateLayerWithHistory(editingTextLayerId, { texts: layer.texts })
-        updateLayersState()
-      }
-    }
-    cancelTextEdit()
-  }
-
-  const cancelTextEdit = () => {
-    setEditingTextLayerId(null)
-    setEditingTextContent('')
-  }
-
-  const handleTextEditKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      saveTextEdit()
-    } else if (e.key === 'Escape') {
-      cancelTextEdit()
-    }
-  }
+  // ==================== Text Editing (Inline) ====================
 
   const saveInlineTextEdit = () => {
     if (!inlineEditingText || !inlineEditingText.content.trim()) {
@@ -934,33 +887,13 @@ function Annotate() {
                 <>
                   {[...layers].reverse().map((layer, displayIndex) => {
                     const actualIndex = layers.length - 1 - displayIndex
-                    const previewText = getLayerPreviewText(layer)
-                    const isEditingThis = editingTextLayerId === layer.id
 
                     return (
                       <div
                         key={layer.id}
                         className={`layer-item ${selectedLayerId === layer.id ? 'selected' : ''}`}
                         onClick={() => selectLayer(layer.id)}
-                        onDoubleClick={() => {
-                          if (layer.texts?.length > 0) {
-                            startEditingText(layer)
-                          }
-                        }}
                       >
-                      {isEditingThis ? (
-                        <div className="layer-text-edit" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="text"
-                            value={editingTextContent}
-                            onChange={(e) => setEditingTextContent(e.target.value)}
-                            onKeyPress={handleTextEditKeyPress}
-                            onBlur={saveTextEdit}
-                            autoFocus
-                            className="layer-text-input"
-                          />
-                        </div>
-                      ) : (
                         <div className="layer-content">
                           <button
                             className="layer-visibility"
@@ -975,10 +908,8 @@ function Annotate() {
                             <span className="layer-name">
                               {layer.name} {actualIndex + 1}
                             </span>
-                            {previewText && <span className="layer-text-preview">{previewText}</span>}
                           </div>
                         </div>
-                      )}
                       <div className="layer-actions">
                         <button
                           className="layer-btn"
