@@ -27,6 +27,8 @@ export class FreehandStrokeStrategy extends ShapeCreationStrategy {
   start(layer, startPos, properties) {
     const stroke = {
       size: properties.size,
+      color: properties.color,
+      lineStyle: properties.lineStyle,
       points: [startPos],
     }
     layer.strokes.push(stroke)
@@ -57,6 +59,8 @@ export class ArrowStrategy extends ShapeCreationStrategy {
       toX: currentPos.x,
       toY: currentPos.y,
       size: properties.size,
+      color: properties.color,
+      lineStyle: properties.lineStyle,
       isPreview: true,
     })
   }
@@ -87,6 +91,8 @@ export class RectStrategy extends ShapeCreationStrategy {
       width: Math.abs(width),
       height: Math.abs(height),
       size: properties.size,
+      color: properties.color,
+      lineStyle: properties.lineStyle,
       isPreview: true,
     })
   }
@@ -117,6 +123,8 @@ export class EllipseStrategy extends ShapeCreationStrategy {
       width: Math.abs(width),
       height: Math.abs(height),
       size: properties.size,
+      color: properties.color,
+      lineStyle: properties.lineStyle,
       isPreview: true,
     })
   }
@@ -140,6 +148,7 @@ export class TextStrategy extends ShapeCreationStrategy {
       y: pos.y,
       fontSize: properties.fontSize,
       fontFamily: 'Arial',
+      color: properties.color,
     })
   }
 }

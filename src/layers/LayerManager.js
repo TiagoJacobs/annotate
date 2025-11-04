@@ -14,14 +14,13 @@ export class LayerManager {
   /**
    * Create a new layer
    */
-  createLayer(name = null, color = '#000000', data = {}) {
+  createLayer(name = null, data = {}) {
     const layer = {
       id: Date.now(),
       name: name || 'Layer',
       visible: true,
       locked: false,
       opacity: 1,
-      color,
       arrows: [],
       rects: [],
       ellipses: [],

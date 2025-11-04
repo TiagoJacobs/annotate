@@ -6,6 +6,20 @@
 import { useCallback } from 'react'
 import { getToolConfig } from '../tools/toolRegistry'
 
+/**
+ * Map resize handle names to CSS cursor values
+ */
+const RESIZE_CURSOR_MAP = {
+  nw: 'nwse-resize',  // northwest-southeast
+  ne: 'nesw-resize',  // northeast-southwest
+  sw: 'nesw-resize',  // northeast-southwest
+  se: 'nwse-resize',  // northwest-southeast
+  n: 'ns-resize',     // north-south
+  s: 'ns-resize',     // north-south
+  w: 'ew-resize',     // east-west
+  e: 'ew-resize',     // east-west
+}
+
 export const useCanvasEvents = ({
   tool,
   canvasManagerRef,
@@ -133,11 +147,59 @@ export const useCanvasEvents = ({
   /**
    * Handle mouse move
    */
-  const handleCanvasMouseMove = useCallback((e) => {
-    if (e.buttons === 0) return
+  /**
+   * Update cursor based on hover state and selected shapes
+   */
+  const updateCursor = useCallback((coords, canvas) => {
+    if (!canvas) return
 
+    // Only show resize cursor when select tool is active and something is selected
+    if (tool === 'select' && selectedShapeRef.current) {
+      const shapes = Array.isArray(selectedShapeRef.current)
+        ? selectedShapeRef.current
+        : [selectedShapeRef.current]
+
+      const selectedShape = shapes[0]
+      const layer = layerManagerRef.current?.getLayer(selectedShape.layerId)
+      if (layer) {
+        // Get bounds of selected shape(s) for resize detection
+        const bounds = shapes.length > 1
+          ? toolHandlerRef.current?.getMultiShapeBounds?.(shapes)
+          : toolHandlerRef.current?.getShapeBounds?.(layer, selectedShape.shapeType, selectedShape.shapeIndex)
+
+        if (bounds) {
+          const handle = toolHandlerRef.current?.getResizeHandle(coords, bounds)
+          if (handle && RESIZE_CURSOR_MAP[handle]) {
+            canvas.style.cursor = RESIZE_CURSOR_MAP[handle]
+            return
+          }
+        }
+      }
+    }
+
+    // Default cursor based on tool
+    if (tool === 'select') {
+      canvas.style.cursor = 'pointer'
+    } else if (tool === 'pan') {
+      canvas.style.cursor = 'grab'
+    } else {
+      canvas.style.cursor = 'crosshair'
+    }
+  }, [tool, selectedShapeRef, layerManagerRef, toolHandlerRef])
+
+  /**
+   * Handle canvas mouse move (for drawing and dragging)
+   */
+  const handleCanvasMouseMove = useCallback((e) => {
+    const canvas = e.currentTarget
     const coords = getCanvasCoordinates(e)
     if (!coords) return
+
+    // Always update cursor when hovering
+    updateCursor(coords, canvas)
+
+    // Only handle drag operations when mouse button is pressed
+    if (e.buttons === 0) return
 
     const toolConfig = getToolConfig(tool)
     if (!toolConfig) return
@@ -162,12 +224,12 @@ export const useCanvasEvents = ({
         toolHandlerRef.current?.updateMarqueeSelection(coords)
         renderCanvas()
       } else {
-        toolHandlerRef.current?.dragObject(coords)
+        toolHandlerRef.current?.dragObject(coords, e.shiftKey)
         updateLayersState()
         renderCanvas()
       }
     }
-  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, updateLayersState, renderCanvas])
+  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, updateLayersState, renderCanvas, updateCursor])
 
   /**
    * Handle mouse up

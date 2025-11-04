@@ -12,6 +12,35 @@ class BaseShapeRenderer {
   render(ctx, shape, layerColor) {
     throw new Error('render() must be implemented by subclass')
   }
+
+  // Helper to get shape color with fallback to layerColor
+  getShapeColor(shape, layerColor) {
+    return shape?.color || layerColor || '#000000'
+  }
+
+  // Helper to apply line style (dash pattern)
+  applyLineStyle(ctx, lineStyle) {
+    switch (lineStyle) {
+      case 'dashed':
+        ctx.setLineDash([8, 4])
+        break
+      case 'dotted':
+        ctx.setLineDash([2, 4])
+        break
+      case 'dashdot':
+        ctx.setLineDash([8, 4, 2, 4])
+        break
+      case 'solid':
+      default:
+        ctx.setLineDash([])
+        break
+    }
+  }
+
+  // Helper to reset line style
+  resetLineStyle(ctx) {
+    ctx.setLineDash([])
+  }
 }
 
 /**
@@ -21,10 +50,12 @@ class StrokeRenderer extends BaseShapeRenderer {
   render(ctx, stroke, layerColor) {
     if (!stroke.points || stroke.points.length === 0) return
 
-    ctx.strokeStyle = layerColor
+    ctx.strokeStyle = this.getShapeColor(stroke, layerColor)
     ctx.lineWidth = stroke.size
     ctx.lineCap = STROKE_RENDER_CONFIG.lineCap
     ctx.lineJoin = STROKE_RENDER_CONFIG.lineJoin
+
+    this.applyLineStyle(ctx, stroke.lineStyle)
 
     ctx.beginPath()
     ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
@@ -34,6 +65,7 @@ class StrokeRenderer extends BaseShapeRenderer {
     }
 
     ctx.stroke()
+    this.resetLineStyle(ctx)
   }
 }
 
@@ -46,8 +78,10 @@ class ArrowRenderer extends BaseShapeRenderer {
     const { headLength, headAngle } = ARROW_RENDER_CONFIG
     const angle = Math.atan2(toY - fromY, toX - fromX)
 
-    ctx.strokeStyle = layerColor
+    ctx.strokeStyle = this.getShapeColor(arrow, layerColor)
     ctx.lineWidth = size
+
+    this.applyLineStyle(ctx, arrow.lineStyle)
 
     // Draw arrow line
     ctx.beginPath()
@@ -68,6 +102,8 @@ class ArrowRenderer extends BaseShapeRenderer {
       toY - headLength * Math.sin(angle + headAngle)
     )
     ctx.stroke()
+
+    this.resetLineStyle(ctx)
   }
 }
 
@@ -76,9 +112,11 @@ class ArrowRenderer extends BaseShapeRenderer {
  */
 class RectRenderer extends BaseShapeRenderer {
   render(ctx, rect, layerColor) {
-    ctx.strokeStyle = layerColor
+    ctx.strokeStyle = this.getShapeColor(rect, layerColor)
     ctx.lineWidth = rect.size
+    this.applyLineStyle(ctx, rect.lineStyle)
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
+    this.resetLineStyle(ctx)
   }
 }
 
@@ -87,8 +125,10 @@ class RectRenderer extends BaseShapeRenderer {
  */
 class EllipseRenderer extends BaseShapeRenderer {
   render(ctx, ellipse, layerColor) {
-    ctx.strokeStyle = layerColor
+    ctx.strokeStyle = this.getShapeColor(ellipse, layerColor)
     ctx.lineWidth = ellipse.size
+
+    this.applyLineStyle(ctx, ellipse.lineStyle)
 
     ctx.beginPath()
     ctx.ellipse(
@@ -101,6 +141,8 @@ class EllipseRenderer extends BaseShapeRenderer {
       Math.PI * 2
     )
     ctx.stroke()
+
+    this.resetLineStyle(ctx)
   }
 }
 
@@ -111,7 +153,7 @@ class TextRenderer extends BaseShapeRenderer {
   render(ctx, text, layerColor) {
     const { defaultFontFamily } = TEXT_RENDER_CONFIG
 
-    ctx.fillStyle = layerColor
+    ctx.fillStyle = this.getShapeColor(text, layerColor)
     ctx.font = `${text.fontSize}px ${text.fontFamily || defaultFontFamily}`
     ctx.fillText(text.content, text.x, text.y)
   }

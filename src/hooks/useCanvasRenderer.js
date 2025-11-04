@@ -45,11 +45,11 @@ export const useCanvasRenderer = (
         }
 
         // Render shapes ON TOP of image
-        layer.strokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'stroke', stroke, layer.color))
-        layer.arrows?.forEach(arrow => shapeRendererRef.current.renderShape(ctx, 'arrow', arrow, layer.color))
-        layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, layer.color))
-        layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, layer.color))
-        layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, layer.color))
+        layer.strokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'stroke', stroke, '#000000'))
+        layer.arrows?.forEach(arrow => shapeRendererRef.current.renderShape(ctx, 'arrow', arrow, '#000000'))
+        layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, '#000000'))
+        layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
+        layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))
       }
 
       ctx.globalAlpha = 1

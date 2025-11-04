@@ -147,7 +147,7 @@ class CreateLayerCommand extends Command {
   }
 
   execute() {
-    const layer = this.layerManager.createLayer(this.name, this.color)
+    const layer = this.layerManager.createLayer(this.name)
     this.createdLayerId = layer.id
   }
 

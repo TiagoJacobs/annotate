@@ -13,6 +13,7 @@ export const toolRegistry = {
     properties: {
       color: { type: 'color', default: '#000000' },
       size: { type: 'number', min: 1, max: 50, default: 3 },
+      lineStyle: { type: 'select', default: 'solid', options: ['solid', 'dashed', 'dotted', 'dashdot'] },
     },
     dataModel: {
       type: 'pen',
@@ -33,6 +34,7 @@ export const toolRegistry = {
     properties: {
       color: { type: 'color', default: '#000000' },
       size: { type: 'number', min: 1, max: 50, default: 2 },
+      lineStyle: { type: 'select', default: 'solid', options: ['solid', 'dashed', 'dotted', 'dashdot'] },
     },
     dataModel: {
       type: 'arrow',
@@ -53,6 +55,7 @@ export const toolRegistry = {
     properties: {
       color: { type: 'color', default: '#000000' },
       size: { type: 'number', min: 1, max: 50, default: 2 },
+      lineStyle: { type: 'select', default: 'solid', options: ['solid', 'dashed', 'dotted', 'dashdot'] },
     },
     dataModel: {
       type: 'rect',
@@ -73,6 +76,7 @@ export const toolRegistry = {
     properties: {
       color: { type: 'color', default: '#000000' },
       size: { type: 'number', min: 1, max: 50, default: 2 },
+      lineStyle: { type: 'select', default: 'solid', options: ['solid', 'dashed', 'dotted', 'dashdot'] },
     },
     dataModel: {
       type: 'ellipse',

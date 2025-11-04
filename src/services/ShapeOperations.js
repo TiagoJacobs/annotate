@@ -102,12 +102,39 @@ export class ShapeOperations {
           { x: arrow.toX, y: arrow.toY }
         ])
       },
-      rect: () => ({ ...layer.rects[shapeIndex] }),
-      ellipse: () => ({ ...layer.ellipses[shapeIndex] }),
+      rect: () => {
+        const rect = { ...layer.rects[shapeIndex] }
+        // Normalize bounds to ensure width/height are always positive
+        if (rect.width < 0) {
+          rect.x += rect.width
+          rect.width = -rect.width
+        }
+        if (rect.height < 0) {
+          rect.y += rect.height
+          rect.height = -rect.height
+        }
+        return rect
+      },
+      ellipse: () => {
+        const ellipse = { ...layer.ellipses[shapeIndex] }
+        // Normalize bounds to ensure width/height are always positive
+        if (ellipse.width < 0) {
+          ellipse.x += ellipse.width
+          ellipse.width = -ellipse.width
+        }
+        if (ellipse.height < 0) {
+          ellipse.y += ellipse.height
+          ellipse.height = -ellipse.height
+        }
+        return ellipse
+      },
       text: () => {
         const text = layer.texts[shapeIndex]
         const textWidth = text.content.length * text.fontSize * TEXT_WIDTH_FACTOR
         const textHeight = text.fontSize
+        // For text, use the actual text position as the bounds
+        // text.y represents the bottom of the text baseline
+        // So the top of the bounding box is at text.y - fontSize
         return { x: text.x, y: text.y - textHeight, width: textWidth, height: textHeight }
       },
       image: () => {
@@ -217,7 +244,7 @@ export class ShapeOperations {
    * Shape Resize
    */
 
-  static calculateNewBounds(handle, startBounds, dx, dy) {
+  static calculateNewBounds(handle, startBounds, dx, dy, preserveAspectRatio = false) {
     let newX = startBounds.x
     let newY = startBounds.y
     let newWidth = startBounds.width
@@ -237,11 +264,37 @@ export class ShapeOperations {
       newHeight = startBounds.height + dy
     }
 
+    // Preserve aspect ratio if shift is held
+    if (preserveAspectRatio && startBounds.width > 0 && startBounds.height > 0) {
+      const aspectRatio = startBounds.width / startBounds.height
+
+      // Determine which dimension changed more significantly
+      const widthRatio = newWidth / startBounds.width
+      const heightRatio = newHeight / startBounds.height
+
+      // Use the dimension with the smallest change to maintain aspect ratio
+      if (Math.abs(widthRatio - 1) > Math.abs(heightRatio - 1)) {
+        // Height changed more, adjust width
+        newWidth = newHeight * aspectRatio
+      } else {
+        // Width changed more, adjust height
+        newHeight = newWidth / aspectRatio
+      }
+
+      // For corner handles, adjust position if resizing from top/left
+      if (handle.includes('w')) {
+        newX = startBounds.x + startBounds.width - newWidth
+      }
+      if (handle.includes('n')) {
+        newY = startBounds.y + startBounds.height - newHeight
+      }
+    }
+
     return { newX, newY, newWidth, newHeight }
   }
 
-  static resizeShape(layer, shapeType, shapeIndex, handle, startBounds, dx, dy) {
-    const { newX, newY, newWidth, newHeight } = this.calculateNewBounds(handle, startBounds, dx, dy)
+  static resizeShape(layer, shapeType, shapeIndex, handle, startBounds, dx, dy, preserveAspectRatio = false) {
+    const { newX, newY, newWidth, newHeight } = this.calculateNewBounds(handle, startBounds, dx, dy, preserveAspectRatio)
 
     const resizeHandlers = {
       rect: () => {
@@ -274,10 +327,239 @@ export class ShapeOperations {
           layer.image.width = newWidth
           layer.image.height = newHeight
         }
+      },
+      text: () => {
+        const text = layer.texts[shapeIndex]
+        // For text, adjust font size and position if needed
+        // text.y represents the baseline (bottom) of the text
+        // startBounds.y represents the TOP of the bounding box
+
+        // Original height equals original font size
+        const originalFontSize = startBounds.height
+        const heightRatio = newHeight / startBounds.height
+
+        // Calculate new font size, minimum 8px
+        const newFontSize = Math.max(8, Math.round(originalFontSize * heightRatio))
+        text.fontSize = newFontSize
+
+        // Adjust text position based on which edge is being resized
+        // If resizing from top (north), keep the bottom position fixed
+        // If resizing from bottom, keep the top position fixed
+        if (handle.includes('n')) {
+          // When dragging top edge, keep the bottom position fixed
+          // New baseline = old bottom = startBounds.y + startBounds.height
+          text.y = startBounds.y + startBounds.height
+        } else {
+          // When dragging bottom edge, keep the top position fixed
+          // Baseline = top + newFontSize
+          text.y = startBounds.y + newFontSize
+        }
+
+        // Adjust horizontal position if resizing from left (west handle)
+        if (handle.includes('w')) {
+          text.x = newX
+        }
       }
     }
 
     resizeHandlers[shapeType]?.()
+  }
+
+  /**
+   * Resize multiple shapes as a group while maintaining relative positions
+   */
+  static resizeShapeGroup(shapes, layerManager, groupBounds, newGroupBounds, handle, preserveAspectRatio = false) {
+    // Guard against zero-sized original bounds
+    if (groupBounds.width === 0 || groupBounds.height === 0) return
+
+    // Get ACTUAL current bounds to detect how much scaling has already been applied
+    const currentGroupBounds = this.getMultiShapeBounds(shapes, layerManager)
+
+    // Calculate how much scaling has already been applied from the original groupBounds
+    // This is crucial: if groupBounds (passed in) doesn't match currentGroupBounds,
+    // it means shapes have been scaled already and we need to reverse-calculate original
+    let alreadyScaledX = 1
+    let alreadyScaledY = 1
+
+    if (Math.abs(groupBounds.width) > 0.01) {
+      alreadyScaledX = currentGroupBounds.width / groupBounds.width
+    }
+    if (Math.abs(groupBounds.height) > 0.01) {
+      alreadyScaledY = currentGroupBounds.height / groupBounds.height
+    }
+
+    // Store original shape data, but reverse-scale from current state if needed
+    const originalShapeData = new Map()
+
+    for (const shape of shapes) {
+      const layer = layerManager.getLayer(shape.layerId)
+      if (!layer) continue
+
+      const { shapeType, shapeIndex } = shape
+      const shapeArrayName = {
+        stroke: 'strokes',
+        arrow: 'arrows',
+        rect: 'rects',
+        ellipse: 'ellipses',
+        text: 'texts'
+      }[shapeType]
+
+      if (!shapeArrayName || !layer[shapeArrayName]) continue
+
+      const shapeData = layer[shapeArrayName][shapeIndex]
+      if (!shapeData) continue
+
+      // Store deep copy of ORIGINAL shape data (reverse-scaled if needed)
+      const key = `${shape.layerId}-${shapeType}-${shapeIndex}`
+
+      if (shapeType === 'stroke') {
+        const reversedPoints = shapeData.points.map(p => ({
+          x: groupBounds.x + (p.x - currentGroupBounds.x) / alreadyScaledX,
+          y: groupBounds.y + (p.y - currentGroupBounds.y) / alreadyScaledY
+        }))
+        originalShapeData.set(key, { ...shapeData, points: reversedPoints })
+      } else if (shapeType === 'arrow') {
+        originalShapeData.set(key, {
+          ...shapeData,
+          fromX: groupBounds.x + (shapeData.fromX - currentGroupBounds.x) / alreadyScaledX,
+          fromY: groupBounds.y + (shapeData.fromY - currentGroupBounds.y) / alreadyScaledY,
+          toX: groupBounds.x + (shapeData.toX - currentGroupBounds.x) / alreadyScaledX,
+          toY: groupBounds.y + (shapeData.toY - currentGroupBounds.y) / alreadyScaledY
+        })
+      } else if (shapeType === 'text') {
+        originalShapeData.set(key, {
+          ...shapeData,
+          x: groupBounds.x + (shapeData.x - currentGroupBounds.x) / alreadyScaledX,
+          y: groupBounds.y + (shapeData.y - currentGroupBounds.y) / alreadyScaledY,
+          fontSize: shapeData.fontSize / Math.abs(alreadyScaledY)
+        })
+      } else {
+        // Rect, ellipse, etc.
+        originalShapeData.set(key, {
+          ...shapeData,
+          x: groupBounds.x + (shapeData.x - currentGroupBounds.x) / alreadyScaledX,
+          y: groupBounds.y + (shapeData.y - currentGroupBounds.y) / alreadyScaledY,
+          width: shapeData.width / alreadyScaledX,
+          height: shapeData.height / alreadyScaledY
+        })
+      }
+    }
+
+    // Calculate scale factors for width and height independently
+    let scaleX = groupBounds.width !== 0 ? newGroupBounds.width / groupBounds.width : 1
+    let scaleY = groupBounds.height !== 0 ? newGroupBounds.height / groupBounds.height : 1
+
+    // Preserve aspect ratio if shift is held
+    if (preserveAspectRatio) {
+      const uniformScale = Math.min(Math.abs(scaleX), Math.abs(scaleY))
+      scaleX = scaleX < 0 ? -uniformScale : uniformScale
+      scaleY = scaleY < 0 ? -uniformScale : uniformScale
+    }
+
+    const updatedLayers = new Map()
+
+    // Apply transformation to each shape
+    for (const shape of shapes) {
+      const layer = layerManager.getLayer(shape.layerId)
+      if (!layer) continue
+
+      const { shapeType, shapeIndex } = shape
+      const shapeArrayName = {
+        stroke: 'strokes',
+        arrow: 'arrows',
+        rect: 'rects',
+        ellipse: 'ellipses',
+        text: 'texts'
+      }[shapeType]
+
+      if (!shapeArrayName || !layer[shapeArrayName]) continue
+
+      const key = `${shape.layerId}-${shapeType}-${shapeIndex}`
+      const originalData = originalShapeData.get(key)
+      if (!originalData) continue
+
+      const shapeData = layer[shapeArrayName][shapeIndex]
+
+      // For each point/corner in the shape, apply the transformation:
+      // 1. Get its position relative to the original group
+      // 2. Scale the relative position
+      // 3. Add to the new group position
+
+      if (shapeType === 'arrow') {
+        const relFromX = originalData.fromX - groupBounds.x
+        const relFromY = originalData.fromY - groupBounds.y
+        const relToX = originalData.toX - groupBounds.x
+        const relToY = originalData.toY - groupBounds.y
+
+        let fromX = newGroupBounds.x + relFromX * scaleX
+        let fromY = newGroupBounds.y + relFromY * scaleY
+        let toX = newGroupBounds.x + relToX * scaleX
+        let toY = newGroupBounds.y + relToY * scaleY
+
+        // Handle flipped arrows (negative scale)
+        if (scaleX < 0) {
+          [fromX, toX] = [toX, fromX]
+        }
+        if (scaleY < 0) {
+          [fromY, toY] = [toY, fromY]
+        }
+
+        shapeData.fromX = fromX
+        shapeData.fromY = fromY
+        shapeData.toX = toX
+        shapeData.toY = toY
+      } else if (shapeType === 'text') {
+        // For text in a group, scale both position and font size
+        // text.y is the baseline (bottom), so we need to scale it relative to the group bounds
+        const relX = originalData.x - groupBounds.x
+        const relY = originalData.y - groupBounds.y
+
+        // Apply the same transformation as other shapes
+        shapeData.x = newGroupBounds.x + relX * scaleX
+        shapeData.y = newGroupBounds.y + relY * scaleY
+
+        if (originalData.fontSize) {
+          // Use vertical scale factor for font size (height-based)
+          const fontScale = Math.abs(scaleY)
+          shapeData.fontSize = Math.max(8, Math.round(originalData.fontSize * fontScale))
+        }
+      } else if (shapeType === 'stroke') {
+        shapeData.points = originalData.points.map(point => ({
+          x: newGroupBounds.x + (point.x - groupBounds.x) * scaleX,
+          y: newGroupBounds.y + (point.y - groupBounds.y) * scaleY
+        }))
+      } else {
+        // Rect, ellipse, etc.
+        const relX = originalData.x - groupBounds.x
+        const relY = originalData.y - groupBounds.y
+
+        let newX = newGroupBounds.x + relX * scaleX
+        let newY = newGroupBounds.y + relY * scaleY
+        let newWidth = originalData.width * scaleX
+        let newHeight = originalData.height * scaleY
+
+        // Normalize negative dimensions so they're always positive in storage
+        if (newWidth < 0) {
+          newX += newWidth
+          newWidth = -newWidth
+        }
+        if (newHeight < 0) {
+          newY += newHeight
+          newHeight = -newHeight
+        }
+
+        shapeData.x = newX
+        shapeData.y = newY
+        shapeData.width = newWidth
+        shapeData.height = newHeight
+      }
+
+      if (!updatedLayers.has(layer.id)) {
+        updatedLayers.set(layer.id, layer)
+      }
+    }
+
+    return updatedLayers
   }
 
   /**

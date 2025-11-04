@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Copy, Trash2, Pen, Download, Square, Circle, ArrowRight, Type, Eye, EyeOff, X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Home, MousePointer, Plus } from 'lucide-react'
+import { Copy, Trash2, Pen, Download, Square, Circle, ArrowRight, Type, Eye, EyeOff, X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Home, MousePointer, Plus, Hand } from 'lucide-react'
 import { CanvasManager } from './canvas/CanvasManager'
 import { LayerManager } from './layers/LayerManager'
 import { ToolHandler } from './tools/ToolHandler'
@@ -9,6 +9,7 @@ import { ShapeRendererFactory } from './renderers/ShapeRenderer'
 import { useCanvasRenderer } from './hooks/useCanvasRenderer'
 import { useCanvasEvents } from './hooks/useCanvasEvents'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { getStoredToolProperties, saveToolProperty } from './utils/storageUtils'
 import './App.css'
 
 // Constants
@@ -33,13 +34,17 @@ function Annotate() {
   const selectedShapeRef = useRef(null)
   const shapeRendererRef = useRef(null)
 
+  // Load stored properties
+  const storedProperties = getStoredToolProperties()
+
   // State
   const [layers, setLayers] = useState([])
   const [selectedLayerId, setSelectedLayerId] = useState(null)
-  const [tool, setTool] = useState('pen')
-  const [color, setColor] = useState('#000000')
-  const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE)
-  const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE)
+  const [tool, setTool] = useState(storedProperties.tool)
+  const [color, setColor] = useState(storedProperties.color)
+  const [brushSize, setBrushSize] = useState(storedProperties.brushSize)
+  const [fontSize, setFontSize] = useState(storedProperties.fontSize)
+  const [lineStyle, setLineStyle] = useState(storedProperties.lineStyle)
   const [zoom, setZoom] = useState(1)
   const [editingTextLayerId, setEditingTextLayerId] = useState(null)
   const [editingTextContent, setEditingTextContent] = useState('')
@@ -65,7 +70,8 @@ function Annotate() {
     const propertyValueMap = {
       color,
       size: brushSize,
-      fontSize
+      fontSize,
+      lineStyle
     }
 
     const toolProperties = Object.entries(toolConfig.properties || {}).map(([key, config]) => [
@@ -73,12 +79,16 @@ function Annotate() {
       propertyValueMap[key] ?? config.default
     ])
 
-    return {
+    const props = {
       color,
       brushSize,
       fontSize,
+      lineStyle,
+      size: brushSize,
       ...Object.fromEntries(toolProperties)
     }
+
+    return props
   }
 
   /**
@@ -98,6 +108,74 @@ function Annotate() {
     layer.color = newColor
     layerManagerRef.current.updateLayerWithHistory(layerId, { color: newColor })
     updateLayersState()
+  }
+
+  /**
+   * Get color from selected shape
+   */
+  const getSelectedShapeColor = () => {
+    if (!selectedShape) return null
+
+    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
+    const layer = layerManagerRef.current.getLayer(shape.layerId)
+    if (!layer) return null
+
+    const { shapeType, shapeIndex } = shape
+    const shapeArrayName = {
+      stroke: 'strokes',
+      arrow: 'arrows',
+      rect: 'rects',
+      ellipse: 'ellipses',
+      text: 'texts'
+    }[shapeType]
+
+    if (!shapeArrayName || !layer[shapeArrayName]) return null
+
+    const shapeData = layer[shapeArrayName][shapeIndex]
+    return shapeData?.color || '#000000'
+  }
+
+  /**
+   * Update color for selected shape(s)
+   */
+  const updateSelectedShapeColor = (newColor) => {
+    if (!selectedShape) return
+
+    const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
+    const updatedLayers = new Set()
+
+    for (const shape of shapes) {
+      const layer = layerManagerRef.current.getLayer(shape.layerId)
+      if (!layer) continue
+
+      const { shapeType, shapeIndex } = shape
+      const shapeArrayName = {
+        stroke: 'strokes',
+        arrow: 'arrows',
+        rect: 'rects',
+        ellipse: 'ellipses',
+        text: 'texts'
+      }[shapeType]
+
+      if (!shapeArrayName || !layer[shapeArrayName]) continue
+
+      const shapeData = layer[shapeArrayName][shapeIndex]
+      if (shapeData) {
+        shapeData.color = newColor
+        updatedLayers.add(layer.id)
+      }
+    }
+
+    // Update all affected layers with history
+    for (const layerId of updatedLayers) {
+      const layer = layerManagerRef.current.getLayer(layerId)
+      if (layer) {
+        layerManagerRef.current.updateLayerWithHistory(layerId, layer)
+      }
+    }
+
+    updateLayersState()
+    renderCanvas()
   }
 
   /**
@@ -170,6 +248,80 @@ function Annotate() {
     }
 
     // Update all affected layers and save to history
+    for (const layerId of updatedLayers) {
+      const layer = layerManagerRef.current.getLayer(layerId)
+      if (layer) {
+        layerManagerRef.current.updateLayerWithHistory(layerId, layer)
+      }
+    }
+
+    updateLayersState()
+    renderCanvas()
+  }
+
+  /**
+   * Get lineStyle from selected shape
+   */
+  const getSelectedShapeLineStyle = () => {
+    if (!selectedShape) return null
+
+    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
+    const layer = layerManagerRef.current.getLayer(shape.layerId)
+    if (!layer) return null
+
+    const { shapeType, shapeIndex } = shape
+
+    // Text shapes don't support lineStyle
+    if (shapeType === 'text') return null
+
+    const shapeArrayName = {
+      stroke: 'strokes',
+      arrow: 'arrows',
+      rect: 'rects',
+      ellipse: 'ellipses'
+    }[shapeType]
+
+    if (!shapeArrayName || !layer[shapeArrayName]) return null
+
+    const shapeData = layer[shapeArrayName][shapeIndex]
+    return shapeData?.lineStyle || 'solid'
+  }
+
+  /**
+   * Update lineStyle for selected shape(s)
+   */
+  const updateSelectedShapeLineStyle = (newLineStyle) => {
+    if (!selectedShape) return
+
+    const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
+    const updatedLayers = new Set()
+
+    for (const shape of shapes) {
+      const layer = layerManagerRef.current.getLayer(shape.layerId)
+      if (!layer) continue
+
+      const { shapeType, shapeIndex } = shape
+
+      // Text shapes don't support lineStyle
+      if (shapeType === 'text') continue
+
+      const shapeArrayName = {
+        stroke: 'strokes',
+        arrow: 'arrows',
+        rect: 'rects',
+        ellipse: 'ellipses'
+      }[shapeType]
+
+      if (!shapeArrayName || !layer[shapeArrayName]) continue
+
+      const shapeData = layer[shapeArrayName][shapeIndex]
+      if (shapeData) {
+        shapeData.lineStyle = newLineStyle
+        updatedLayers.add(layer.id)
+      }
+    }
+
+    // Update all affected layers with history
     for (const layerId of updatedLayers) {
       const layer = layerManagerRef.current.getLayer(layerId)
       if (layer) {
@@ -312,7 +464,7 @@ function Annotate() {
   }
 
   const addNewLayer = () => {
-    const newLayer = layerManagerRef.current.createLayer('Layer', color)
+    const newLayer = layerManagerRef.current.createLayer('Layer')
     updateLayersState()
     setSelectedLayerId(newLayer.id)
   }
@@ -460,7 +612,7 @@ function Annotate() {
       canvasManagerRef.current.setDimensions(rect.width, rect.height)
 
       // Create initial default layer
-      const defaultLayer = layerManagerRef.current.createLayer('Layer 1', '#000000')
+      const defaultLayer = layerManagerRef.current.createLayer('Layer 1')
       setSelectedLayerId(defaultLayer.id)
       updateLayersState()
 
@@ -500,6 +652,23 @@ function Annotate() {
     renderCanvas()
   }, [zoom])
 
+  // Save tool properties to localStorage
+  useEffect(() => {
+    saveToolProperty('tool', tool)
+  }, [tool])
+
+  useEffect(() => {
+    saveToolProperty('color', color)
+  }, [color])
+
+  useEffect(() => {
+    saveToolProperty('brushSize', brushSize)
+  }, [brushSize])
+
+  useEffect(() => {
+    saveToolProperty('fontSize', fontSize)
+  }, [fontSize])
+
   useEffect(() => {
     const handlePaste = (e) => {
       const items = e.clipboardData?.items || []
@@ -516,7 +685,7 @@ function Annotate() {
               const tempCtx = tempCanvas.getContext('2d')
               tempCtx.drawImage(img, 0, 0)
 
-              const imageLayer = layerManagerRef.current.createLayer('Image', '#808080', {
+              const imageLayer = layerManagerRef.current.createLayer('Image', {
                 image: {
                   data: tempCanvas.toDataURL(),
                   x: 0,
@@ -558,6 +727,7 @@ function Annotate() {
     circle: <Circle size={20} />,
     type: <Type size={20} />,
     pointer: <MousePointer size={20} />,
+    hand: <Hand size={20} />,
   }
 
   // Determine status bar message based on current state
@@ -594,15 +764,19 @@ function Annotate() {
           </div>
 
           {/* Color Picker */}
-          {tool !== 'select' && (
+          {(tool !== 'select' || selectedShape) && (
             <div className="tool-group">
               <label>Color:</label>
               <input
                 type="color"
-                value={selectedLayer ? getLayerColor(selectedLayer) : color}
+                value={
+                  selectedShape
+                    ? getSelectedShapeColor() || color
+                    : color
+                }
                 onChange={(e) => {
-                  if (selectedLayerId) {
-                    updateLayerColor(selectedLayerId, e.target.value)
+                  if (selectedShape) {
+                    updateSelectedShapeColor(e.target.value)
                   } else {
                     setColor(e.target.value)
                   }
@@ -646,6 +820,30 @@ function Annotate() {
                   : (showFontSize ? fontSize : brushSize)
                 }px
               </span>
+            </div>
+          )}
+
+          {/* Line Style Control */}
+          {(tool !== 'select' || (selectedShape && getSelectedShapeLineStyle() !== null)) && (
+            <div className="tool-group">
+              <label>Line Style:</label>
+              <select
+                value={selectedShape ? (getSelectedShapeLineStyle() || 'solid') : lineStyle}
+                onChange={(e) => {
+                  if (selectedShape) {
+                    updateSelectedShapeLineStyle(e.target.value)
+                  } else {
+                    setLineStyle(e.target.value)
+                    saveToolProperty('lineStyle', e.target.value)
+                  }
+                }}
+                className="line-style-select"
+              >
+                <option value="solid">Solid</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+                <option value="dashdot">Dash-Dot</option>
+              </select>
             </div>
           )}
 
@@ -764,7 +962,6 @@ function Annotate() {
                         </div>
                       ) : (
                         <div className="layer-content">
-                          <div className="layer-color-swatch" style={{ backgroundColor: getLayerColor(layer) }} />
                           <button
                             className="layer-visibility"
                             onClick={(e) => {

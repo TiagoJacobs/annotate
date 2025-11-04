@@ -397,6 +397,29 @@ body {
   font-size: 0.9rem;
 }
 
+.line-style-select {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background-color: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+  min-width: 120px;
+  transition: all 0.2s ease;
+}
+
+.line-style-select:hover {
+  border-color: #667eea;
+  box-shadow: 0 1px 3px rgba(102, 126, 234, 0.1);
+}
+
+.line-style-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
 .zoom-display {
   font-weight: 500;
   color: #333;

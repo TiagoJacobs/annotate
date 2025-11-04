@@ -267,7 +267,13 @@ export class ToolHandler {
         if (handle) {
           this.resizeHandle = handle
           this.resizeStartPos = pos
+
+          // Store bounds for resize reference
+          // For group resize, we need the group bounds itself
           this.resizeStartBounds = { ...bounds }
+          // Also store the multi-shape group bounds if resizing multiple shapes
+          this.resizeGroupStartBounds = this.selectedShapes ? { ...bounds } : null
+
           this.isResizing = true
           return this.selectedShape || this.selectedShapes
         }
@@ -375,28 +381,88 @@ export class ToolHandler {
   /**
    * Resize shape (delegated to ShapeOperations)
    */
-  resizeShape(pos) {
-    if (!this.selectedShape || !this.resizeHandle) return
+  resizeShape(pos, isShiftHeld = false) {
+    if ((!this.selectedShape && !this.selectedShapes) || !this.resizeHandle) return
 
-    const layer = this.layerManager.getLayer(this.selectedShape.layerId)
-    if (!layer) return
+    // Handle multi-shape group resize
+    if (this.selectedShapes) {
+      // Use the stored group bounds from when resize started
+      const originalGroupBounds = this.resizeGroupStartBounds || this.resizeStartBounds
+      if (!originalGroupBounds) return
 
-    const { shapeType, shapeIndex } = this.selectedShape
-    const dx = pos.x - this.resizeStartPos.x
-    const dy = pos.y - this.resizeStartPos.y
+      // Calculate new group bounds based on resize handle and current mouse position
+      const dx = pos.x - this.resizeStartPos.x
+      const dy = pos.y - this.resizeStartPos.y
 
-    ShapeOperations.resizeShape(
-      layer,
-      shapeType,
-      shapeIndex,
-      this.resizeHandle,
-      this.resizeStartBounds,
-      dx,
-      dy
-    )
+      console.log(`\n=== GROUP RESIZE ===`)
+      console.log(`Handle: ${this.resizeHandle}, ResizeStart: ${JSON.stringify(this.resizeStartPos)}, CurrentPos: ${JSON.stringify(pos)}`)
+      console.log(`Delta: dx=${dx}, dy=${dy}`)
+      console.log(`OriginalGroupBounds: ${JSON.stringify(originalGroupBounds)}`)
 
-    // Don't save history during resize, only update the layer
-    this.layerManager.updateLayer(layer.id, layer)
+      const { newX, newY, newWidth, newHeight } = ShapeOperations.calculateNewBounds(
+        this.resizeHandle,
+        originalGroupBounds,
+        dx,
+        dy,
+        isShiftHeld
+      )
+
+      const newGroupBounds = { x: newX, y: newY, width: newWidth, height: newHeight }
+      console.log(`CalculatedNewGroupBounds: ${JSON.stringify(newGroupBounds)}`)
+
+      // Resize all shapes as a group
+      const updatedLayers = ShapeOperations.resizeShapeGroup(
+        this.selectedShapes,
+        this.layerManager,
+        originalGroupBounds,
+        newGroupBounds,
+        this.resizeHandle,
+        isShiftHeld
+      )
+
+      // After transformation, recalculate actual group bounds
+      const actualGroupBounds = ShapeOperations.getMultiShapeBounds(this.selectedShapes, this.layerManager)
+      console.log(`ActualGroupBounds after resize: ${JSON.stringify(actualGroupBounds)}`)
+      console.log(`Bounds Match: ${JSON.stringify(newGroupBounds) === JSON.stringify(actualGroupBounds) ? 'YES' : 'NO'}`)
+
+      // Log individual shapes
+      console.log(`Individual shapes after resize:`)
+      for (const shape of this.selectedShapes) {
+        const layer = this.layerManager.getLayer(shape.layerId)
+        if (layer) {
+          const bounds = ShapeOperations.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+          console.log(`  ${shape.shapeType}[${shape.shapeIndex}]: ${JSON.stringify(bounds)}`)
+        }
+      }
+      console.log(`=== END RESIZE ===\n`)
+
+      // Update all affected layers
+      if (updatedLayers) {
+        for (const [layerId, layer] of updatedLayers) {
+          this.layerManager.updateLayer(layerId, layer)
+        }
+      }
+    } else if (this.selectedShape) {
+      // Single shape resize
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      if (!layer) return
+
+      const { shapeType, shapeIndex } = this.selectedShape
+
+      ShapeOperations.resizeShape(
+        layer,
+        shapeType,
+        shapeIndex,
+        this.resizeHandle,
+        this.resizeStartBounds,
+        pos.x - this.resizeStartPos.x,
+        pos.y - this.resizeStartPos.y,
+        isShiftHeld
+      )
+
+      // Don't save history during resize, only update the layer
+      this.layerManager.updateLayer(layer.id, layer)
+    }
   }
 
   /**
@@ -409,12 +475,12 @@ export class ToolHandler {
   /**
    * Drag object
    */
-  dragObject(pos) {
+  dragObject(pos, isShiftHeld = false) {
     if (!this.selectedShape && !this.selectedShapes) return
 
     // If resizing, call resize instead
     if (this.isResizing) {
-      this.resizeShape(pos)
+      this.resizeShape(pos, isShiftHeld)
       return
     }
 
