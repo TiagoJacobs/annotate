@@ -96,8 +96,89 @@ function Annotate() {
     if (!layer) return
 
     layer.color = newColor
-    layerManagerRef.current.updateLayer(layerId, { color: newColor })
+    layerManagerRef.current.updateLayerWithHistory(layerId, { color: newColor })
     updateLayersState()
+  }
+
+  /**
+   * Get size/fontSize from selected shape(s)
+   */
+  const getSelectedShapeSize = () => {
+    if (!selectedShape) return null
+
+    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
+    const layer = layerManagerRef.current.getLayer(shape.layerId)
+    if (!layer) return null
+
+    const { shapeType, shapeIndex } = shape
+    const shapeArrayName = {
+      stroke: 'strokes',
+      arrow: 'arrows',
+      rect: 'rects',
+      ellipse: 'ellipses',
+      text: 'texts'
+    }[shapeType]
+
+    if (!shapeArrayName || !layer[shapeArrayName]) return null
+
+    const shapeData = layer[shapeArrayName][shapeIndex]
+    if (!shapeData) return null
+
+    // Return size or fontSize depending on shape type
+    if (shapeType === 'text') {
+      return { type: 'fontSize', value: shapeData.fontSize || 20 }
+    } else {
+      return { type: 'size', value: shapeData.size || 3 }
+    }
+  }
+
+  /**
+   * Update size/fontSize for selected shape(s)
+   */
+  const updateSelectedShapeSize = (newSize) => {
+    if (!selectedShape) return
+
+    const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
+    const updatedLayers = new Set()
+
+    for (const shape of shapes) {
+      const layer = layerManagerRef.current.getLayer(shape.layerId)
+      if (!layer) continue
+
+      const { shapeType, shapeIndex } = shape
+      const shapeArrayName = {
+        stroke: 'strokes',
+        arrow: 'arrows',
+        rect: 'rects',
+        ellipse: 'ellipses',
+        text: 'texts'
+      }[shapeType]
+
+      if (!shapeArrayName || !layer[shapeArrayName]) continue
+
+      const shapeData = layer[shapeArrayName][shapeIndex]
+      if (!shapeData) continue
+
+      // Update size or fontSize depending on shape type
+      if (shapeType === 'text') {
+        shapeData.fontSize = newSize
+      } else {
+        shapeData.size = newSize
+      }
+
+      updatedLayers.add(layer.id)
+    }
+
+    // Update all affected layers and save to history
+    for (const layerId of updatedLayers) {
+      const layer = layerManagerRef.current.getLayer(layerId)
+      if (layer) {
+        layerManagerRef.current.updateLayerWithHistory(layerId, layer)
+      }
+    }
+
+    updateLayersState()
+    renderCanvas()
   }
 
   /**
@@ -115,15 +196,9 @@ function Annotate() {
    * Select a layer
    */
   const selectLayer = (layerId) => {
-    if (selectedLayerId === layerId) {
-      // Toggle off
-      layerManagerRef.current.selectLayer(null)
-      setSelectedLayerId(null)
-    } else {
-      // Select layer
-      layerManagerRef.current.selectLayer(layerId)
-      setSelectedLayerId(layerId)
-    }
+    // Select layer (no toggle behavior)
+    layerManagerRef.current.selectLayer(layerId)
+    setSelectedLayerId(layerId)
   }
 
   // ==================== Text Editing ====================
@@ -140,7 +215,7 @@ function Annotate() {
       const layer = layerManagerRef.current.getLayer(editingTextLayerId)
       if (layer?.texts) {
         layer.texts[0].content = editingTextContent
-        layerManagerRef.current.updateLayer(editingTextLayerId, { texts: layer.texts })
+        layerManagerRef.current.updateLayerWithHistory(editingTextLayerId, { texts: layer.texts })
         updateLayersState()
       }
     }
@@ -174,7 +249,7 @@ function Annotate() {
     }
 
     layer.texts[inlineEditingText.textIndex].content = inlineEditingText.content
-    layerManagerRef.current.updateLayer(inlineEditingText.layerId, { texts: layer.texts })
+    layerManagerRef.current.updateLayerWithHistory(inlineEditingText.layerId, { texts: layer.texts })
     updateLayersState()
     setInlineEditingText(null)
   }
@@ -261,6 +336,12 @@ function Annotate() {
   }
 
   const removeShapeFromLayer = (layer, shapeType, shapeIndex) => {
+    if (shapeType === 'image') {
+      // Images are not in an array, just delete the property
+      delete layer.image
+      return
+    }
+
     const arrayName = SHAPE_ARRAY_MAP[shapeType]
     if (arrayName && layer[arrayName]) {
       layer[arrayName].splice(shapeIndex, 1)
@@ -288,11 +369,11 @@ function Annotate() {
         updatedLayers.add(layer.id)
       }
 
-      // Update all affected layers
+      // Update all affected layers and save to history
       for (const layerId of updatedLayers) {
         const layer = layerManagerRef.current.getLayer(layerId)
         if (layer) {
-          layerManagerRef.current.updateLayer(layerId, layer)
+          layerManagerRef.current.updateLayerWithHistory(layerId, layer)
         }
       }
     } else {
@@ -300,7 +381,7 @@ function Annotate() {
       const layer = layerManagerRef.current.getLayer(selectedShape.layerId)
       if (layer) {
         removeShapeFromLayer(layer, selectedShape.shapeType, selectedShape.shapeIndex)
-        layerManagerRef.current.updateLayer(layer.id, layer)
+        layerManagerRef.current.updateLayerWithHistory(layer.id, layer)
       }
     }
 
@@ -333,6 +414,7 @@ function Annotate() {
     tool,
     canvasManagerRef,
     toolHandlerRef,
+    layerManagerRef,
     getToolProperties,
     selectedShapeRef,
     setSelectedShape,
@@ -345,8 +427,11 @@ function Annotate() {
   useKeyboardShortcuts({
     layerManagerRef,
     selectedShape,
+    setSelectedShape,
+    selectedShapeRef,
     deleteSelectedShape,
     updateLayersState,
+    renderCanvas,
     zoomIn,
     zoomOut
   })
@@ -369,6 +454,11 @@ function Annotate() {
       const container = canvasRef.current.parentElement
       const rect = container.getBoundingClientRect()
       canvasManagerRef.current.setDimensions(rect.width, rect.height)
+
+      // Create initial default layer
+      const defaultLayer = layerManagerRef.current.createLayer('Layer 1', '#000000')
+      setSelectedLayerId(defaultLayer.id)
+      updateLayersState()
 
       // Handle window resize
       const handleResize = () => {
@@ -422,9 +512,21 @@ function Annotate() {
               const tempCtx = tempCanvas.getContext('2d')
               tempCtx.drawImage(img, 0, 0)
 
-              layerManagerRef.current.createLayer('Image', '#808080', {
-                image: tempCanvas.toDataURL(),
+              const imageLayer = layerManagerRef.current.createLayer('Image', '#808080', {
+                image: {
+                  data: tempCanvas.toDataURL(),
+                  x: 0,
+                  y: 0,
+                  width: img.width,
+                  height: img.height
+                },
               })
+
+              // Select the new image layer
+              setSelectedLayerId(imageLayer.id)
+
+              // Switch to selection tool
+              setTool('select')
 
               updateLayersState()
             }
@@ -507,24 +609,39 @@ function Annotate() {
           )}
 
           {/* Size Control */}
-          {tool !== 'select' && (
+          {(tool !== 'select' || selectedShape) && (
             <div className="tool-group">
-              <label>{showFontSize ? 'Font Size:' : 'Line Weight:'}</label>
+              <label>
+                {selectedShape
+                  ? (getSelectedShapeSize()?.type === 'fontSize' ? 'Font Size:' : 'Line Weight:')
+                  : (showFontSize ? 'Font Size:' : 'Line Weight:')
+                }
+              </label>
               <input
                 type="range"
-                min={showFontSize ? '10' : '1'}
-                max={showFontSize ? '100' : '50'}
-                value={showFontSize ? fontSize : brushSize}
+                min={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '10' : '1') : (showFontSize ? '10' : '1')}
+                max={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '100' : '50') : (showFontSize ? '100' : '50')}
+                value={selectedShape ? (getSelectedShapeSize()?.value || 3) : (showFontSize ? fontSize : brushSize)}
                 onChange={(e) => {
-                  if (showFontSize) {
-                    setFontSize(parseInt(e.target.value))
+                  const newValue = parseInt(e.target.value)
+                  if (selectedShape) {
+                    updateSelectedShapeSize(newValue)
                   } else {
-                    setBrushSize(parseInt(e.target.value))
+                    if (showFontSize) {
+                      setFontSize(newValue)
+                    } else {
+                      setBrushSize(newValue)
+                    }
                   }
                 }}
                 className="size-slider"
               />
-              <span className="size-display">{showFontSize ? fontSize : brushSize}px</span>
+              <span className="size-display">
+                {selectedShape
+                  ? (getSelectedShapeSize()?.value || 3)
+                  : (showFontSize ? fontSize : brushSize)
+                }px
+              </span>
             </div>
           )}
 
@@ -613,16 +730,6 @@ function Annotate() {
                 <div className="no-layers">No layers yet</div>
               ) : (
                 <>
-                  {!selectedLayerId && (
-                    <div className="layer-item layer-placeholder">
-                      <div className="layer-content">
-                        <div className="layer-color-swatch" style={{ backgroundColor: color }} />
-                        <div className="layer-info">
-                          <span className="layer-name" style={{ opacity: 0.6 }}>New layer (will be created)</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   {[...layers].reverse().map((layer, displayIndex) => {
                     const actualIndex = layers.length - 1 - displayIndex
                     const previewText = getLayerPreviewText(layer)

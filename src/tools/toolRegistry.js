@@ -115,6 +115,19 @@ export const toolRegistry = {
       onMouseUp: 'releaseObject',
     },
   },
+
+  pan: {
+    id: 'pan',
+    name: 'Pan',
+    icon: 'hand',
+    cursor: 'grab',
+    properties: {},
+    handlers: {
+      onMouseDown: 'startPan',
+      onMouseMove: 'continuePan',
+      onMouseUp: 'finishPan',
+    },
+  },
 }
 
 export const getToolConfig = (toolId) => {

@@ -31,14 +31,12 @@ export class ToolHandler {
    * Start freehand stroke (pen, hand) - Using Strategy Pattern
    */
   startFreehandStroke(pos, toolConfig, properties) {
+    // Require a selected layer - don't auto-create
+    let layer = this.layerManager.getSelectedLayer()
+    if (!layer) return
+
     this.isDrawing = true
     this.startPos = pos
-
-    // Get selected layer or create new one
-    let layer = this.layerManager.getSelectedLayer()
-    if (!layer) {
-      layer = this.layerManager.createLayer(null, properties.color)
-    }
     this.currentLayer = layer
 
     // Use strategy to start stroke
@@ -54,6 +52,7 @@ export class ToolHandler {
     if (!this.isDrawing || !this.currentStroke || !this.currentStrategy) return
 
     this.currentStrategy.continue(this.currentStroke, pos)
+    // Don't save history during drawing, only update the layer
     this.layerManager.updateLayer(this.currentLayer.id, { strokes: this.currentLayer.strokes })
   }
 
@@ -64,6 +63,8 @@ export class ToolHandler {
     if (this.currentStrategy) {
       this.currentStrategy.finish(this.currentLayer)
     }
+    // Save to history when stroke is complete
+    this.layerManager.updateLayerWithHistory(this.currentLayer.id, this.currentLayer)
     this.isDrawing = false
     this.currentStroke = null
     this.currentStrategy = null
@@ -73,14 +74,12 @@ export class ToolHandler {
    * Start shape (arrow, rect, ellipse) - Using Strategy Pattern
    */
   startShape(pos, toolConfig, properties) {
+    // Require a selected layer - don't auto-create
+    let layer = this.layerManager.getSelectedLayer()
+    if (!layer) return
+
     this.isDrawing = true
     this.startPos = pos
-
-    // Get selected layer or create new one
-    let layer = this.layerManager.getSelectedLayer()
-    if (!layer) {
-      layer = this.layerManager.createLayer(null, properties.color)
-    }
     this.currentLayer = layer
     this.currentShapeType = toolConfig.id
 
@@ -95,6 +94,7 @@ export class ToolHandler {
     if (!this.isDrawing || !this.currentLayer || !this.currentStrategy) return
 
     this.currentStrategy.preview(this.currentLayer, this.startPos, pos, properties)
+    // Don't save history during preview, only update the layer
     this.layerManager.updateLayer(this.currentLayer.id, this.currentLayer)
   }
 
@@ -113,7 +113,8 @@ export class ToolHandler {
       this.currentStrategy.finish(this.currentLayer)
     }
 
-    this.layerManager.updateLayer(this.currentLayer.id, this.currentLayer)
+    // Save to history when shape is complete
+    this.layerManager.updateLayerWithHistory(this.currentLayer.id, this.currentLayer)
     this.isDrawing = false
     this.currentShapeType = null
     this.currentStrategy = null
@@ -125,17 +126,16 @@ export class ToolHandler {
   placeText(pos, toolConfig, properties, textContent) {
     if (!textContent) return
 
-    // Get selected layer or create new one
+    // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
-    if (!layer) {
-      layer = this.layerManager.createLayer(null, properties.color)
-    }
+    if (!layer) return
 
     // Use strategy to place text
     const strategy = ShapeStrategyFactory.getStrategy('text')
     strategy.place(layer, pos, properties, textContent)
 
-    this.layerManager.updateLayer(layer.id, { texts: layer.texts })
+    // Save to history when text is placed
+    this.layerManager.updateLayerWithHistory(layer.id, { texts: layer.texts })
   }
 
   /**
@@ -250,9 +250,9 @@ export class ToolHandler {
   }
 
   /**
-   * Select object
+   * Select object with optional shift-click multi-selection
    */
-  selectObject(pos) {
+  selectObject(pos, isShiftHeld = false) {
     // First check if clicking on a resize handle
     if (this.selectedShape || this.selectedShapes) {
       const bounds = this.selectedShapes
@@ -274,8 +274,8 @@ export class ToolHandler {
       }
     }
 
-    // Check if clicking on existing selection
-    if (this.selectedShapes) {
+    // Check if clicking on existing selection (only if not shift-clicking)
+    if (this.selectedShapes && !isShiftHeld) {
       const bounds = this.getMultiShapeBounds(this.selectedShapes)
       if (bounds && ShapeOperations.isPointInRect(pos.x, pos.y, bounds)) {
         // Clicking inside multi-selection, start dragging
@@ -286,14 +286,90 @@ export class ToolHandler {
       }
     }
 
-    // Single shape selection
-    const shape = this.findShapeAtPosition(pos)
-    this.selectedShape = shape
+    // Find shape at position
+    const clickedShape = this.findShapeAtPosition(pos)
+
+    // Handle shift-click multi-selection
+    if (isShiftHeld && clickedShape) {
+      return this.toggleShapeInSelection(clickedShape)
+    }
+
+    // Normal single selection (no shift)
+    this.selectedShape = clickedShape
     this.selectedShapes = null
     this.isDragging = false
     this.isResizing = false
     this.resizeHandle = null
-    return shape
+    return clickedShape
+  }
+
+  /**
+   * Toggle a shape in/out of multi-selection (for shift-click)
+   */
+  toggleShapeInSelection(clickedShape) {
+    // Helper to compare shapes
+    const isSameShape = (s1, s2) => {
+      return s1.layerId === s2.layerId &&
+             s1.shapeType === s2.shapeType &&
+             s1.shapeIndex === s2.shapeIndex
+    }
+
+    // No current selection, select the clicked shape
+    if (!this.selectedShape && !this.selectedShapes) {
+      this.selectedShape = clickedShape
+      this.selectedShapes = null
+      return clickedShape
+    }
+
+    // Single shape selected
+    if (this.selectedShape && !this.selectedShapes) {
+      // If clicking the same shape, deselect it
+      if (isSameShape(this.selectedShape, clickedShape)) {
+        this.selectedShape = null
+        this.selectedShapes = null
+        return null
+      }
+
+      // Convert to multi-selection with both shapes
+      this.selectedShapes = [this.selectedShape, clickedShape]
+      this.selectedShape = null
+      return this.selectedShapes
+    }
+
+    // Multi-selection already exists
+    if (this.selectedShapes) {
+      // Check if clicked shape is already in selection
+      const existingIndex = this.selectedShapes.findIndex(s => isSameShape(s, clickedShape))
+
+      if (existingIndex !== -1) {
+        // Remove from selection (toggle off)
+        const newSelection = [...this.selectedShapes]
+        newSelection.splice(existingIndex, 1)
+
+        // If only one shape left, convert back to single selection
+        if (newSelection.length === 1) {
+          this.selectedShape = newSelection[0]
+          this.selectedShapes = null
+          return this.selectedShape
+        }
+
+        // If no shapes left, clear selection
+        if (newSelection.length === 0) {
+          this.selectedShape = null
+          this.selectedShapes = null
+          return null
+        }
+
+        this.selectedShapes = newSelection
+        return this.selectedShapes
+      } else {
+        // Add to selection
+        this.selectedShapes = [...this.selectedShapes, clickedShape]
+        return this.selectedShapes
+      }
+    }
+
+    return null
   }
 
   /**
@@ -319,6 +395,7 @@ export class ToolHandler {
       dy
     )
 
+    // Don't save history during resize, only update the layer
     this.layerManager.updateLayer(layer.id, layer)
   }
 
@@ -362,7 +439,7 @@ export class ToolHandler {
         updatedLayers.add(layer.id)
       }
 
-      // Update all affected layers
+      // Update all affected layers (without saving to history during drag)
       for (const layerId of updatedLayers) {
         const layer = this.layerManager.getLayer(layerId)
         if (layer) {
@@ -385,6 +462,27 @@ export class ToolHandler {
    * Release object
    */
   releaseObject() {
+    // Save to history when drag/resize is complete
+    if (this.isDragging || this.isResizing) {
+      if (this.selectedShapes) {
+        const updatedLayers = new Set()
+        for (const shape of this.selectedShapes) {
+          updatedLayers.add(shape.layerId)
+        }
+        for (const layerId of updatedLayers) {
+          const layer = this.layerManager.getLayer(layerId)
+          if (layer) {
+            this.layerManager.updateLayerWithHistory(layerId, layer)
+          }
+        }
+      } else if (this.selectedShape) {
+        const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+        if (layer) {
+          this.layerManager.updateLayerWithHistory(this.selectedShape.layerId, layer)
+        }
+      }
+    }
+
     this.isDragging = false
     this.isResizing = false
     this.dragStartPos = null
@@ -426,5 +524,42 @@ export class ToolHandler {
     this.isMarqueeSelecting = false
     this.marqueeStart = null
     this.marqueeCurrent = null
+  }
+
+  /**
+   * Start panning
+   */
+  startPan(pos) {
+    this.isPanning = true
+    this.panStartPos = { ...pos }
+  }
+
+  /**
+   * Continue panning
+   */
+  continuePan(pos, screenX, screenY) {
+    if (!this.isPanning || !this.panStartPos) return
+
+    const dx = screenX - this.panLastScreenX
+    const dy = screenY - this.panLastScreenY
+
+    this.canvasManager.pan(dx, dy)
+  }
+
+  /**
+   * Finish panning
+   */
+  finishPan() {
+    this.isPanning = false
+    this.panStartPos = null
+    this.panLastScreenX = null
+    this.panLastScreenY = null
+  }
+
+  /**
+   * Check if currently panning
+   */
+  isPanningActive() {
+    return this.isPanning
   }
 }

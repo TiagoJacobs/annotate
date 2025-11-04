@@ -51,9 +51,19 @@ export class LayerManager {
   }
 
   /**
-   * Update layer
+   * Update layer without saving to history (for intermediate drawing steps)
    */
   updateLayer(id, updates) {
+    const layer = this.getLayer(id)
+    if (layer) {
+      Object.assign(layer, updates)
+    }
+  }
+
+  /**
+   * Update layer and save to history (for completed actions)
+   */
+  updateLayerWithHistory(id, updates) {
     const layer = this.getLayer(id)
     if (layer) {
       Object.assign(layer, updates)

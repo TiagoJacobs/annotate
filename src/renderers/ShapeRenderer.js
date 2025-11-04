@@ -130,20 +130,31 @@ class ImageRenderer extends BaseShapeRenderer {
   render(ctx, imageData) {
     if (!imageData) return
 
-    let img = this.imageCache.get(imageData)
+    // Handle both old format (string) and new format (object with position)
+    const data = typeof imageData === 'string' ? imageData : imageData.data
+    const x = typeof imageData === 'object' ? (imageData.x || 0) : 0
+    const y = typeof imageData === 'object' ? (imageData.y || 0) : 0
+    const width = typeof imageData === 'object' ? imageData.width : undefined
+    const height = typeof imageData === 'object' ? imageData.height : undefined
+
+    let img = this.imageCache.get(data)
 
     if (!img) {
       // Create and cache the image
       img = new Image()
       img.onload = () => {
-        this.imageCache.set(imageData, img)
+        this.imageCache.set(data, img)
         if (this.onImageLoaded) {
           this.onImageLoaded()
         }
       }
-      img.src = imageData
+      img.src = data
     } else if (img.complete) {
-      ctx.drawImage(img, 0, 0)
+      if (width && height) {
+        ctx.drawImage(img, x, y, width, height)
+      } else {
+        ctx.drawImage(img, x, y)
+      }
     }
   }
 

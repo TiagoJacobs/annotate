@@ -10,6 +10,7 @@ export const useCanvasEvents = ({
   tool,
   canvasManagerRef,
   toolHandlerRef,
+  layerManagerRef,
   getToolProperties,
   selectedShapeRef,
   setSelectedShape,
@@ -25,7 +26,7 @@ export const useCanvasEvents = ({
   }, [canvasManagerRef])
 
   /**
-   * Handle canvas click
+   * Handle canvas click for text tool - start inline editing
    */
   const handleCanvasClick = useCallback((e) => {
     if (tool !== 'text') return
@@ -33,12 +34,38 @@ export const useCanvasEvents = ({
     const coords = getCanvasCoordinates(e)
     if (!coords) return
 
-    const textContent = prompt('Enter text:')
-    if (!textContent) return
+    const properties = getToolProperties()
 
-    toolHandlerRef.current?.placeText(coords, getToolConfig(tool), getToolProperties(), textContent)
+    // Place an empty text shape
+    toolHandlerRef.current?.placeText(coords, getToolConfig(tool), properties, ' ')
+
+    // Get the layer that was just updated
+    const layer = layerManagerRef.current?.getSelectedLayer() ||
+                  layerManagerRef.current?.getAllLayers().slice(-1)[0]
+
+    if (!layer || !layer.texts || layer.texts.length === 0) return
+
+    // Get the text we just added (last one)
+    const textIndex = layer.texts.length - 1
+    const text = layer.texts[textIndex]
+
+    // Convert canvas coordinates to screen coordinates
+    const screenPos = canvasManagerRef.current?.canvasToScreen(coords.x, coords.y)
+    if (!screenPos) return
+
+    // Trigger inline editing for the new text
+    setInlineEditingText({
+      layerId: layer.id,
+      textIndex: textIndex,
+      x: screenPos.screenX,
+      y: screenPos.screenY - properties.fontSize, // Adjust for text baseline
+      content: ' ',
+      fontSize: properties.fontSize
+    })
+
     updateLayersState()
-  }, [tool, getCanvasCoordinates, toolHandlerRef, getToolProperties, updateLayersState])
+    renderCanvas()
+  }, [tool, getCanvasCoordinates, toolHandlerRef, layerManagerRef, canvasManagerRef, getToolProperties, setInlineEditingText, updateLayersState, renderCanvas])
 
   /**
    * Handle canvas double click
@@ -84,11 +111,16 @@ export const useCanvasEvents = ({
       toolHandlerRef.current?.startFreehandStroke(coords, toolConfig, properties)
     } else if (handler === 'startShape') {
       toolHandlerRef.current?.startShape(coords, toolConfig, properties)
+    } else if (handler === 'startPan') {
+      toolHandlerRef.current?.startPan(coords)
+      toolHandlerRef.current.panLastScreenX = e.clientX
+      toolHandlerRef.current.panLastScreenY = e.clientY
     } else if (handler === 'selectObject') {
-      const shape = toolHandlerRef.current?.selectObject(coords)
+      const isShiftHeld = e.shiftKey
+      const shape = toolHandlerRef.current?.selectObject(coords, isShiftHeld)
 
-      // If no shape clicked, start marquee selection
-      if (!shape) {
+      // If no shape clicked and not shift-clicking, start marquee selection
+      if (!shape && !isShiftHeld) {
         toolHandlerRef.current?.startMarqueeSelection(coords)
       }
 
@@ -119,6 +151,11 @@ export const useCanvasEvents = ({
     } else if (handler === 'previewShape') {
       toolHandlerRef.current?.previewShape(coords, toolConfig, properties)
       updateLayersState()
+    } else if (handler === 'continuePan') {
+      toolHandlerRef.current?.continuePan(coords, e.clientX, e.clientY)
+      toolHandlerRef.current.panLastScreenX = e.clientX
+      toolHandlerRef.current.panLastScreenY = e.clientY
+      renderCanvas()
     } else if (handler === 'dragObject') {
       // Check if we're doing marquee selection
       if (toolHandlerRef.current?.isMarqueeSelecting) {
@@ -145,6 +182,9 @@ export const useCanvasEvents = ({
       toolHandlerRef.current?.finishFreehandStroke()
     } else if (handler === 'finishShape') {
       toolHandlerRef.current?.finishShape()
+    } else if (handler === 'finishPan') {
+      toolHandlerRef.current?.finishPan()
+      return // Don't update layers for pan
     } else if (handler === 'releaseObject') {
       // Check if we're finishing marquee selection
       if (toolHandlerRef.current?.isMarqueeSelecting) {

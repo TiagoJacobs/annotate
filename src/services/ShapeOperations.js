@@ -109,6 +109,22 @@ export class ShapeOperations {
         const textWidth = text.content.length * text.fontSize * TEXT_WIDTH_FACTOR
         const textHeight = text.fontSize
         return { x: text.x, y: text.y - textHeight, width: textWidth, height: textHeight }
+      },
+      image: () => {
+        // Get actual image dimensions from layer.image
+        if (layer.image) {
+          if (typeof layer.image === 'object') {
+            return {
+              x: layer.image.x || 0,
+              y: layer.image.y || 0,
+              width: layer.image.width || 800,
+              height: layer.image.height || 600
+            }
+          }
+          // Old format fallback (string)
+          return { x: 0, y: 0, width: 800, height: 600 }
+        }
+        return { x: 0, y: 0, width: 0, height: 0 }
       }
     }
 
@@ -181,6 +197,16 @@ export class ShapeOperations {
       text: () => {
         layer.texts[shapeIndex].x += dx
         layer.texts[shapeIndex].y += dy
+      },
+      image: () => {
+        // Images are stored as layer.image (not in an array)
+        if (layer.image) {
+          // Handle both old format (string) and new format (object)
+          if (typeof layer.image === 'object') {
+            layer.image.x = (layer.image.x || 0) + dx
+            layer.image.y = (layer.image.y || 0) + dy
+          }
+        }
       }
     }
 
@@ -239,6 +265,15 @@ export class ShapeOperations {
 
         if (handle.includes('n')) arrow.fromY = newY
         else if (handle.includes('s')) arrow.toY = newY + newHeight
+      },
+      image: () => {
+        // Images are stored as layer.image (not in an array)
+        if (layer.image && typeof layer.image === 'object') {
+          layer.image.x = newX
+          layer.image.y = newY
+          layer.image.width = newWidth
+          layer.image.height = newHeight
+        }
       }
     }
 
@@ -256,6 +291,18 @@ export class ShapeOperations {
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i]
       if (!layer.visible) continue
+
+      // Check image first
+      if (layer.image) {
+        const imageBounds = this.getShapeBounds(layer, 'image', 0)
+        if (this.boundsIntersect(imageBounds, rect)) {
+          selectedShapes.push({
+            layerId: layer.id,
+            shapeType: 'image',
+            shapeIndex: 0
+          })
+        }
+      }
 
       const shapeArrays = [
         { type: 'stroke', array: layer.strokes },
@@ -284,11 +331,11 @@ export class ShapeOperations {
 
   static checkLayerShapes(pos, layer) {
     const shapeChecks = [
-      { type: 'stroke', array: layer.strokes, test: (shape) => this.isPointOnStroke(pos.x, pos.y, shape) },
-      { type: 'arrow', array: layer.arrows, test: (arrow) => this.isPointNearLine(pos.x, pos.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY) },
-      { type: 'rect', array: layer.rects, test: (shape) => this.isPointInRect(pos.x, pos.y, shape) },
-      { type: 'ellipse', array: layer.ellipses, test: (shape) => this.isPointInEllipse(pos.x, pos.y, shape) },
       { type: 'text', array: layer.texts, test: (shape) => this.isPointOnText(pos.x, pos.y, shape) },
+      { type: 'ellipse', array: layer.ellipses, test: (shape) => this.isPointInEllipse(pos.x, pos.y, shape) },
+      { type: 'rect', array: layer.rects, test: (shape) => this.isPointInRect(pos.x, pos.y, shape) },
+      { type: 'arrow', array: layer.arrows, test: (arrow) => this.isPointNearLine(pos.x, pos.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY) },
+      { type: 'stroke', array: layer.strokes, test: (shape) => this.isPointOnStroke(pos.x, pos.y, shape) },
     ]
 
     for (const { type, array, test } of shapeChecks) {
@@ -296,6 +343,14 @@ export class ShapeOperations {
         if (test(array[j])) {
           return { layerId: layer.id, shapeType: type, shapeIndex: j }
         }
+      }
+    }
+
+    // Check image last (it's in the background)
+    if (layer.image) {
+      const imageBounds = this.getShapeBounds(layer, 'image', 0)
+      if (this.isPointInRect(pos.x, pos.y, imageBounds)) {
+        return { layerId: layer.id, shapeType: 'image', shapeIndex: 0 }
       }
     }
 
