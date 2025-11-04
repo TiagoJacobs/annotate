@@ -4,6 +4,17 @@
  * Extensible for adding new tools
  */
 
+import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
+import { ShapeOperations } from '../services/ShapeOperations'
+import { ShapeStrategyFactory, FreehandStrokeStrategy } from './strategies/ShapeCreationStrategies'
+
+// Constants
+const SELECTION_PADDING = 5
+const RESIZE_HANDLE_SIZE = 8
+const HANDLE_HIT_THRESHOLD = 10
+const LINE_HIT_THRESHOLD = 10
+const TEXT_WIDTH_FACTOR = 0.6  // Approximate width per character relative to font size
+
 export class ToolHandler {
   constructor(canvasManager, layerManager) {
     this.canvasManager = canvasManager
@@ -11,10 +22,13 @@ export class ToolHandler {
     this.isDrawing = false
     this.currentLayer = null
     this.startPos = { x: 0, y: 0 }
+    this.isMarqueeSelecting = false
+    this.marqueeStart = null
+    this.marqueeCurrent = null
   }
 
   /**
-   * Start freehand stroke (pen, hand)
+   * Start freehand stroke (pen, hand) - Using Strategy Pattern
    */
   startFreehandStroke(pos, toolConfig, properties) {
     this.isDrawing = true
@@ -27,35 +41,36 @@ export class ToolHandler {
     }
     this.currentLayer = layer
 
-    // Add new stroke to layer
-    const stroke = {
-      size: properties.size,
-      points: [pos],
-    }
-    layer.strokes.push(stroke)
-    this.currentStroke = stroke
+    // Use strategy to start stroke
+    const strategy = ShapeStrategyFactory.getStrategy('pen')
+    this.currentStroke = strategy.start(layer, pos, properties)
+    this.currentStrategy = strategy
   }
 
   /**
-   * Continue freehand stroke
+   * Continue freehand stroke - Using Strategy Pattern
    */
   continueFreehandStroke(pos, toolConfig, properties) {
-    if (!this.isDrawing || !this.currentStroke) return
+    if (!this.isDrawing || !this.currentStroke || !this.currentStrategy) return
 
-    this.currentStroke.points.push(pos)
+    this.currentStrategy.continue(this.currentStroke, pos)
     this.layerManager.updateLayer(this.currentLayer.id, { strokes: this.currentLayer.strokes })
   }
 
   /**
-   * Finish freehand stroke
+   * Finish freehand stroke - Using Strategy Pattern
    */
   finishFreehandStroke() {
+    if (this.currentStrategy) {
+      this.currentStrategy.finish(this.currentLayer)
+    }
     this.isDrawing = false
     this.currentStroke = null
+    this.currentStrategy = null
   }
 
   /**
-   * Start shape (arrow, rect, ellipse)
+   * Start shape (arrow, rect, ellipse) - Using Strategy Pattern
    */
   startShape(pos, toolConfig, properties) {
     this.isDrawing = true
@@ -68,75 +83,44 @@ export class ToolHandler {
     }
     this.currentLayer = layer
     this.currentShapeType = toolConfig.id
+
+    // Get strategy for this shape type
+    this.currentStrategy = ShapeStrategyFactory.getStrategy(toolConfig.id)
   }
 
   /**
-   * Preview shape (during drag)
+   * Preview shape (during drag) - Using Strategy Pattern
    */
   previewShape(pos, toolConfig, properties) {
-    if (!this.isDrawing || !this.currentLayer) return
+    if (!this.isDrawing || !this.currentLayer || !this.currentStrategy) return
 
-    const width = pos.x - this.startPos.x
-    const height = pos.y - this.startPos.y
-
-    // Create temporary shape for preview (will be replaced on finish)
-    if (this.currentShapeType === 'arrow') {
-      this.currentLayer.arrows = this.currentLayer.arrows.filter(a => !a.isPreview)
-      this.currentLayer.arrows.push({
-        fromX: this.startPos.x,
-        fromY: this.startPos.y,
-        toX: pos.x,
-        toY: pos.y,
-        size: properties.size,
-        isPreview: true,
-      })
-    } else if (this.currentShapeType === 'rect') {
-      this.currentLayer.rects = this.currentLayer.rects.filter(r => !r.isPreview)
-      this.currentLayer.rects.push({
-        x: width < 0 ? pos.x : this.startPos.x,
-        y: height < 0 ? pos.y : this.startPos.y,
-        width: Math.abs(width),
-        height: Math.abs(height),
-        size: properties.size,
-        isPreview: true,
-      })
-    } else if (this.currentShapeType === 'ellipse') {
-      this.currentLayer.ellipses = this.currentLayer.ellipses.filter(e => !e.isPreview)
-      this.currentLayer.ellipses.push({
-        x: width < 0 ? pos.x : this.startPos.x,
-        y: height < 0 ? pos.y : this.startPos.y,
-        width: Math.abs(width),
-        height: Math.abs(height),
-        size: properties.size,
-        isPreview: true,
-      })
-    }
-
+    this.currentStrategy.preview(this.currentLayer, this.startPos, pos, properties)
     this.layerManager.updateLayer(this.currentLayer.id, this.currentLayer)
   }
 
   /**
-   * Finish shape
+   * Finish shape - Using Strategy Pattern
    */
   finishShape() {
-    if (this.currentLayer) {
-      // Remove preview flag from the last added shape
-      if (this.currentShapeType === 'arrow' && this.currentLayer.arrows.length > 0) {
-        delete this.currentLayer.arrows[this.currentLayer.arrows.length - 1].isPreview
-      } else if (this.currentShapeType === 'rect' && this.currentLayer.rects.length > 0) {
-        delete this.currentLayer.rects[this.currentLayer.rects.length - 1].isPreview
-      } else if (this.currentShapeType === 'ellipse' && this.currentLayer.ellipses.length > 0) {
-        delete this.currentLayer.ellipses[this.currentLayer.ellipses.length - 1].isPreview
-      }
-      this.layerManager.updateLayer(this.currentLayer.id, this.currentLayer)
+    if (!this.currentLayer) {
+      this.isDrawing = false
+      this.currentShapeType = null
+      this.currentStrategy = null
+      return
     }
 
+    if (this.currentStrategy) {
+      this.currentStrategy.finish(this.currentLayer)
+    }
+
+    this.layerManager.updateLayer(this.currentLayer.id, this.currentLayer)
     this.isDrawing = false
     this.currentShapeType = null
+    this.currentStrategy = null
   }
 
   /**
-   * Place text
+   * Place text - Using Strategy Pattern
    */
   placeText(pos, toolConfig, properties, textContent) {
     if (!textContent) return
@@ -147,193 +131,33 @@ export class ToolHandler {
       layer = this.layerManager.createLayer(null, properties.color)
     }
 
-    // Add text to layer
-    layer.texts.push({
-      content: textContent,
-      x: pos.x,
-      y: pos.y,
-      fontSize: properties.fontSize,
-      fontFamily: 'Arial',
-    })
+    // Use strategy to place text
+    const strategy = ShapeStrategyFactory.getStrategy('text')
+    strategy.place(layer, pos, properties, textContent)
 
     this.layerManager.updateLayer(layer.id, { texts: layer.texts })
   }
 
   /**
-   * Check if a point is near a line segment (for strokes and arrows)
-   */
-  isPointNearLine(px, py, x1, y1, x2, y2, threshold = 10) {
-    const A = px - x1
-    const B = py - y1
-    const C = x2 - x1
-    const D = y2 - y1
-
-    const dot = A * C + B * D
-    const lenSq = C * C + D * D
-    let param = -1
-
-    if (lenSq !== 0) param = dot / lenSq
-
-    let xx, yy
-
-    if (param < 0) {
-      xx = x1
-      yy = y1
-    } else if (param > 1) {
-      xx = x2
-      yy = y2
-    } else {
-      xx = x1 + param * C
-      yy = y1 + param * D
-    }
-
-    const dx = px - xx
-    const dy = py - yy
-    return Math.sqrt(dx * dx + dy * dy) < threshold
-  }
-
-  /**
-   * Check if a point is inside a rectangle
-   */
-  isPointInRect(px, py, rect) {
-    return px >= rect.x && px <= rect.x + rect.width &&
-           py >= rect.y && py <= rect.y + rect.height
-  }
-
-  /**
-   * Check if a point is inside an ellipse
-   */
-  isPointInEllipse(px, py, ellipse) {
-    const cx = ellipse.x + ellipse.width / 2
-    const cy = ellipse.y + ellipse.height / 2
-    const rx = ellipse.width / 2
-    const ry = ellipse.height / 2
-
-    const normalized = ((px - cx) ** 2) / (rx ** 2) + ((py - cy) ** 2) / (ry ** 2)
-    return normalized <= 1
-  }
-
-  /**
-   * Check if a point hits a stroke
-   */
-  isPointOnStroke(px, py, stroke, threshold = 10) {
-    for (let i = 0; i < stroke.points.length - 1; i++) {
-      const p1 = stroke.points[i]
-      const p2 = stroke.points[i + 1]
-      if (this.isPointNearLine(px, py, p1.x, p1.y, p2.x, p2.y, threshold)) {
-        return true
-      }
-    }
-    return false
-  }
-
-  /**
-   * Find shape at position
+   * Find shape at position (delegated to ShapeOperations)
    */
   findShapeAtPosition(pos) {
-    const layers = this.layerManager.getAllLayers()
-
-    // Search from top layer to bottom
-    for (let i = layers.length - 1; i >= 0; i--) {
-      const layer = layers[i]
-      if (!layer.visible) continue
-
-      // Check strokes
-      for (let j = layer.strokes.length - 1; j >= 0; j--) {
-        if (this.isPointOnStroke(pos.x, pos.y, layer.strokes[j])) {
-          return { layerId: layer.id, shapeType: 'stroke', shapeIndex: j }
-        }
-      }
-
-      // Check arrows
-      for (let j = layer.arrows.length - 1; j >= 0; j--) {
-        const arrow = layer.arrows[j]
-        if (this.isPointNearLine(pos.x, pos.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY)) {
-          return { layerId: layer.id, shapeType: 'arrow', shapeIndex: j }
-        }
-      }
-
-      // Check rectangles
-      for (let j = layer.rects.length - 1; j >= 0; j--) {
-        if (this.isPointInRect(pos.x, pos.y, layer.rects[j])) {
-          return { layerId: layer.id, shapeType: 'rect', shapeIndex: j }
-        }
-      }
-
-      // Check ellipses
-      for (let j = layer.ellipses.length - 1; j >= 0; j--) {
-        if (this.isPointInEllipse(pos.x, pos.y, layer.ellipses[j])) {
-          return { layerId: layer.id, shapeType: 'ellipse', shapeIndex: j }
-        }
-      }
-
-      // Check texts
-      for (let j = layer.texts.length - 1; j >= 0; j--) {
-        const text = layer.texts[j]
-        // Simple bounding box for text (approximate)
-        const textWidth = text.content.length * text.fontSize * 0.6
-        const textHeight = text.fontSize
-        if (pos.x >= text.x && pos.x <= text.x + textWidth &&
-            pos.y >= text.y - textHeight && pos.y <= text.y) {
-          return { layerId: layer.id, shapeType: 'text', shapeIndex: j }
-        }
-      }
-    }
-
-    return null
+    return ShapeOperations.findShapeAtPosition(pos, this.layerManager)
   }
 
   /**
-   * Get bounding box for a shape
+   * Get bounding box for a shape (delegated to ShapeOperations)
    */
   getShapeBounds(layer, shapeType, shapeIndex) {
-    let bounds = { x: 0, y: 0, width: 0, height: 0 }
-
-    if (shapeType === 'stroke') {
-      const stroke = layer.strokes[shapeIndex]
-      if (stroke.points.length === 0) return bounds
-
-      let minX = stroke.points[0].x
-      let maxX = stroke.points[0].x
-      let minY = stroke.points[0].y
-      let maxY = stroke.points[0].y
-
-      stroke.points.forEach(p => {
-        minX = Math.min(minX, p.x)
-        maxX = Math.max(maxX, p.x)
-        minY = Math.min(minY, p.y)
-        maxY = Math.max(maxY, p.y)
-      })
-
-      bounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-    } else if (shapeType === 'arrow') {
-      const arrow = layer.arrows[shapeIndex]
-      const minX = Math.min(arrow.fromX, arrow.toX)
-      const maxX = Math.max(arrow.fromX, arrow.toX)
-      const minY = Math.min(arrow.fromY, arrow.toY)
-      const maxY = Math.max(arrow.fromY, arrow.toY)
-      bounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-    } else if (shapeType === 'rect') {
-      bounds = { ...layer.rects[shapeIndex] }
-    } else if (shapeType === 'ellipse') {
-      bounds = { ...layer.ellipses[shapeIndex] }
-    } else if (shapeType === 'text') {
-      const text = layer.texts[shapeIndex]
-      const textWidth = text.content.length * text.fontSize * 0.6
-      const textHeight = text.fontSize
-      bounds = { x: text.x, y: text.y - textHeight, width: textWidth, height: textHeight }
-    }
-
-    return bounds
+    return ShapeOperations.getShapeBounds(layer, shapeType, shapeIndex)
   }
 
   /**
    * Check if point is on a resize handle
    */
   getResizeHandle(pos, bounds) {
-    const padding = 5
-    const handleSize = 8
-    const threshold = handleSize + 2
+    const padding = SELECTION_PADDING
+    const threshold = HANDLE_HIT_THRESHOLD
 
     const handles = [
       { name: 'nw', x: bounds.x - padding, y: bounds.y - padding },
@@ -357,27 +181,115 @@ export class ToolHandler {
   }
 
   /**
+   * Start marquee selection
+   */
+  startMarqueeSelection(pos) {
+    this.isMarqueeSelecting = true
+    this.marqueeStart = { ...pos }
+    this.marqueeCurrent = { ...pos }
+  }
+
+  /**
+   * Update marquee selection
+   */
+  updateMarqueeSelection(pos) {
+    if (!this.isMarqueeSelecting) return
+    this.marqueeCurrent = { ...pos }
+  }
+
+  /**
+   * Finish marquee selection and select shapes
+   */
+  finishMarqueeSelection() {
+    if (!this.isMarqueeSelecting || !this.marqueeStart || !this.marqueeCurrent) {
+      this.isMarqueeSelecting = false
+      return null
+    }
+
+    const selectionRect = this.getMarqueeRect()
+    const selectedShapes = this.findShapesInRect(selectionRect)
+
+    this.isMarqueeSelecting = false
+    this.marqueeStart = null
+    this.marqueeCurrent = null
+
+    if (selectedShapes.length > 0) {
+      this.selectedShapes = selectedShapes
+      return selectedShapes
+    }
+
+    return null
+  }
+
+  /**
+   * Get marquee rectangle bounds
+   */
+  getMarqueeRect() {
+    if (!this.marqueeStart || !this.marqueeCurrent) return null
+
+    const x = Math.min(this.marqueeStart.x, this.marqueeCurrent.x)
+    const y = Math.min(this.marqueeStart.y, this.marqueeCurrent.y)
+    const width = Math.abs(this.marqueeCurrent.x - this.marqueeStart.x)
+    const height = Math.abs(this.marqueeCurrent.y - this.marqueeStart.y)
+
+    return { x, y, width, height }
+  }
+
+  /**
+   * Find all shapes within or touching rectangle (delegated to ShapeOperations)
+   */
+  findShapesInRect(rect) {
+    return ShapeOperations.findShapesInRect(rect, this.layerManager)
+  }
+
+  /**
+   * Get unified bounding box for multiple shapes (delegated to ShapeOperations)
+   */
+  getMultiShapeBounds(shapes) {
+    return ShapeOperations.getMultiShapeBounds(shapes, this.layerManager)
+  }
+
+  /**
    * Select object
    */
   selectObject(pos) {
     // First check if clicking on a resize handle
-    if (this.selectedShape) {
-      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
-      if (layer) {
-        const bounds = this.getShapeBounds(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex)
+    if (this.selectedShape || this.selectedShapes) {
+      const bounds = this.selectedShapes
+        ? this.getMultiShapeBounds(this.selectedShapes)
+        : (() => {
+            const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+            return layer ? this.getShapeBounds(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex) : null
+          })()
+
+      if (bounds) {
         const handle = this.getResizeHandle(pos, bounds)
         if (handle) {
           this.resizeHandle = handle
           this.resizeStartPos = pos
           this.resizeStartBounds = { ...bounds }
           this.isResizing = true
-          return this.selectedShape
+          return this.selectedShape || this.selectedShapes
         }
       }
     }
 
+    // Check if clicking on existing selection
+    if (this.selectedShapes) {
+      const bounds = this.getMultiShapeBounds(this.selectedShapes)
+      if (bounds && ShapeOperations.isPointInRect(pos.x, pos.y, bounds)) {
+        // Clicking inside multi-selection, start dragging
+        this.isDragging = false
+        this.isResizing = false
+        this.resizeHandle = null
+        return this.selectedShapes
+      }
+    }
+
+    // Single shape selection
     const shape = this.findShapeAtPosition(pos)
     this.selectedShape = shape
+    this.selectedShapes = null
     this.isDragging = false
     this.isResizing = false
     this.resizeHandle = null
@@ -385,7 +297,7 @@ export class ToolHandler {
   }
 
   /**
-   * Resize shape
+   * Resize shape (delegated to ShapeOperations)
    */
   resizeShape(pos) {
     if (!this.selectedShape || !this.resizeHandle) return
@@ -397,63 +309,31 @@ export class ToolHandler {
     const dx = pos.x - this.resizeStartPos.x
     const dy = pos.y - this.resizeStartPos.y
 
-    const handle = this.resizeHandle
-    const startBounds = this.resizeStartBounds
-
-    // Calculate new bounds based on handle
-    let newX = startBounds.x
-    let newY = startBounds.y
-    let newWidth = startBounds.width
-    let newHeight = startBounds.height
-
-    if (handle.includes('w')) {
-      newX = startBounds.x + dx
-      newWidth = startBounds.width - dx
-    } else if (handle.includes('e')) {
-      newWidth = startBounds.width + dx
-    }
-
-    if (handle.includes('n')) {
-      newY = startBounds.y + dy
-      newHeight = startBounds.height - dy
-    } else if (handle.includes('s')) {
-      newHeight = startBounds.height + dy
-    }
-
-    // Apply to shape (skip strokes - too complex to resize)
-    if (shapeType === 'rect') {
-      layer.rects[shapeIndex].x = newX
-      layer.rects[shapeIndex].y = newY
-      layer.rects[shapeIndex].width = newWidth
-      layer.rects[shapeIndex].height = newHeight
-    } else if (shapeType === 'ellipse') {
-      layer.ellipses[shapeIndex].x = newX
-      layer.ellipses[shapeIndex].y = newY
-      layer.ellipses[shapeIndex].width = newWidth
-      layer.ellipses[shapeIndex].height = newHeight
-    } else if (shapeType === 'arrow') {
-      // Resize arrow by adjusting endpoints
-      const arrow = layer.arrows[shapeIndex]
-      if (handle.includes('w')) {
-        arrow.fromX = newX
-      } else if (handle.includes('e')) {
-        arrow.toX = newX + newWidth
-      }
-      if (handle.includes('n')) {
-        arrow.fromY = newY
-      } else if (handle.includes('s')) {
-        arrow.toY = newY + newHeight
-      }
-    }
+    ShapeOperations.resizeShape(
+      layer,
+      shapeType,
+      shapeIndex,
+      this.resizeHandle,
+      this.resizeStartBounds,
+      dx,
+      dy
+    )
 
     this.layerManager.updateLayer(layer.id, layer)
+  }
+
+  /**
+   * Move shape by delta (delegated to ShapeOperations)
+   */
+  moveShape(layer, shapeType, shapeIndex, dx, dy) {
+    ShapeOperations.moveShape(layer, shapeType, shapeIndex, dx, dy)
   }
 
   /**
    * Drag object
    */
   dragObject(pos) {
-    if (!this.selectedShape) return
+    if (!this.selectedShape && !this.selectedShapes) return
 
     // If resizing, call resize instead
     if (this.isResizing) {
@@ -467,38 +347,38 @@ export class ToolHandler {
       return
     }
 
-    const layer = this.layerManager.getLayer(this.selectedShape.layerId)
-    if (!layer) return
-
     const dx = pos.x - this.dragStartPos.x
     const dy = pos.y - this.dragStartPos.y
 
-    const { shapeType, shapeIndex } = this.selectedShape
+    // Handle multi-shape drag
+    if (this.selectedShapes) {
+      const updatedLayers = new Set()
 
-    if (shapeType === 'stroke') {
-      layer.strokes[shapeIndex].points = layer.strokes[shapeIndex].points.map(p => ({
-        x: p.x + dx,
-        y: p.y + dy
-      }))
-    } else if (shapeType === 'arrow') {
-      const arrow = layer.arrows[shapeIndex]
-      arrow.fromX += dx
-      arrow.fromY += dy
-      arrow.toX += dx
-      arrow.toY += dy
-    } else if (shapeType === 'rect') {
-      layer.rects[shapeIndex].x += dx
-      layer.rects[shapeIndex].y += dy
-    } else if (shapeType === 'ellipse') {
-      layer.ellipses[shapeIndex].x += dx
-      layer.ellipses[shapeIndex].y += dy
-    } else if (shapeType === 'text') {
-      layer.texts[shapeIndex].x += dx
-      layer.texts[shapeIndex].y += dy
+      for (const shape of this.selectedShapes) {
+        const layer = this.layerManager.getLayer(shape.layerId)
+        if (!layer) continue
+
+        this.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
+        updatedLayers.add(layer.id)
+      }
+
+      // Update all affected layers
+      for (const layerId of updatedLayers) {
+        const layer = this.layerManager.getLayer(layerId)
+        if (layer) {
+          this.layerManager.updateLayer(layerId, layer)
+        }
+      }
+    } else if (this.selectedShape) {
+      // Single shape drag
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      if (layer) {
+        this.moveShape(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex, dx, dy)
+        this.layerManager.updateLayer(layer.id, layer)
+      }
     }
 
     this.dragStartPos = pos
-    this.layerManager.updateLayer(layer.id, layer)
   }
 
   /**
@@ -521,9 +401,30 @@ export class ToolHandler {
   }
 
   /**
+   * Get selected shapes (multiple)
+   */
+  getSelectedShapes() {
+    return this.selectedShapes
+  }
+
+  /**
+   * Get marquee selection state
+   */
+  getMarqueeSelection() {
+    if (!this.isMarqueeSelecting || !this.marqueeStart || !this.marqueeCurrent) {
+      return null
+    }
+    return this.getMarqueeRect()
+  }
+
+  /**
    * Clear selection
    */
   clearSelection() {
     this.selectedShape = null
+    this.selectedShapes = null
+    this.isMarqueeSelecting = false
+    this.marqueeStart = null
+    this.marqueeCurrent = null
   }
 }

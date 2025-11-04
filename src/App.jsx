@@ -1,10 +1,27 @@
 import { useState, useRef, useEffect } from 'react'
-import { Copy, Trash2, Pen, Download, Square, Circle, ArrowRight, Type, Eye, EyeOff, X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Home, MousePointer } from 'lucide-react'
+import { Copy, Trash2, Pen, Download, Square, Circle, ArrowRight, Type, Eye, EyeOff, X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Home, MousePointer, Plus } from 'lucide-react'
 import { CanvasManager } from './canvas/CanvasManager'
 import { LayerManager } from './layers/LayerManager'
 import { ToolHandler } from './tools/ToolHandler'
 import { toolRegistry, getToolConfig } from './tools/toolRegistry'
+import { SHAPE_ARRAY_MAP } from './config/shapeConfig'
+import { ShapeRendererFactory } from './renderers/ShapeRenderer'
+import { useCanvasRenderer } from './hooks/useCanvasRenderer'
+import { useCanvasEvents } from './hooks/useCanvasEvents'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import './App.css'
+
+// Constants
+const CANVAS_UPDATE_INTERVAL = 100
+const SELECTION_PADDING = 5
+const RESIZE_HANDLE_SIZE = 8
+const DEFAULT_BRUSH_SIZE = 3
+const DEFAULT_FONT_SIZE = 20
+const ZOOM_STEP = 0.1
+const MIN_ZOOM = 0.1
+const MAX_ZOOM = 10
+const GRID_SIZE = 50
+const TEXT_PREVIEW_MAX_LENGTH = 30
 
 function Annotate() {
   // Refs
@@ -14,21 +31,22 @@ function Annotate() {
   const toolHandlerRef = useRef(null)
   const imageCache = useRef(new Map())
   const selectedShapeRef = useRef(null)
+  const shapeRendererRef = useRef(null)
 
   // State
   const [layers, setLayers] = useState([])
   const [selectedLayerId, setSelectedLayerId] = useState(null)
   const [tool, setTool] = useState('pen')
   const [color, setColor] = useState('#000000')
-  const [brushSize, setBrushSize] = useState(3)
-  const [fontSize, setFontSize] = useState(20)
+  const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE)
+  const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE)
   const [zoom, setZoom] = useState(1)
   const [editingTextLayerId, setEditingTextLayerId] = useState(null)
   const [editingTextContent, setEditingTextContent] = useState('')
   const [selectedShape, setSelectedShape] = useState(null) // { layerId, shapeType, shapeIndex }
   const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
 
-  // ==================== Utility Functions ====================
+  // ==================== Utility Functions (must be before hooks) ====================
 
   /**
    * Update layers state from layer manager
@@ -38,29 +56,28 @@ function Annotate() {
   }
 
   /**
-   * Get coordinates from canvas event
-   */
-  const getCanvasCoordinates = (e) => {
-    return canvasManagerRef.current.screenToCanvas(e.clientX, e.clientY)
-  }
-
-  /**
    * Get tool properties for current tool
    */
   const getToolProperties = () => {
     const toolConfig = getToolConfig(tool)
     if (!toolConfig) return {}
 
+    const propertyValueMap = {
+      color,
+      size: brushSize,
+      fontSize
+    }
+
+    const toolProperties = Object.entries(toolConfig.properties || {}).map(([key, config]) => [
+      key,
+      propertyValueMap[key] ?? config.default
+    ])
+
     return {
       color,
       brushSize,
       fontSize,
-      ...Object.fromEntries(
-        Object.entries(toolConfig.properties || {}).map(([key, config]) => [
-          key,
-          key === 'color' ? color : key === 'size' ? brushSize : key === 'fontSize' ? fontSize : config.default,
-        ])
-      ),
+      ...Object.fromEntries(toolProperties)
     }
   }
 
@@ -89,8 +106,7 @@ function Annotate() {
   const getLayerPreviewText = (layer) => {
     if (layer.texts?.length > 0) {
       const text = layer.texts[0].content
-      const maxLength = 30
-      return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
+      return text.length > TEXT_PREVIEW_MAX_LENGTH ? text.substring(0, TEXT_PREVIEW_MAX_LENGTH) + '...' : text
     }
     return null
   }
@@ -146,14 +162,20 @@ function Annotate() {
   }
 
   const saveInlineTextEdit = () => {
-    if (inlineEditingText && inlineEditingText.content.trim()) {
-      const layer = layerManagerRef.current.getLayer(inlineEditingText.layerId)
-      if (layer && layer.texts?.[inlineEditingText.textIndex]) {
-        layer.texts[inlineEditingText.textIndex].content = inlineEditingText.content
-        layerManagerRef.current.updateLayer(inlineEditingText.layerId, { texts: layer.texts })
-        updateLayersState()
-      }
+    if (!inlineEditingText || !inlineEditingText.content.trim()) {
+      setInlineEditingText(null)
+      return
     }
+
+    const layer = layerManagerRef.current.getLayer(inlineEditingText.layerId)
+    if (!layer || !layer.texts?.[inlineEditingText.textIndex]) {
+      setInlineEditingText(null)
+      return
+    }
+
+    layer.texts[inlineEditingText.textIndex].content = inlineEditingText.content
+    layerManagerRef.current.updateLayer(inlineEditingText.layerId, { texts: layer.texts })
+    updateLayersState()
     setInlineEditingText(null)
   }
 
@@ -170,116 +192,17 @@ function Annotate() {
     }
   }
 
-  // ==================== Canvas Events ====================
-
-  const handleCanvasClick = (e) => {
-    const { x, y } = getCanvasCoordinates(e)
-
-    if (tool === 'text') {
-      const textContent = prompt('Enter text:')
-      if (textContent) {
-        toolHandlerRef.current.placeText({ x, y }, getToolConfig(tool), getToolProperties(), textContent)
-        updateLayersState()
-      }
-    }
-  }
-
-  const handleCanvasDoubleClick = (e) => {
-    const { x, y } = getCanvasCoordinates(e)
-
-    // Check if double-clicked on a text shape
-    if (selectedShape && selectedShape.shapeType === 'text') {
-      const layer = layerManagerRef.current.getLayer(selectedShape.layerId)
-      if (layer && layer.texts?.[selectedShape.shapeIndex]) {
-        const text = layer.texts[selectedShape.shapeIndex]
-        const screenPos = canvasManagerRef.current.canvasToScreen(text.x, text.y)
-
-        setInlineEditingText({
-          layerId: selectedShape.layerId,
-          textIndex: selectedShape.shapeIndex,
-          x: screenPos.screenX,
-          y: screenPos.screenY - text.fontSize, // Adjust for text baseline
-          content: text.content,
-          fontSize: text.fontSize
-        })
-      }
-    }
-  }
-
-  const handleCanvasMouseDown = (e) => {
-    const { x, y } = getCanvasCoordinates(e)
-    const toolConfig = getToolConfig(tool)
-    const handler = toolConfig?.handlers?.onMouseDown
-    const properties = getToolProperties()
-
-    if (handler === 'startFreehandStroke') {
-      toolHandlerRef.current.startFreehandStroke({ x, y }, toolConfig, properties)
-    } else if (handler === 'startShape') {
-      toolHandlerRef.current.startShape({ x, y }, toolConfig, properties)
-    } else if (handler === 'selectObject') {
-      const shape = toolHandlerRef.current.selectObject({ x, y })
-      selectedShapeRef.current = shape
-      setSelectedShape(shape)
-      // Force immediate render to show selection box
-      setTimeout(() => renderCanvas(), 0)
-    }
-  }
-
-  const handleCanvasMouseMove = (e) => {
-    if (e.buttons === 0) return // No mouse button pressed
-
-    const { x, y } = getCanvasCoordinates(e)
-    const toolConfig = getToolConfig(tool)
-    const handler = toolConfig?.handlers?.onMouseMove
-    const properties = getToolProperties()
-
-    if (handler === 'continueFreehandStroke') {
-      toolHandlerRef.current.continueFreehandStroke({ x, y }, toolConfig, properties)
-      updateLayersState()
-    } else if (handler === 'previewShape') {
-      toolHandlerRef.current.previewShape({ x, y }, toolConfig, properties)
-      updateLayersState()
-    } else if (handler === 'dragObject') {
-      toolHandlerRef.current.dragObject({ x, y })
-      updateLayersState()
-      renderCanvas()
-    }
-  }
-
-  const handleCanvasMouseUp = () => {
-    const toolConfig = getToolConfig(tool)
-    const handler = toolConfig?.handlers?.onMouseUp
-
-    if (handler === 'finishFreehandStroke') {
-      toolHandlerRef.current.finishFreehandStroke()
-    } else if (handler === 'finishShape') {
-      toolHandlerRef.current.finishShape()
-    } else if (handler === 'releaseObject') {
-      toolHandlerRef.current.releaseObject()
-      // Keep selection active, just stop dragging
-    }
-
-    updateLayersState()
-  }
-
-  const handleMouseWheel = (e) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault()
-      const delta = e.deltaY > 0 ? -0.1 : 0.1
-      zoomIn(delta)
-    }
-  }
 
   // ==================== Zoom & View ====================
 
-  const zoomIn = (amount = 0.1) => {
-    const newZoom = Math.min(10, zoom + amount)
+  const zoomIn = (amount = ZOOM_STEP) => {
+    const newZoom = Math.min(MAX_ZOOM, zoom + amount)
     setZoom(newZoom)
     canvasManagerRef.current?.setZoom(newZoom)
   }
 
-  const zoomOut = (amount = 0.1) => {
-    const newZoom = Math.max(0.1, zoom - amount)
+  const zoomOut = (amount = ZOOM_STEP) => {
+    const newZoom = Math.max(MIN_ZOOM, zoom - amount)
     setZoom(newZoom)
     canvasManagerRef.current?.setZoom(newZoom)
   }
@@ -313,6 +236,12 @@ function Annotate() {
     setSelectedLayerId(null)
   }
 
+  const addNewLayer = () => {
+    const newLayer = layerManagerRef.current.createLayer('Layer', color)
+    updateLayersState()
+    setSelectedLayerId(newLayer.id)
+  }
+
   const deleteSelectedLayer = () => {
     if (selectedLayerId) {
       layerManagerRef.current.deleteLayer(selectedLayerId)
@@ -331,34 +260,96 @@ function Annotate() {
     updateLayersState()
   }
 
+  const removeShapeFromLayer = (layer, shapeType, shapeIndex) => {
+    const arrayName = SHAPE_ARRAY_MAP[shapeType]
+    if (arrayName && layer[arrayName]) {
+      layer[arrayName].splice(shapeIndex, 1)
+    }
+  }
+
   const deleteSelectedShape = () => {
     if (!selectedShape) return
 
-    const layer = layerManagerRef.current.getLayer(selectedShape.layerId)
-    if (!layer) return
+    // Handle multi-shape selection
+    if (Array.isArray(selectedShape)) {
+      // Sort by layer and index to delete from highest index first (to avoid index shifting)
+      const sortedShapes = [...selectedShape].sort((a, b) => {
+        if (a.layerId !== b.layerId) return 0
+        return b.shapeIndex - a.shapeIndex
+      })
 
-    const { shapeType, shapeIndex } = selectedShape
+      const updatedLayers = new Set()
 
-    if (shapeType === 'stroke') {
-      layer.strokes.splice(shapeIndex, 1)
-    } else if (shapeType === 'arrow') {
-      layer.arrows.splice(shapeIndex, 1)
-    } else if (shapeType === 'rect') {
-      layer.rects.splice(shapeIndex, 1)
-    } else if (shapeType === 'ellipse') {
-      layer.ellipses.splice(shapeIndex, 1)
-    } else if (shapeType === 'text') {
-      layer.texts.splice(shapeIndex, 1)
+      for (const shape of sortedShapes) {
+        const layer = layerManagerRef.current.getLayer(shape.layerId)
+        if (!layer) continue
+
+        removeShapeFromLayer(layer, shape.shapeType, shape.shapeIndex)
+        updatedLayers.add(layer.id)
+      }
+
+      // Update all affected layers
+      for (const layerId of updatedLayers) {
+        const layer = layerManagerRef.current.getLayer(layerId)
+        if (layer) {
+          layerManagerRef.current.updateLayer(layerId, layer)
+        }
+      }
+    } else {
+      // Single shape deletion
+      const layer = layerManagerRef.current.getLayer(selectedShape.layerId)
+      if (layer) {
+        removeShapeFromLayer(layer, selectedShape.shapeType, selectedShape.shapeIndex)
+        layerManagerRef.current.updateLayer(layer.id, layer)
+      }
     }
 
-    layerManagerRef.current.updateLayer(layer.id, layer)
     setSelectedShape(null)
     selectedShapeRef.current = null
-    if (toolHandlerRef.current) {
-      toolHandlerRef.current.clearSelection()
-    }
+    toolHandlerRef.current?.clearSelection()
     updateLayersState()
   }
+
+  // ==================== Custom Hooks (called after all functions are defined) ====================
+
+  // Use canvas renderer hook
+  const { renderCanvas } = useCanvasRenderer(
+    canvasManagerRef,
+    layerManagerRef,
+    toolHandlerRef,
+    shapeRendererRef,
+    selectedShapeRef
+  )
+
+  // Use canvas events hook
+  const {
+    handleCanvasClick,
+    handleCanvasDoubleClick,
+    handleCanvasMouseDown,
+    handleCanvasMouseMove,
+    handleCanvasMouseUp,
+    handleMouseWheel
+  } = useCanvasEvents({
+    tool,
+    canvasManagerRef,
+    toolHandlerRef,
+    getToolProperties,
+    selectedShapeRef,
+    setSelectedShape,
+    setInlineEditingText,
+    updateLayersState,
+    renderCanvas
+  })
+
+  // Use keyboard shortcuts hook
+  useKeyboardShortcuts({
+    layerManagerRef,
+    selectedShape,
+    deleteSelectedShape,
+    updateLayersState,
+    zoomIn,
+    zoomOut
+  })
 
   // ==================== Effects ====================
 
@@ -366,6 +357,13 @@ function Annotate() {
     if (canvasRef.current && !canvasManagerRef.current) {
       canvasManagerRef.current = new CanvasManager(canvasRef.current)
       toolHandlerRef.current = new ToolHandler(canvasManagerRef.current, layerManagerRef.current)
+      shapeRendererRef.current = new ShapeRendererFactory(imageCache.current)
+
+      // Set up image reload callback
+      const imageRenderer = shapeRendererRef.current.getRenderer('image')
+      if (imageRenderer) {
+        imageRenderer.setOnImageLoaded(() => renderCanvas())
+      }
 
       // Initialize canvas to match container size
       const container = canvasRef.current.parentElement
@@ -384,196 +382,7 @@ function Annotate() {
     }
   }, [])
 
-  /**
-   * Render canvas with grid and all layers
-   */
-  const renderCanvas = () => {
-    if (!canvasManagerRef.current) return
 
-    const canvasManager = canvasManagerRef.current
-    const ctx = canvasManager.getContext()
-
-    // Draw grid background
-    canvasManager.drawGrid(50)
-
-    // Draw all visible layers
-    const allLayers = layerManagerRef.current.getAllLayers()
-    allLayers.forEach((layer) => {
-      if (!layer.visible) return
-
-      canvasManager.save()
-      canvasManager.applyTransform()
-      ctx.globalAlpha = layer.opacity
-
-      // Draw strokes
-      if (layer.strokes && layer.strokes.length > 0) {
-        layer.strokes.forEach((stroke) => {
-          ctx.strokeStyle = layer.color
-          ctx.lineWidth = stroke.size
-          ctx.lineCap = 'round'
-          ctx.lineJoin = 'round'
-
-          if (stroke.points && stroke.points.length > 0) {
-            ctx.beginPath()
-            ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
-            for (let i = 1; i < stroke.points.length; i++) {
-              ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
-            }
-            ctx.stroke()
-          }
-        })
-      }
-
-      // Draw arrows
-      if (layer.arrows && layer.arrows.length > 0) {
-        layer.arrows.forEach((arrow) => {
-          drawArrow(ctx, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY, layer.color, arrow.size)
-        })
-      }
-
-      // Draw rectangles
-      if (layer.rects && layer.rects.length > 0) {
-        layer.rects.forEach((rect) => {
-          ctx.strokeStyle = layer.color
-          ctx.lineWidth = rect.size
-          ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
-        })
-      }
-
-      // Draw ellipses
-      if (layer.ellipses && layer.ellipses.length > 0) {
-        layer.ellipses.forEach((ellipse) => {
-          ctx.strokeStyle = layer.color
-          ctx.lineWidth = ellipse.size
-          ctx.beginPath()
-          ctx.ellipse(
-            ellipse.x + ellipse.width / 2,
-            ellipse.y + ellipse.height / 2,
-            Math.abs(ellipse.width) / 2,
-            Math.abs(ellipse.height) / 2,
-            0,
-            0,
-            Math.PI * 2
-          )
-          ctx.stroke()
-        })
-      }
-
-      // Draw texts
-      if (layer.texts && layer.texts.length > 0) {
-        layer.texts.forEach((text) => {
-          ctx.fillStyle = layer.color
-          ctx.font = `${text.fontSize}px Arial`
-          ctx.fillText(text.content, text.x, text.y)
-        })
-      }
-
-      // Draw images
-      if (layer.image) {
-        let img = imageCache.current.get(layer.image)
-        if (!img) {
-          // Create and cache the image
-          img = new Image()
-          img.onload = () => {
-            imageCache.current.set(layer.image, img)
-            renderCanvas() // Re-render once image is loaded
-          }
-          img.src = layer.image
-        } else if (img.complete) {
-          // Image is loaded, draw it
-          ctx.drawImage(img, 0, 0)
-        }
-      }
-
-      ctx.globalAlpha = 1
-      canvasManager.resetTransform()
-      canvasManager.restore()
-    })
-
-    // Draw selection box with resize handles
-    if (selectedShapeRef.current && toolHandlerRef.current) {
-      const layer = layerManagerRef.current.getLayer(selectedShapeRef.current.layerId)
-      if (layer) {
-        const bounds = toolHandlerRef.current.getShapeBounds(layer, selectedShapeRef.current.shapeType, selectedShapeRef.current.shapeIndex)
-
-        canvasManager.save()
-        canvasManager.applyTransform()
-
-        const padding = 5
-        const handleSize = 8 / canvasManager.zoom
-
-        // Draw dashed bounding box
-        ctx.strokeStyle = '#667eea'
-        ctx.lineWidth = 2 / canvasManager.zoom
-        ctx.setLineDash([5 / canvasManager.zoom, 5 / canvasManager.zoom])
-        ctx.strokeRect(
-          bounds.x - padding,
-          bounds.y - padding,
-          bounds.width + padding * 2,
-          bounds.height + padding * 2
-        )
-        ctx.setLineDash([])
-
-        // Draw resize handles
-        ctx.fillStyle = '#667eea'
-        ctx.strokeStyle = '#ffffff'
-        ctx.lineWidth = 1 / canvasManager.zoom
-
-        const handles = [
-          // Corners
-          { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' }, // top-left
-          { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' }, // top-right
-          { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' }, // bottom-left
-          { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' }, // bottom-right
-          // Edges
-          { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' }, // top
-          { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' }, // bottom
-          { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' }, // left
-          { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' }, // right
-        ]
-
-        handles.forEach(handle => {
-          ctx.fillRect(
-            handle.x - handleSize / 2,
-            handle.y - handleSize / 2,
-            handleSize,
-            handleSize
-          )
-          ctx.strokeRect(
-            handle.x - handleSize / 2,
-            handle.y - handleSize / 2,
-            handleSize,
-            handleSize
-          )
-        })
-
-        canvasManager.resetTransform()
-        canvasManager.restore()
-      }
-    }
-  }
-
-  /**
-   * Helper function to draw arrows
-   */
-  const drawArrow = (ctx, fromX, fromY, toX, toY, color, size = 2) => {
-    const headlen = 15
-    const angle = Math.atan2(toY - fromY, toX - fromX)
-
-    ctx.strokeStyle = color
-    ctx.lineWidth = size
-    ctx.beginPath()
-    ctx.moveTo(fromX, fromY)
-    ctx.lineTo(toX, toY)
-    ctx.stroke()
-
-    ctx.beginPath()
-    ctx.moveTo(toX, toY)
-    ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6))
-    ctx.moveTo(toX, toY)
-    ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6))
-    ctx.stroke()
-  }
 
   useEffect(() => {
     const updateLayersFromManager = () => {
@@ -582,7 +391,7 @@ function Annotate() {
       renderCanvas()
     }
 
-    const interval = setInterval(updateLayersFromManager, 100)
+    const interval = setInterval(updateLayersFromManager, CANVAS_UPDATE_INTERVAL)
     return () => clearInterval(interval)
   }, [])
 
@@ -630,36 +439,6 @@ function Annotate() {
     return () => window.removeEventListener('paste', handlePaste)
   }, [])
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'z') {
-          e.preventDefault()
-          if (e.shiftKey) {
-            layerManagerRef.current.redo()
-          } else {
-            layerManagerRef.current.undo()
-          }
-          updateLayersState()
-        }
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Delete selected shape
-        if (selectedShape) {
-          e.preventDefault()
-          deleteSelectedShape()
-        }
-      } else if (e.key === '+' || e.key === '=') {
-        e.preventDefault()
-        zoomIn()
-      } else if (e.key === '-') {
-        e.preventDefault()
-        zoomOut()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedShape])
 
   // ==================== Render ====================
 
@@ -787,7 +566,7 @@ function Annotate() {
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseUp}
-              onWheel={handleMouseWheel}
+              onWheel={(e) => handleMouseWheel(e, zoomIn)}
               className={`drawing-canvas ${layers.length > 0 ? 'has-image' : ''}`}
             />
 
@@ -820,6 +599,9 @@ function Annotate() {
           <div className="layers-panel">
             <div className="layers-panel-header">
               <h3>Layers ({layers.length})</h3>
+              <button className="layer-btn" onClick={addNewLayer} title="Add new layer">
+                <Plus size={16} />
+              </button>
               {layers.length > 0 && (
                 <button className="layer-btn layer-btn-delete" onClick={clearCanvas} title="Clear all layers">
                   <Trash2 size={16} />
