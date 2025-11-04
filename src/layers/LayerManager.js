@@ -14,14 +14,19 @@ export class LayerManager {
   /**
    * Create a new layer
    */
-  createLayer(type, name = null, data = {}) {
+  createLayer(name = null, color = '#000000', data = {}) {
     const layer = {
       id: Date.now(),
-      type,
-      name: name || this.getDefaultLayerName(type),
+      name: name || 'Layer',
       visible: true,
       locked: false,
       opacity: 1,
+      color,
+      arrows: [],
+      rects: [],
+      ellipses: [],
+      strokes: [],
+      texts: [],
       ...data,
     }
 
@@ -139,20 +144,25 @@ export class LayerManager {
   }
 
   /**
-   * Get default layer name based on type
+   * Add a shape to an existing layer
    */
-  getDefaultLayerName(type) {
-    const typeNames = {
-      image: 'Image',
-      pen: 'Pen',
-      hand: 'Hand',
-      eraser: 'Eraser',
-      arrow: 'Arrow',
-      rect: 'Rectangle',
-      ellipse: 'Ellipse',
-      text: 'Text',
+  addShapeToLayer(layerId, shapeType, shapeData) {
+    const layer = this.getLayer(layerId)
+    if (!layer) return
+
+    if (shapeType === 'arrow') {
+      layer.arrows.push(shapeData)
+    } else if (shapeType === 'rect') {
+      layer.rects.push(shapeData)
+    } else if (shapeType === 'ellipse') {
+      layer.ellipses.push(shapeData)
+    } else if (shapeType === 'stroke') {
+      layer.strokes.push(shapeData)
+    } else if (shapeType === 'text') {
+      layer.texts.push(shapeData)
     }
-    return typeNames[type] || 'Layer'
+
+    this.saveHistory()
   }
 
   /**

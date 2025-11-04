@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Copy, Trash2, Pen, Download, Square, Circle, ArrowRight, Type, Eye, EyeOff, X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Home } from 'lucide-react'
+import { Copy, Trash2, Pen, Download, Square, Circle, ArrowRight, Type, Eye, EyeOff, X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Home, MousePointer } from 'lucide-react'
 import { CanvasManager } from './canvas/CanvasManager'
 import { LayerManager } from './layers/LayerManager'
 import { ToolHandler } from './tools/ToolHandler'
@@ -12,6 +12,8 @@ function Annotate() {
   const canvasManagerRef = useRef(null)
   const layerManagerRef = useRef(new LayerManager())
   const toolHandlerRef = useRef(null)
+  const imageCache = useRef(new Map())
+  const selectedShapeRef = useRef(null)
 
   // State
   const [layers, setLayers] = useState([])
@@ -23,6 +25,8 @@ function Annotate() {
   const [zoom, setZoom] = useState(1)
   const [editingTextLayerId, setEditingTextLayerId] = useState(null)
   const [editingTextContent, setEditingTextContent] = useState('')
+  const [selectedShape, setSelectedShape] = useState(null) // { layerId, shapeType, shapeIndex }
+  const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
 
   // ==================== Utility Functions ====================
 
@@ -37,10 +41,7 @@ function Annotate() {
    * Get coordinates from canvas event
    */
   const getCanvasCoordinates = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect()
-    const screenX = e.clientX - rect.left
-    const screenY = e.clientY - rect.top
-    return canvasManagerRef.current.screenToCanvas(screenX, screenY)
+    return canvasManagerRef.current.screenToCanvas(e.clientX, e.clientY)
   }
 
   /**
@@ -64,67 +65,29 @@ function Annotate() {
   }
 
   /**
-   * Get color from a layer based on its type
+   * Get color from a layer
    */
   const getLayerColor = (layer) => {
-    if (!layer) return '#000000'
-
-    // Map of layer type to color property accessor
-    const colorAccessors = {
-      text: () => layer.texts?.[0]?.color,
-      image: () => '#808080',
-      pen: () => layer.strokes?.[0]?.color,
-      arrow: () => layer.arrows?.[0]?.color,
-      rect: () => layer.rects?.[0]?.color,
-      ellipse: () => layer.ellipses?.[0]?.color,
-    }
-
-    return colorAccessors[layer.type]?.() || '#000000'
+    return layer?.color || '#000000'
   }
 
   /**
-   * Update color for all items in a layer
+   * Update color for a layer
    */
   const updateLayerColor = (layerId, newColor) => {
     const layer = layerManagerRef.current.getLayer(layerId)
     if (!layer) return
 
-    // Map of layer type to update function
-    const updaters = {
-      text: () => {
-        if (layer.texts?.[0]) layer.texts[0].color = newColor
-        return { texts: layer.texts }
-      },
-      pen: () => {
-        layer.strokes?.forEach((s) => (s.color = newColor))
-        return { strokes: layer.strokes }
-      },
-      arrow: () => {
-        layer.arrows?.forEach((a) => (a.color = newColor))
-        return { arrows: layer.arrows }
-      },
-      rect: () => {
-        layer.rects?.forEach((r) => (r.color = newColor))
-        return { rects: layer.rects }
-      },
-      ellipse: () => {
-        layer.ellipses?.forEach((e) => (e.color = newColor))
-        return { ellipses: layer.ellipses }
-      },
-    }
-
-    const updates = updaters[layer.type]?.()
-    if (updates) {
-      layerManagerRef.current.updateLayer(layerId, updates)
-      updateLayersState()
-    }
+    layer.color = newColor
+    layerManagerRef.current.updateLayer(layerId, { color: newColor })
+    updateLayersState()
   }
 
   /**
    * Get preview text for text layers
    */
   const getLayerPreviewText = (layer) => {
-    if (layer.type === 'text' && layer.texts?.length > 0) {
+    if (layer.texts?.length > 0) {
       const text = layer.texts[0].content
       const maxLength = 30
       return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
@@ -133,21 +96,7 @@ function Annotate() {
   }
 
   /**
-   * Get corresponding tool for a layer type
-   */
-  const getToolForLayerType = (layerType) => {
-    const toolMap = {
-      text: 'text',
-      pen: 'pen',
-      arrow: 'arrow',
-      rect: 'rect',
-      ellipse: 'ellipse',
-    }
-    return toolMap[layerType]
-  }
-
-  /**
-   * Select a layer and update tool
+   * Select a layer
    */
   const selectLayer = (layerId) => {
     if (selectedLayerId === layerId) {
@@ -155,23 +104,16 @@ function Annotate() {
       layerManagerRef.current.selectLayer(null)
       setSelectedLayerId(null)
     } else {
-      // Toggle on
-      const layer = layerManagerRef.current.getLayer(layerId)
+      // Select layer
       layerManagerRef.current.selectLayer(layerId)
       setSelectedLayerId(layerId)
-
-      // Auto-select corresponding tool
-      const correspondingTool = getToolForLayerType(layer?.type)
-      if (correspondingTool) {
-        setTool(correspondingTool)
-      }
     }
   }
 
   // ==================== Text Editing ====================
 
   const startEditingText = (layer) => {
-    if (layer.type === 'text' && layer.texts?.length > 0) {
+    if (layer.texts?.length > 0) {
       setEditingTextLayerId(layer.id)
       setEditingTextContent(layer.texts[0].content)
     }
@@ -203,6 +145,31 @@ function Annotate() {
     }
   }
 
+  const saveInlineTextEdit = () => {
+    if (inlineEditingText && inlineEditingText.content.trim()) {
+      const layer = layerManagerRef.current.getLayer(inlineEditingText.layerId)
+      if (layer && layer.texts?.[inlineEditingText.textIndex]) {
+        layer.texts[inlineEditingText.textIndex].content = inlineEditingText.content
+        layerManagerRef.current.updateLayer(inlineEditingText.layerId, { texts: layer.texts })
+        updateLayersState()
+      }
+    }
+    setInlineEditingText(null)
+  }
+
+  const cancelInlineTextEdit = () => {
+    setInlineEditingText(null)
+  }
+
+  const handleInlineTextKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      saveInlineTextEdit()
+    } else if (e.key === 'Escape') {
+      cancelInlineTextEdit()
+    }
+  }
+
   // ==================== Canvas Events ====================
 
   const handleCanvasClick = (e) => {
@@ -217,6 +184,28 @@ function Annotate() {
     }
   }
 
+  const handleCanvasDoubleClick = (e) => {
+    const { x, y } = getCanvasCoordinates(e)
+
+    // Check if double-clicked on a text shape
+    if (selectedShape && selectedShape.shapeType === 'text') {
+      const layer = layerManagerRef.current.getLayer(selectedShape.layerId)
+      if (layer && layer.texts?.[selectedShape.shapeIndex]) {
+        const text = layer.texts[selectedShape.shapeIndex]
+        const screenPos = canvasManagerRef.current.canvasToScreen(text.x, text.y)
+
+        setInlineEditingText({
+          layerId: selectedShape.layerId,
+          textIndex: selectedShape.shapeIndex,
+          x: screenPos.screenX,
+          y: screenPos.screenY - text.fontSize, // Adjust for text baseline
+          content: text.content,
+          fontSize: text.fontSize
+        })
+      }
+    }
+  }
+
   const handleCanvasMouseDown = (e) => {
     const { x, y } = getCanvasCoordinates(e)
     const toolConfig = getToolConfig(tool)
@@ -227,10 +216,18 @@ function Annotate() {
       toolHandlerRef.current.startFreehandStroke({ x, y }, toolConfig, properties)
     } else if (handler === 'startShape') {
       toolHandlerRef.current.startShape({ x, y }, toolConfig, properties)
+    } else if (handler === 'selectObject') {
+      const shape = toolHandlerRef.current.selectObject({ x, y })
+      selectedShapeRef.current = shape
+      setSelectedShape(shape)
+      // Force immediate render to show selection box
+      setTimeout(() => renderCanvas(), 0)
     }
   }
 
   const handleCanvasMouseMove = (e) => {
+    if (e.buttons === 0) return // No mouse button pressed
+
     const { x, y } = getCanvasCoordinates(e)
     const toolConfig = getToolConfig(tool)
     const handler = toolConfig?.handlers?.onMouseMove
@@ -242,6 +239,10 @@ function Annotate() {
     } else if (handler === 'previewShape') {
       toolHandlerRef.current.previewShape({ x, y }, toolConfig, properties)
       updateLayersState()
+    } else if (handler === 'dragObject') {
+      toolHandlerRef.current.dragObject({ x, y })
+      updateLayersState()
+      renderCanvas()
     }
   }
 
@@ -253,6 +254,9 @@ function Annotate() {
       toolHandlerRef.current.finishFreehandStroke()
     } else if (handler === 'finishShape') {
       toolHandlerRef.current.finishShape()
+    } else if (handler === 'releaseObject') {
+      toolHandlerRef.current.releaseObject()
+      // Keep selection active, just stop dragging
     }
 
     updateLayersState()
@@ -327,6 +331,35 @@ function Annotate() {
     updateLayersState()
   }
 
+  const deleteSelectedShape = () => {
+    if (!selectedShape) return
+
+    const layer = layerManagerRef.current.getLayer(selectedShape.layerId)
+    if (!layer) return
+
+    const { shapeType, shapeIndex } = selectedShape
+
+    if (shapeType === 'stroke') {
+      layer.strokes.splice(shapeIndex, 1)
+    } else if (shapeType === 'arrow') {
+      layer.arrows.splice(shapeIndex, 1)
+    } else if (shapeType === 'rect') {
+      layer.rects.splice(shapeIndex, 1)
+    } else if (shapeType === 'ellipse') {
+      layer.ellipses.splice(shapeIndex, 1)
+    } else if (shapeType === 'text') {
+      layer.texts.splice(shapeIndex, 1)
+    }
+
+    layerManagerRef.current.updateLayer(layer.id, layer)
+    setSelectedShape(null)
+    selectedShapeRef.current = null
+    if (toolHandlerRef.current) {
+      toolHandlerRef.current.clearSelection()
+    }
+    updateLayersState()
+  }
+
   // ==================== Effects ====================
 
   useEffect(() => {
@@ -334,10 +367,20 @@ function Annotate() {
       canvasManagerRef.current = new CanvasManager(canvasRef.current)
       toolHandlerRef.current = new ToolHandler(canvasManagerRef.current, layerManagerRef.current)
 
-      // Initialize canvas with default dimensions (infinite canvas)
-      const defaultWidth = window.innerWidth - 300 // Account for layers panel
-      const defaultHeight = window.innerHeight - 100 // Account for toolbar and status bar
-      canvasManagerRef.current.setDimensions(defaultWidth, defaultHeight)
+      // Initialize canvas to match container size
+      const container = canvasRef.current.parentElement
+      const rect = container.getBoundingClientRect()
+      canvasManagerRef.current.setDimensions(rect.width, rect.height)
+
+      // Handle window resize
+      const handleResize = () => {
+        const rect = container.getBoundingClientRect()
+        canvasManagerRef.current.setDimensions(rect.width, rect.height)
+        renderCanvas()
+      }
+      window.addEventListener('resize', handleResize)
+
+      return () => window.removeEventListener('resize', handleResize)
     }
   }, [])
 
@@ -362,95 +405,163 @@ function Annotate() {
       canvasManager.applyTransform()
       ctx.globalAlpha = layer.opacity
 
-      switch (layer.type) {
-        case 'pen':
-          if (layer.strokes) {
-            layer.strokes.forEach((stroke) => {
-              ctx.strokeStyle = stroke.color
-              ctx.lineWidth = stroke.size
-              ctx.lineCap = 'round'
-              ctx.lineJoin = 'round'
+      // Draw strokes
+      if (layer.strokes && layer.strokes.length > 0) {
+        layer.strokes.forEach((stroke) => {
+          ctx.strokeStyle = layer.color
+          ctx.lineWidth = stroke.size
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
 
-              if (stroke.points.length > 0) {
-                ctx.beginPath()
-                ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
-                for (let i = 1; i < stroke.points.length; i++) {
-                  ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
-                }
-                ctx.stroke()
-              }
-            })
-          }
-          break
-
-        case 'arrow':
-        case 'rect':
-        case 'ellipse':
-          if (layer.type === 'arrow' && layer.arrows) {
-            layer.arrows.forEach((arrow) => {
-              drawArrow(ctx, arrow.start.x, arrow.start.y, arrow.end.x, arrow.end.y, arrow.color)
-            })
-          } else if (layer.type === 'rect' && layer.rects) {
-            layer.rects.forEach((rect) => {
-              ctx.strokeStyle = rect.color
-              ctx.lineWidth = rect.size
-              ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
-            })
-          } else if (layer.type === 'ellipse' && layer.ellipses) {
-            layer.ellipses.forEach((ellipse) => {
-              ctx.strokeStyle = ellipse.color
-              ctx.lineWidth = ellipse.size
-              ctx.beginPath()
-              ctx.ellipse(
-                ellipse.x + ellipse.width / 2,
-                ellipse.y + ellipse.height / 2,
-                Math.abs(ellipse.width) / 2,
-                Math.abs(ellipse.height) / 2,
-                0,
-                0,
-                Math.PI * 2
-              )
-              ctx.stroke()
-            })
-          }
-          break
-
-        case 'text':
-          if (layer.texts) {
-            layer.texts.forEach((text) => {
-              ctx.fillStyle = text.color
-              ctx.font = `${text.fontSize}px Arial`
-              ctx.fillText(text.content, text.x, text.y)
-            })
-          }
-          break
-
-        case 'image':
-          if (layer.data) {
-            const img = new Image()
-            img.onload = () => {
-              ctx.drawImage(img, 0, 0)
+          if (stroke.points && stroke.points.length > 0) {
+            ctx.beginPath()
+            ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
+            for (let i = 1; i < stroke.points.length; i++) {
+              ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
             }
-            img.src = layer.data
+            ctx.stroke()
           }
-          break
+        })
+      }
+
+      // Draw arrows
+      if (layer.arrows && layer.arrows.length > 0) {
+        layer.arrows.forEach((arrow) => {
+          drawArrow(ctx, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY, layer.color, arrow.size)
+        })
+      }
+
+      // Draw rectangles
+      if (layer.rects && layer.rects.length > 0) {
+        layer.rects.forEach((rect) => {
+          ctx.strokeStyle = layer.color
+          ctx.lineWidth = rect.size
+          ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
+        })
+      }
+
+      // Draw ellipses
+      if (layer.ellipses && layer.ellipses.length > 0) {
+        layer.ellipses.forEach((ellipse) => {
+          ctx.strokeStyle = layer.color
+          ctx.lineWidth = ellipse.size
+          ctx.beginPath()
+          ctx.ellipse(
+            ellipse.x + ellipse.width / 2,
+            ellipse.y + ellipse.height / 2,
+            Math.abs(ellipse.width) / 2,
+            Math.abs(ellipse.height) / 2,
+            0,
+            0,
+            Math.PI * 2
+          )
+          ctx.stroke()
+        })
+      }
+
+      // Draw texts
+      if (layer.texts && layer.texts.length > 0) {
+        layer.texts.forEach((text) => {
+          ctx.fillStyle = layer.color
+          ctx.font = `${text.fontSize}px Arial`
+          ctx.fillText(text.content, text.x, text.y)
+        })
+      }
+
+      // Draw images
+      if (layer.image) {
+        let img = imageCache.current.get(layer.image)
+        if (!img) {
+          // Create and cache the image
+          img = new Image()
+          img.onload = () => {
+            imageCache.current.set(layer.image, img)
+            renderCanvas() // Re-render once image is loaded
+          }
+          img.src = layer.image
+        } else if (img.complete) {
+          // Image is loaded, draw it
+          ctx.drawImage(img, 0, 0)
+        }
       }
 
       ctx.globalAlpha = 1
       canvasManager.resetTransform()
       canvasManager.restore()
     })
+
+    // Draw selection box with resize handles
+    if (selectedShapeRef.current && toolHandlerRef.current) {
+      const layer = layerManagerRef.current.getLayer(selectedShapeRef.current.layerId)
+      if (layer) {
+        const bounds = toolHandlerRef.current.getShapeBounds(layer, selectedShapeRef.current.shapeType, selectedShapeRef.current.shapeIndex)
+
+        canvasManager.save()
+        canvasManager.applyTransform()
+
+        const padding = 5
+        const handleSize = 8 / canvasManager.zoom
+
+        // Draw dashed bounding box
+        ctx.strokeStyle = '#667eea'
+        ctx.lineWidth = 2 / canvasManager.zoom
+        ctx.setLineDash([5 / canvasManager.zoom, 5 / canvasManager.zoom])
+        ctx.strokeRect(
+          bounds.x - padding,
+          bounds.y - padding,
+          bounds.width + padding * 2,
+          bounds.height + padding * 2
+        )
+        ctx.setLineDash([])
+
+        // Draw resize handles
+        ctx.fillStyle = '#667eea'
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 1 / canvasManager.zoom
+
+        const handles = [
+          // Corners
+          { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' }, // top-left
+          { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' }, // top-right
+          { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' }, // bottom-left
+          { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' }, // bottom-right
+          // Edges
+          { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' }, // top
+          { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' }, // bottom
+          { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' }, // left
+          { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' }, // right
+        ]
+
+        handles.forEach(handle => {
+          ctx.fillRect(
+            handle.x - handleSize / 2,
+            handle.y - handleSize / 2,
+            handleSize,
+            handleSize
+          )
+          ctx.strokeRect(
+            handle.x - handleSize / 2,
+            handle.y - handleSize / 2,
+            handleSize,
+            handleSize
+          )
+        })
+
+        canvasManager.resetTransform()
+        canvasManager.restore()
+      }
+    }
   }
 
   /**
    * Helper function to draw arrows
    */
-  const drawArrow = (ctx, fromX, fromY, toX, toY, color) => {
+  const drawArrow = (ctx, fromX, fromY, toX, toY, color, size = 2) => {
     const headlen = 15
     const angle = Math.atan2(toY - fromY, toX - fromX)
 
     ctx.strokeStyle = color
-    ctx.lineWidth = 2
+    ctx.lineWidth = size
     ctx.beginPath()
     ctx.moveTo(fromX, fromY)
     ctx.lineTo(toX, toY)
@@ -475,6 +586,12 @@ function Annotate() {
     return () => clearInterval(interval)
   }, [])
 
+  // Keep ref in sync with state and re-render
+  useEffect(() => {
+    selectedShapeRef.current = selectedShape
+    renderCanvas()
+  }, [selectedShape])
+
   // Re-render canvas when zoom changes
   useEffect(() => {
     renderCanvas()
@@ -490,16 +607,14 @@ function Annotate() {
           reader.onload = (event) => {
             const img = new Image()
             img.onload = () => {
-              canvasManagerRef.current.setDimensions(img.width, img.height)
-
               const tempCanvas = document.createElement('canvas')
               tempCanvas.width = img.width
               tempCanvas.height = img.height
               const tempCtx = tempCanvas.getContext('2d')
               tempCtx.drawImage(img, 0, 0)
 
-              layerManagerRef.current.createLayer('image', 'Image', {
-                data: tempCanvas.toDataURL(),
+              layerManagerRef.current.createLayer('Image', '#808080', {
+                image: tempCanvas.toDataURL(),
               })
 
               updateLayersState()
@@ -527,6 +642,12 @@ function Annotate() {
           }
           updateLayersState()
         }
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Delete selected shape
+        if (selectedShape) {
+          e.preventDefault()
+          deleteSelectedShape()
+        }
       } else if (e.key === '+' || e.key === '=') {
         e.preventDefault()
         zoomIn()
@@ -538,13 +659,12 @@ function Annotate() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [selectedShape])
 
   // ==================== Render ====================
 
   const selectedLayer = selectedLayerId ? layerManagerRef.current.getLayer(selectedLayerId) : null
-  const isTextLayer = selectedLayer?.type === 'text'
-  const showFontSize = tool === 'text' || isTextLayer
+  const showFontSize = tool === 'text'
 
   const iconMap = {
     pen: <Pen size={20} />,
@@ -552,10 +672,14 @@ function Annotate() {
     square: <Square size={20} />,
     circle: <Circle size={20} />,
     type: <Type size={20} />,
+    pointer: <MousePointer size={20} />,
   }
 
   // Determine status bar message based on current state
   const getStatusMessage = () => {
+    if (selectedShape) {
+      return '🎯 Shape selected | Delete: Del/Backspace | Undo: Ctrl+Z | Paste image to add as layer'
+    }
     return '🎨 Undo: Ctrl+Z | Redo: Ctrl+Shift+Z | Paste image to add as layer'
   }
 
@@ -569,7 +693,14 @@ function Annotate() {
               <button
                 key={toolConfig.id}
                 className={`tool-btn ${tool === toolConfig.id ? 'active' : ''}`}
-                onClick={() => setTool(toolConfig.id)}
+                onClick={() => {
+                  setTool(toolConfig.id)
+                  setSelectedShape(null)
+                  selectedShapeRef.current = null
+                  if (toolHandlerRef.current) {
+                    toolHandlerRef.current.clearSelection()
+                  }
+                }}
                 title={toolConfig.name}
               >
                 {iconMap[toolConfig.icon]}
@@ -651,6 +782,7 @@ function Annotate() {
             <canvas
               ref={canvasRef}
               onClick={handleCanvasClick}
+              onDoubleClick={handleCanvasDoubleClick}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
@@ -658,6 +790,30 @@ function Annotate() {
               onWheel={handleMouseWheel}
               className={`drawing-canvas ${layers.length > 0 ? 'has-image' : ''}`}
             />
+
+            {/* Inline Text Editor */}
+            {inlineEditingText && (
+              <input
+                type="text"
+                value={inlineEditingText.content}
+                onChange={(e) => setInlineEditingText({ ...inlineEditingText, content: e.target.value })}
+                onKeyDown={handleInlineTextKeyPress}
+                onBlur={saveInlineTextEdit}
+                autoFocus
+                style={{
+                  position: 'absolute',
+                  left: `${inlineEditingText.x}px`,
+                  top: `${inlineEditingText.y}px`,
+                  fontSize: `${inlineEditingText.fontSize * zoom}px`,
+                  fontFamily: 'Arial',
+                  border: '2px solid #667eea',
+                  outline: 'none',
+                  padding: '2px 4px',
+                  minWidth: '100px',
+                  zIndex: 1000,
+                }}
+              />
+            )}
           </div>
 
           {/* Layers Panel */}
@@ -696,7 +852,7 @@ function Annotate() {
                         className={`layer-item ${selectedLayerId === layer.id ? 'selected' : ''}`}
                         onClick={() => selectLayer(layer.id)}
                         onDoubleClick={() => {
-                          if (layer.type === 'text') {
+                          if (layer.texts?.length > 0) {
                             startEditingText(layer)
                           }
                         }}
