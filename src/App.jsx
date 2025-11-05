@@ -937,13 +937,26 @@ function Annotate() {
                       const img = new Image()
 
                       img.onload = () => {
-                        console.log('Image loaded:', img.width, 'x', img.height)
+                        console.log('Image loaded:')
+                        console.log('  CSS dimensions (width/height):', img.width, 'x', img.height)
+                        console.log('  Natural dimensions (naturalWidth/naturalHeight):', img.naturalWidth, 'x', img.naturalHeight)
+                        console.log('  Current zoom level:', zoom)
+                        console.log('  Device pixel ratio:', window.devicePixelRatio)
+
+                        // Use naturalWidth/naturalHeight to get actual image dimensions
+                        // Divide by devicePixelRatio to get logical (CSS) pixels
+                        // This accounts for high-DPI displays where the clipboard pastes at physical pixels
+                        const dpr = window.devicePixelRatio || 1
+                        const actualWidth = (img.naturalWidth || img.width) / dpr
+                        const actualHeight = (img.naturalHeight || img.height) / dpr
+
+                        console.log('  Adjusted dimensions (accounting for DPI):', actualWidth, 'x', actualHeight)
 
                         const tempCanvas = document.createElement('canvas')
-                        tempCanvas.width = img.width
-                        tempCanvas.height = img.height
+                        tempCanvas.width = actualWidth
+                        tempCanvas.height = actualHeight
                         const tempCtx = tempCanvas.getContext('2d')
-                        tempCtx.drawImage(img, 0, 0)
+                        tempCtx.drawImage(img, 0, 0, actualWidth, actualHeight)
 
                         const dataUrl = tempCanvas.toDataURL()
                         console.log('DataURL created, length:', dataUrl.length)
@@ -953,8 +966,8 @@ function Annotate() {
                             data: dataUrl,
                             x: 0,
                             y: 0,
-                            width: img.width,
-                            height: img.height
+                            width: actualWidth,
+                            height: actualHeight
                           },
                         })
 
