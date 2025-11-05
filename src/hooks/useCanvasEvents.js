@@ -32,7 +32,8 @@ export const useCanvasEvents = ({
   setInlineEditingText,
   updateLayersState,
   renderCanvas,
-  showSnackbar
+  showSnackbar,
+  setZoom
 }) => {
   /**
    * Get coordinates from canvas event
@@ -362,8 +363,15 @@ export const useCanvasEvents = ({
       e.preventDefault()
       // Scroll up = zoom in (negative deltaY), scroll down = zoom out (positive deltaY)
       const delta = e.deltaY > 0 ? -0.1 : 0.1
-      // Directly modify zoom via canvasManager
-      canvasManagerRef.current.zoomIn(delta)
+
+      const currentZoom = canvasManagerRef.current.zoom
+      const newZoom = currentZoom + delta
+
+      // Update both canvas manager and React state
+      canvasManagerRef.current.setZoom(newZoom)
+      setZoom(newZoom)
+
+      renderCanvas()
     }
 
     // Add listener with passive: false to allow preventDefault
@@ -372,7 +380,7 @@ export const useCanvasEvents = ({
     return () => {
       canvas.removeEventListener('wheel', handleWheel)
     }
-  }, [canvasManagerRef])
+  }, [canvasManagerRef, renderCanvas, setZoom])
 
   /**
    * Handle middle-mouse button drag for panning (regardless of tool)

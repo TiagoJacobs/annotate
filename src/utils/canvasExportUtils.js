@@ -87,11 +87,11 @@ export const getContentBounds = (layerManager) => {
     return null
   }
 
-  // Add padding around content
+  // Add padding around content (allow negative coordinates)
   const padding = 20
   return {
-    x: Math.max(0, minX - padding),
-    y: Math.max(0, minY - padding),
+    x: minX - padding,
+    y: minY - padding,
     width: maxX - minX + padding * 2,
     height: maxY - minY + padding * 2
   }
