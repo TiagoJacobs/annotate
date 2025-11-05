@@ -25,7 +25,8 @@ export const useKeyboardShortcuts = ({
   colorPickerRef,
   sizeSliderRef,
   lineStyleSelectRef,
-  setShowKeyboardShortcuts
+  setShowKeyboardShortcuts,
+  toolHandlerRef
 }) => {
   /**
    * Get all shapes from all visible layers
@@ -237,6 +238,16 @@ export const useKeyboardShortcuts = ({
           if (allShapes.length > 0) {
             selectedShapeRef.current = allShapes
             setSelectedShape(allShapes)
+            // Also update the ToolHandler's internal state to recognize multi-shape selection
+            if (toolHandlerRef.current) {
+              toolHandlerRef.current.selectedShape = null
+              toolHandlerRef.current.selectedShapes = allShapes
+              toolHandlerRef.current.isDragging = false
+              toolHandlerRef.current.isResizing = false
+              toolHandlerRef.current.resizeHandle = null
+            }
+            // Switch to select tool so user can drag the selection
+            setTool('select')
             renderCanvas()
           }
         }

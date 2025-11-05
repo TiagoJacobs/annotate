@@ -128,18 +128,41 @@ export const useCanvasRenderer = (
     ctx.strokeStyle = '#ffffff'
     ctx.lineWidth = 1 / canvasManager.zoom
 
-    const handles = [
-      // Corners
-      { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' }, // top-left
-      { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' }, // top-right
-      { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' }, // bottom-left
-      { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' }, // bottom-right
-      // Edges
-      { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' }, // top
-      { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' }, // bottom
-      { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' }, // left
-      { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' }, // right
-    ]
+    let handles = []
+
+    // For arrows, show endpoint handles instead of corner resize handles
+    if (!Array.isArray(selectedShapeRef.current) && selectedShapeRef.current.shapeType === 'arrow') {
+      const layer = layerManagerRef.current.getLayer(selectedShapeRef.current.layerId)
+      if (layer && layer.arrows[selectedShapeRef.current.shapeIndex]) {
+        const arrow = layer.arrows[selectedShapeRef.current.shapeIndex]
+
+        // Calculate arrow head tip position (extend beyond toX, toY by the head length)
+        const size = arrow.size || 2
+        const headLength = Math.max(6, 8 + Math.log(size) * 6)
+        const angle = Math.atan2(arrow.toY - arrow.fromY, arrow.toX - arrow.fromX)
+        const headTipX = arrow.toX + headLength * Math.cos(angle)
+        const headTipY = arrow.toY + headLength * Math.sin(angle)
+
+        handles = [
+          { x: arrow.fromX, y: arrow.fromY, cursor: 'crosshair' }, // start point
+          { x: headTipX, y: headTipY, cursor: 'crosshair' }, // arrow head tip (visual end)
+        ]
+      }
+    } else {
+      // Standard corner/edge handles for other shapes
+      handles = [
+        // Corners
+        { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' }, // top-left
+        { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' }, // top-right
+        { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' }, // bottom-left
+        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' }, // bottom-right
+        // Edges
+        { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' }, // top
+        { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' }, // bottom
+        { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' }, // left
+        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' }, // right
+      ]
+    }
 
     handles.forEach(handle => {
       ctx.fillRect(

@@ -14,6 +14,9 @@ export const CanvasArea = ({
   handleCanvasMouseDown,
   handleCanvasMouseMove,
   handleCanvasMouseUp,
+  handleCanvasMiddleMouseDown,
+  handleCanvasMiddleMouseMove,
+  handleCanvasMiddleMouseUp,
   handleInlineTextKeyPress,
   saveInlineTextEdit,
   zoom,
@@ -25,10 +28,31 @@ export const CanvasArea = ({
         ref={canvasRef}
         onClick={handleCanvasClick}
         onDoubleClick={handleCanvasDoubleClick}
-        onMouseDown={handleCanvasMouseDown}
-        onMouseMove={handleCanvasMouseMove}
-        onMouseUp={handleCanvasMouseUp}
-        onMouseLeave={handleCanvasMouseUp}
+        onMouseDown={(e) => {
+          if (e.button === 1) {
+            handleCanvasMiddleMouseDown(e)
+          } else {
+            handleCanvasMouseDown(e)
+          }
+        }}
+        onMouseMove={(e) => {
+          if (e.buttons === 4) {
+            handleCanvasMiddleMouseMove(e)
+          } else {
+            handleCanvasMouseMove(e)
+          }
+        }}
+        onMouseUp={(e) => {
+          if (e.button === 1) {
+            handleCanvasMiddleMouseUp(e)
+          } else {
+            handleCanvasMouseUp(e)
+          }
+        }}
+        onMouseLeave={(e) => {
+          handleCanvasMiddleMouseUp(e)
+          handleCanvasMouseUp(e)
+        }}
         className={`drawing-canvas ${layers.length > 0 ? 'has-image' : ''}`}
       />
 

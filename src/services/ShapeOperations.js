@@ -326,6 +326,22 @@ export class ShapeOperations {
   }
 
   /**
+   * Modify arrow endpoint (for endpoint dragging)
+   */
+  static modifyArrowEndpoint(layer, shapeIndex, endpoint, newX, newY) {
+    const arrow = layer.arrows[shapeIndex]
+    if (!arrow) return
+
+    if (endpoint === 'from') {
+      arrow.fromX = newX
+      arrow.fromY = newY
+    } else if (endpoint === 'to') {
+      arrow.toX = newX
+      arrow.toY = newY
+    }
+  }
+
+  /**
    * Shape Resize
    */
 
@@ -399,33 +415,24 @@ export class ShapeOperations {
       arrow: () => {
         const arrow = layer.arrows[shapeIndex]
 
-        // Use startBounds (from the beginning of resize) to calculate relative positions
-        // This prevents jumping by always using the same reference
-        const padding = Math.ceil((arrow.size || 2) / 2) + 1
-        const innerBounds = {
-          x: startBounds.x + padding,
-          y: startBounds.y + padding,
-          width: startBounds.width - padding * 2,
-          height: startBounds.height - padding * 2
-        }
+        // For arrows, scale endpoints relative to the bounds change
+        // Use the original bounds as reference to avoid floating point errors
+        const scaleX = newWidth / startBounds.width
+        const scaleY = newHeight / startBounds.height
+        const offsetX = newX - startBounds.x
+        const offsetY = newY - startBounds.y
 
-        // Calculate relative positions of endpoints within the original bounds
-        const relFromX = (arrow.fromX - innerBounds.x) / innerBounds.width
-        const relFromY = (arrow.fromY - innerBounds.y) / innerBounds.height
-        const relToX = (arrow.toX - innerBounds.x) / innerBounds.width
-        const relToY = (arrow.toY - innerBounds.y) / innerBounds.height
+        // Scale and offset both endpoints
+        const oldFromX = arrow.fromX
+        const oldFromY = arrow.fromY
+        const oldToX = arrow.toX
+        const oldToY = arrow.toY
 
-        // Apply new positions based on relative positions and new bounds
-        const newPadding = Math.ceil((arrow.size || 2) / 2) + 1
-        const newInnerX = newX + newPadding
-        const newInnerY = newY + newPadding
-        const newInnerWidth = newWidth - newPadding * 2
-        const newInnerHeight = newHeight - newPadding * 2
-
-        arrow.fromX = newInnerX + relFromX * newInnerWidth
-        arrow.fromY = newInnerY + relFromY * newInnerHeight
-        arrow.toX = newInnerX + relToX * newInnerWidth
-        arrow.toY = newInnerY + relToY * newInnerHeight
+        // Calculate new positions by scaling relative to original bounds
+        arrow.fromX = startBounds.x + (oldFromX - startBounds.x) * scaleX + offsetX
+        arrow.fromY = startBounds.y + (oldFromY - startBounds.y) * scaleY + offsetY
+        arrow.toX = startBounds.x + (oldToX - startBounds.x) * scaleX + offsetX
+        arrow.toY = startBounds.y + (oldToY - startBounds.y) * scaleY + offsetY
       },
       image: () => {
         // Images are stored as layer.image (not in an array)

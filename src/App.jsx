@@ -281,6 +281,8 @@ function Annotate() {
     layerManagerRef.current.updateLayerWithHistory(inlineEditingText.layerId, { texts: layer.texts })
     updateLayersState()
     setInlineEditingText(null)
+    // Switch to select tool after text is added
+    setTool('select')
   }
 
   const cancelInlineTextEdit = () => {
@@ -540,7 +542,8 @@ function Annotate() {
     colorPickerRef,
     sizeSliderRef,
     lineStyleSelectRef,
-    setShowKeyboardShortcuts
+    setShowKeyboardShortcuts,
+    toolHandlerRef
   })
 
   // ==================== Effects ====================
@@ -1113,92 +1116,28 @@ function Annotate() {
         </div>
 
         {/* Options Toolbar - always visible but empty when no tool/shape is active */}
-        <div className="shape-toolbar">
-          {(tool !== 'select' && tool !== 'pan' || selectedShape) ? (
-            <>
-              {/* Color Picker */}
-              <div className="tool-group">
-                <label>Color:</label>
-                <input
-                  ref={colorPickerRef}
-                  type="color"
-                  value={selectedShape ? (getSelectedShapeColor() || color) : color}
-                  onChange={(e) => {
-                    if (selectedShape) {
-                      updateSelectedShapeColor(e.target.value)
-                    } else {
-                      setColor(e.target.value)
-                    }
-                  }}
-                  className="color-picker"
-                />
-              </div>
-
-              {/* Size Control */}
-              <div className="tool-group">
-                <label>
-                  {selectedShape
-                    ? (getSelectedShapeSize()?.type === 'fontSize' ? 'Font Size:' : 'Line Weight:')
-                    : (showFontSize() ? 'Font Size:' : 'Line Weight:')
-                  }
-                </label>
-                <input
-                  ref={sizeSliderRef}
-                  type="range"
-                  min={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '10' : '1') : (showFontSize() ? '10' : '1')}
-                  max={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '100' : '50') : (showFontSize() ? '100' : '50')}
-                  value={selectedShape ? (getSelectedShapeSize()?.value || 3) : (showFontSize() ? fontSize : brushSize)}
-                  onChange={(e) => {
-                    const newValue = parseInt(e.target.value)
-                    if (selectedShape) {
-                      updateSelectedShapeSize(newValue)
-                    } else {
-                      if (showFontSize()) {
-                        setFontSize(newValue)
-                      } else {
-                        setBrushSize(newValue)
-                      }
-                    }
-                  }}
-                  className="size-slider"
-                />
-                <span className="size-display">
-                  {selectedShape
-                    ? (getSelectedShapeSize()?.value || 3)
-                    : (showFontSize() ? fontSize : brushSize)
-                  }px
-                </span>
-              </div>
-
-              {/* Line Style Control */}
-              {(selectedShape ? getSelectedShapeLineStyle() !== null : true) && (
-                <div className="tool-group">
-                  <label>Line Style:</label>
-                  <select
-                    ref={lineStyleSelectRef}
-                    value={selectedShape ? (getSelectedShapeLineStyle() || 'solid') : lineStyle}
-                    onChange={(e) => {
-                      if (selectedShape) {
-                        updateSelectedShapeLineStyle(e.target.value)
-                      } else {
-                        setLineStyle(e.target.value)
-                        saveToolProperty('lineStyle', e.target.value)
-                      }
-                    }}
-                    className="line-style-select"
-                  >
-                    <option value="solid">Solid</option>
-                    <option value="dashed">Dashed</option>
-                    <option value="dotted">Dotted</option>
-                    <option value="dashdot">Dash-Dot</option>
-                  </select>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="toolbar-placeholder">Select a tool or shape to see options</div>
-          )}
-        </div>
+        <ShapeOptionsPanel
+          tool={tool}
+          selectedShape={selectedShape}
+          color={color}
+          brushSize={brushSize}
+          fontSize={fontSize}
+          lineStyle={lineStyle}
+          getSelectedShapeColor={getSelectedShapeColor}
+          getSelectedShapeSize={getSelectedShapeSize}
+          getSelectedShapeLineStyle={getSelectedShapeLineStyle}
+          updateSelectedShapeColor={updateSelectedShapeColor}
+          updateSelectedShapeSize={updateSelectedShapeSize}
+          updateSelectedShapeLineStyle={updateSelectedShapeLineStyle}
+          setColor={setColor}
+          setBrushSize={setBrushSize}
+          setFontSize={setFontSize}
+          setLineStyle={setLineStyle}
+          saveToolProperty={saveToolProperty}
+          colorPickerRef={colorPickerRef}
+          sizeSliderRef={sizeSliderRef}
+          lineStyleSelectRef={lineStyleSelectRef}
+        />
 
         <div className="annotate-content">
           {/* Hidden div for paste handling - contenteditable accepts image files */}
@@ -1226,63 +1165,23 @@ function Annotate() {
           />
 
           {/* Canvas */}
-          <div className="canvas-container">
-            <canvas
-              ref={canvasRef}
-              onClick={handleCanvasClick}
-              onDoubleClick={handleCanvasDoubleClick}
-              onMouseDown={(e) => {
-                if (e.button === 1) {
-                  handleCanvasMiddleMouseDown(e)
-                } else {
-                  handleCanvasMouseDown(e)
-                }
-              }}
-              onMouseMove={(e) => {
-                if (e.buttons === 4) {
-                  handleCanvasMiddleMouseMove(e)
-                } else {
-                  handleCanvasMouseMove(e)
-                }
-              }}
-              onMouseUp={(e) => {
-                if (e.button === 1) {
-                  handleCanvasMiddleMouseUp(e)
-                } else {
-                  handleCanvasMouseUp(e)
-                }
-              }}
-              onMouseLeave={(e) => {
-                handleCanvasMiddleMouseUp(e)
-                handleCanvasMouseUp(e)
-              }}
-              className={`drawing-canvas ${layers.length > 0 ? 'has-image' : ''}`}
-            />
-
-            {/* Inline Text Editor */}
-            {inlineEditingText && (
-              <input
-                type="text"
-                value={inlineEditingText.content}
-                onChange={(e) => setInlineEditingText({ ...inlineEditingText, content: e.target.value })}
-                onKeyDown={handleInlineTextKeyPress}
-                onBlur={saveInlineTextEdit}
-                autoFocus
-                style={{
-                  position: 'absolute',
-                  left: `${inlineEditingText.x}px`,
-                  top: `${inlineEditingText.y}px`,
-                  fontSize: `${inlineEditingText.fontSize * zoom}px`,
-                  fontFamily: 'Arial',
-                  border: '2px solid #667eea',
-                  outline: 'none',
-                  padding: '2px 4px',
-                  minWidth: '100px',
-                  zIndex: 1000,
-                }}
-              />
-            )}
-          </div>
+          <CanvasArea
+            canvasRef={canvasRef}
+            inlineEditingText={inlineEditingText}
+            setInlineEditingText={setInlineEditingText}
+            handleCanvasClick={handleCanvasClick}
+            handleCanvasDoubleClick={handleCanvasDoubleClick}
+            handleCanvasMouseDown={handleCanvasMouseDown}
+            handleCanvasMouseMove={handleCanvasMouseMove}
+            handleCanvasMouseUp={handleCanvasMouseUp}
+            handleCanvasMiddleMouseDown={handleCanvasMiddleMouseDown}
+            handleCanvasMiddleMouseMove={handleCanvasMiddleMouseMove}
+            handleCanvasMiddleMouseUp={handleCanvasMiddleMouseUp}
+            handleInlineTextKeyPress={handleInlineTextKeyPress}
+            saveInlineTextEdit={saveInlineTextEdit}
+            zoom={zoom}
+            layers={layers}
+          />
 
           {/* Layers Panel */}
           <LayersPanel

@@ -182,6 +182,34 @@ export class ToolHandler {
   }
 
   /**
+   * Detect if click is near an arrow endpoint (for endpoint dragging)
+   */
+  getArrowEndpointHandle(pos, arrow) {
+    const threshold = HANDLE_HIT_THRESHOLD
+
+    // Check distance to 'from' endpoint
+    const distFromStart = Math.sqrt((pos.x - arrow.fromX) ** 2 + (pos.y - arrow.fromY) ** 2)
+    if (distFromStart < threshold + 2) {
+      return 'from'
+    }
+
+    // Calculate the visual arrow head tip position for 'to' endpoint
+    const size = arrow.size || 2
+    const headLength = Math.max(6, 8 + Math.log(size) * 6)
+    const angle = Math.atan2(arrow.toY - arrow.fromY, arrow.toX - arrow.fromX)
+    const headTipX = arrow.toX + headLength * Math.cos(angle)
+    const headTipY = arrow.toY + headLength * Math.sin(angle)
+
+    // Check distance to visual arrow head tip
+    const distFromEnd = Math.sqrt((pos.x - headTipX) ** 2 + (pos.y - headTipY) ** 2)
+    if (distFromEnd < threshold + 2) {
+      return 'to'
+    }
+
+    return null
+  }
+
+  /**
    * Start marquee selection
    */
   startMarqueeSelection(pos) {
@@ -254,45 +282,94 @@ export class ToolHandler {
    * Select object with optional shift-click multi-selection
    */
   selectObject(pos, isShiftHeld = false) {
-    // First check if clicking on a resize handle
-    if (this.selectedShape || this.selectedShapes) {
-      const bounds = this.selectedShapes
-        ? this.getMultiShapeBounds(this.selectedShapes)
-        : (() => {
-            const layer = this.layerManager.getLayer(this.selectedShape.layerId)
-            return layer ? this.getShapeBounds(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex) : null
-          })()
-
+    // PRIORITY 1: Check if clicking on existing multi-shape selection bounds first
+    // This ensures Ctrl+A selection takes priority for movement
+    if (this.selectedShapes && !isShiftHeld && this.selectedShapes.length > 0) {
+      const bounds = this.getMultiShapeBounds(this.selectedShapes)
       if (bounds) {
+        // Check if clicking inside multi-selection bounds or on resize handles
         const handle = this.getResizeHandle(pos, bounds)
         if (handle) {
+          // Clicking on a resize handle - start resizing the group
           this.resizeHandle = handle
           this.resizeStartPos = pos
-
-          // Store bounds for resize reference
-          // For group resize, we need the group bounds itself
           this.resizeStartBounds = { ...bounds }
-          // Also store the multi-shape group bounds if resizing multiple shapes
-          this.resizeGroupStartBounds = this.selectedShapes ? { ...bounds } : null
-
+          this.resizeGroupStartBounds = { ...bounds }
           this.isResizing = true
-          // IMPORTANT: Return the current selection without clearing it
-          const currentSelection = this.selectedShape || this.selectedShapes
-          // Prevent clearing selection by keeping the ref intact
-          return currentSelection
+          return this.selectedShapes
+        }
+
+        // Add padding to be more forgiving
+        const padding = 5
+        const expandedBounds = {
+          x: bounds.x - padding,
+          y: bounds.y - padding,
+          width: bounds.width + padding * 2,
+          height: bounds.height + padding * 2
+        }
+        if (ShapeOperations.isPointInRect(pos.x, pos.y, expandedBounds)) {
+          // Clicking inside multi-selection bounds, preserve for dragging
+          this.isDragging = false
+          this.isResizing = false
+          this.resizeHandle = null
+          return this.selectedShapes
         }
       }
     }
 
-    // Check if clicking on existing selection (only if not shift-clicking)
-    if (this.selectedShapes && !isShiftHeld) {
-      const bounds = this.getMultiShapeBounds(this.selectedShapes)
-      if (bounds && ShapeOperations.isPointInRect(pos.x, pos.y, bounds)) {
-        // Clicking inside multi-selection, start dragging
-        this.isDragging = false
-        this.isResizing = false
-        this.resizeHandle = null
-        return this.selectedShapes
+    // PRIORITY 2: Check single selection and handles
+    if (this.selectedShape && !this.selectedShapes) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      if (layer) {
+        const bounds = this.getShapeBounds(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex)
+
+        if (bounds) {
+          // Check if this is a single arrow and if clicking on an endpoint
+          if (this.selectedShape.shapeType === 'arrow' && layer.arrows[this.selectedShape.shapeIndex]) {
+            const arrow = layer.arrows[this.selectedShape.shapeIndex]
+            const endpointHandle = this.getArrowEndpointHandle(pos, arrow)
+            if (endpointHandle) {
+              // Activate endpoint drag mode
+              this.isArrowEndpointDragging = true
+              this.arrowEndpointHandle = endpointHandle
+              this.arrowEndpointStartPos = pos
+              return this.selectedShape
+            }
+          }
+
+          // Check if clicking on a resize handle
+          const handle = this.getResizeHandle(pos, bounds)
+          if (handle) {
+            this.resizeHandle = handle
+            this.resizeStartPos = pos
+            this.resizeStartBounds = { ...bounds }
+            this.isResizing = true
+            return this.selectedShape
+          }
+
+          // Check if clicking inside the selected shape bounds (for dragging)
+          if (!isShiftHeld && ShapeOperations.isPointInRect(pos.x, pos.y, bounds)) {
+            this.isDragging = false
+            this.isResizing = false
+            this.resizeHandle = null
+            return this.selectedShape
+          }
+        }
+      }
+    }
+
+    // Also check if single selected shape is being clicked (for dragging)
+    if (this.selectedShape && !isShiftHeld) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      if (layer) {
+        const bounds = this.getShapeBounds(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex)
+        if (bounds && ShapeOperations.isPointInRect(pos.x, pos.y, bounds)) {
+          // Clicking on the selected shape, preserve selection for dragging
+          this.isDragging = false
+          this.isResizing = false
+          this.resizeHandle = null
+          return this.selectedShape
+        }
       }
     }
 
@@ -467,6 +544,39 @@ export class ToolHandler {
   dragObject(pos, isShiftHeld = false) {
     if (!this.selectedShape && !this.selectedShapes) return
 
+    // Handle arrow endpoint dragging
+    if (this.isArrowEndpointDragging && this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      if (layer && layer.arrows && layer.arrows[this.selectedShape.shapeIndex]) {
+        const arrow = layer.arrows[this.selectedShape.shapeIndex]
+        let newX = pos.x
+        let newY = pos.y
+
+        // If dragging the 'to' endpoint, convert from visual head tip to actual endpoint
+        if (this.arrowEndpointHandle === 'to') {
+          const size = arrow.size || 2
+          const headLength = Math.max(6, 8 + Math.log(size) * 6)
+          // We need to move backwards from the mouse position by headLength in the direction
+          // Calculate what the direction should be from the new head tip
+          // For now, use the current arrow direction as reference, but adjust as we drag
+          const angle = Math.atan2(pos.y - arrow.fromY, pos.x - arrow.fromX)
+          newX = pos.x - headLength * Math.cos(angle)
+          newY = pos.y - headLength * Math.sin(angle)
+        }
+
+        // Update the endpoint to the calculated position
+        ShapeOperations.modifyArrowEndpoint(
+          layer,
+          this.selectedShape.shapeIndex,
+          this.arrowEndpointHandle,
+          newX,
+          newY
+        )
+        this.layerManager.updateLayer(layer.id, layer)
+      }
+      return
+    }
+
     // If resizing, call resize instead
     if (this.isResizing) {
       this.resizeShape(pos, isShiftHeld)
@@ -517,8 +627,8 @@ export class ToolHandler {
    * Release object
    */
   releaseObject() {
-    // Save to history when drag/resize is complete
-    if (this.isDragging || this.isResizing) {
+    // Save to history when drag/resize/endpoint-drag is complete
+    if (this.isDragging || this.isResizing || this.isArrowEndpointDragging) {
       if (this.selectedShapes) {
         const updatedLayers = new Set()
         for (const shape of this.selectedShapes) {
@@ -540,10 +650,13 @@ export class ToolHandler {
 
     this.isDragging = false
     this.isResizing = false
+    this.isArrowEndpointDragging = false
     this.dragStartPos = null
     this.resizeHandle = null
     this.resizeStartPos = null
     this.resizeStartBounds = null
+    this.arrowEndpointHandle = null
+    this.arrowEndpointStartPos = null
   }
 
   /**
