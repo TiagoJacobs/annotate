@@ -9,15 +9,17 @@ export class LayerManager {
     this.selectedId = null
     this.history = []
     this.historyIndex = -1
+    this.layerCounter = 0
   }
 
   /**
    * Create a new layer
    */
   createLayer(name = null, data = {}) {
+    this.layerCounter++
     const layer = {
       id: Date.now(),
-      name: name || 'Layer',
+      name: name || `Layer ${this.layerCounter}`,
       visible: true,
       locked: false,
       opacity: 1,
