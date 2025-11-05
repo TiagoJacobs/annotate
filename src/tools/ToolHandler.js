@@ -172,7 +172,8 @@ export class ToolHandler {
 
     for (const handle of handles) {
       const dist = Math.sqrt((pos.x - handle.x) ** 2 + (pos.y - handle.y) ** 2)
-      if (dist < threshold) {
+      // Increase threshold slightly to account for visual handle size
+      if (dist < threshold + 2) {
         return handle.name
       }
     }
@@ -275,7 +276,10 @@ export class ToolHandler {
           this.resizeGroupStartBounds = this.selectedShapes ? { ...bounds } : null
 
           this.isResizing = true
-          return this.selectedShape || this.selectedShapes
+          // IMPORTANT: Return the current selection without clearing it
+          const currentSelection = this.selectedShape || this.selectedShapes
+          // Prevent clearing selection by keeping the ref intact
+          return currentSelection
         }
       }
     }

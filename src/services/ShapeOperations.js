@@ -156,10 +156,36 @@ export class ShapeOperations {
       stroke: () => this.getBoundsFromPoints(layer.strokes[shapeIndex].points),
       arrow: () => {
         const arrow = layer.arrows[shapeIndex]
-        return this.getBoundsFromPoints([
+        const size = arrow.size || 2
+        const headLength = Math.max(6, 8 + Math.log(size) * 6)
+        const headAngle = Math.PI / 6 // 30 degrees
+
+        const angle = Math.atan2(arrow.toY - arrow.fromY, arrow.toX - arrow.fromX)
+
+        // Calculate arrow head points
+        const leftX = arrow.toX - headLength * Math.cos(angle - headAngle)
+        const leftY = arrow.toY - headLength * Math.sin(angle - headAngle)
+        const rightX = arrow.toX - headLength * Math.cos(angle + headAngle)
+        const rightY = arrow.toY - headLength * Math.sin(angle + headAngle)
+
+        // Get bounds from all points (endpoints + arrow head points)
+        const points = [
           { x: arrow.fromX, y: arrow.fromY },
-          { x: arrow.toX, y: arrow.toY }
-        ])
+          { x: arrow.toX, y: arrow.toY },
+          { x: leftX, y: leftY },
+          { x: rightX, y: rightY }
+        ]
+
+        const bounds = this.getBoundsFromPoints(points)
+
+        // Add padding for line width
+        const padding = Math.ceil(size / 2) + 1
+        return {
+          x: bounds.x - padding,
+          y: bounds.y - padding,
+          width: bounds.width + padding * 2,
+          height: bounds.height + padding * 2
+        }
       },
       rect: () => {
         const rect = { ...layer.rects[shapeIndex] }
@@ -372,11 +398,34 @@ export class ShapeOperations {
       },
       arrow: () => {
         const arrow = layer.arrows[shapeIndex]
-        if (handle.includes('w')) arrow.fromX = newX
-        else if (handle.includes('e')) arrow.toX = newX + newWidth
 
-        if (handle.includes('n')) arrow.fromY = newY
-        else if (handle.includes('s')) arrow.toY = newY + newHeight
+        // Use startBounds (from the beginning of resize) to calculate relative positions
+        // This prevents jumping by always using the same reference
+        const padding = Math.ceil((arrow.size || 2) / 2) + 1
+        const innerBounds = {
+          x: startBounds.x + padding,
+          y: startBounds.y + padding,
+          width: startBounds.width - padding * 2,
+          height: startBounds.height - padding * 2
+        }
+
+        // Calculate relative positions of endpoints within the original bounds
+        const relFromX = (arrow.fromX - innerBounds.x) / innerBounds.width
+        const relFromY = (arrow.fromY - innerBounds.y) / innerBounds.height
+        const relToX = (arrow.toX - innerBounds.x) / innerBounds.width
+        const relToY = (arrow.toY - innerBounds.y) / innerBounds.height
+
+        // Apply new positions based on relative positions and new bounds
+        const newPadding = Math.ceil((arrow.size || 2) / 2) + 1
+        const newInnerX = newX + newPadding
+        const newInnerY = newY + newPadding
+        const newInnerWidth = newWidth - newPadding * 2
+        const newInnerHeight = newHeight - newPadding * 2
+
+        arrow.fromX = newInnerX + relFromX * newInnerWidth
+        arrow.fromY = newInnerY + relFromY * newInnerHeight
+        arrow.toX = newInnerX + relToX * newInnerWidth
+        arrow.toY = newInnerY + relToY * newInnerHeight
       },
       image: () => {
         // Images are stored as layer.image (not in an array)
