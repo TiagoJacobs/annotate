@@ -75,10 +75,12 @@ class StrokeRenderer extends BaseShapeRenderer {
 class ArrowRenderer extends BaseShapeRenderer {
   render(ctx, arrow, layerColor) {
     const { fromX, fromY, toX, toY, size = 2 } = arrow
-    const { headLength, headAngle } = ARROW_RENDER_CONFIG
+    const { headAngle } = ARROW_RENDER_CONFIG
     const angle = Math.atan2(toY - fromY, toX - fromX)
+    const color = this.getShapeColor(arrow, layerColor)
 
-    ctx.strokeStyle = this.getShapeColor(arrow, layerColor)
+    ctx.strokeStyle = color
+    ctx.fillStyle = color
     ctx.lineWidth = size
 
     this.applyLineStyle(ctx, arrow.lineStyle)
@@ -89,18 +91,23 @@ class ArrowRenderer extends BaseShapeRenderer {
     ctx.lineTo(toX, toY)
     ctx.stroke()
 
-    // Draw arrow head
+    // Scale arrow head proportionally to line width
+    // Use logarithmic scaling for better proportionality at all sizes
+    const headLength = Math.max(6, 8 + Math.log(size) * 6)
+
+    // Calculate arrow head points
+    const leftX = toX - headLength * Math.cos(angle - headAngle)
+    const leftY = toY - headLength * Math.sin(angle - headAngle)
+    const rightX = toX - headLength * Math.cos(angle + headAngle)
+    const rightY = toY - headLength * Math.sin(angle + headAngle)
+
+    // Draw filled arrow head triangle
     ctx.beginPath()
     ctx.moveTo(toX, toY)
-    ctx.lineTo(
-      toX - headLength * Math.cos(angle - headAngle),
-      toY - headLength * Math.sin(angle - headAngle)
-    )
-    ctx.moveTo(toX, toY)
-    ctx.lineTo(
-      toX - headLength * Math.cos(angle + headAngle),
-      toY - headLength * Math.sin(angle + headAngle)
-    )
+    ctx.lineTo(leftX, leftY)
+    ctx.lineTo(rightX, rightY)
+    ctx.closePath()
+    ctx.fill()
     ctx.stroke()
 
     this.resetLineStyle(ctx)

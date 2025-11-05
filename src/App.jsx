@@ -905,93 +905,102 @@ function Annotate() {
     }
   }, [])
 
+  // Track last clipboard content to detect when user copies something external
+  const lastClipboardContentRef = useRef(null)
+
   // Handle paste via Ctrl+V using Clipboard API
   useEffect(() => {
     const handleKeyDown = (e) => {
       const isPasteKey = (e.ctrlKey || e.metaKey) && e.key === 'v'
 
       if (isPasteKey) {
-        console.log('🔐 Paste key detected (Ctrl+V), accessing clipboard...')
-        e.preventDefault()
+        console.log('🔐 Paste key detected (Ctrl+V), checking clipboard...')
 
-        // Use Clipboard API to get clipboard items
+        // Check what's currently in the system clipboard
         navigator.clipboard.read()
-          .then(items => {
-            console.log('📋 Clipboard items:', items)
+          .then(clipboardItems => {
+            // Check if there's an image in the system clipboard
+            const hasImage = clipboardItems.some(item =>
+              item.types.some(type => type.startsWith('image/'))
+            )
 
-            for (let item of items) {
-              console.log('Item types:', item.types)
+            // First check if there are shapes in localStorage to paste
+            const CLIPBOARD_KEY = 'annotate-shapes-clipboard'
+            const shapeClipboard = localStorage.getItem(CLIPBOARD_KEY)
 
-              // Check if any type is an image
-              const imageType = item.types.find(type => type.startsWith('image/'))
-
-              if (imageType) {
-                console.log('Found image type:', imageType)
-                item.getType(imageType)
-                  .then(blob => {
-                    console.log('Got blob:', blob)
-
-                    const reader = new FileReader()
-                    reader.onload = (event) => {
-                      console.log('FileReader loaded')
-                      const img = new Image()
-
-                      img.onload = () => {
-                        console.log('Image loaded:')
-                        console.log('  CSS dimensions (width/height):', img.width, 'x', img.height)
-                        console.log('  Natural dimensions (naturalWidth/naturalHeight):', img.naturalWidth, 'x', img.naturalHeight)
-                        console.log('  Current zoom level:', zoom)
-                        console.log('  Device pixel ratio:', window.devicePixelRatio)
-
-                        // Use naturalWidth/naturalHeight to get actual image dimensions
-                        // Divide by devicePixelRatio to get logical (CSS) pixels
-                        // This accounts for high-DPI displays where the clipboard pastes at physical pixels
-                        const dpr = window.devicePixelRatio || 1
-                        const actualWidth = (img.naturalWidth || img.width) / dpr
-                        const actualHeight = (img.naturalHeight || img.height) / dpr
-
-                        console.log('  Adjusted dimensions (accounting for DPI):', actualWidth, 'x', actualHeight)
-
-                        const tempCanvas = document.createElement('canvas')
-                        tempCanvas.width = actualWidth
-                        tempCanvas.height = actualHeight
-                        const tempCtx = tempCanvas.getContext('2d')
-                        tempCtx.drawImage(img, 0, 0, actualWidth, actualHeight)
-
-                        const dataUrl = tempCanvas.toDataURL()
-                        console.log('DataURL created, length:', dataUrl.length)
-
-                        const imageLayer = layerManagerRef.current.createLayer('Image', {
-                          image: {
-                            data: dataUrl,
-                            x: 0,
-                            y: 0,
-                            width: actualWidth,
-                            height: actualHeight
-                          },
-                        })
-
-                        console.log('✅ Image layer created:', imageLayer.id)
-                        setSelectedLayerId(imageLayer.id)
-                        setTool('select')
-                        updateLayersState()
-                        console.log('✅ Image paste completed successfully!')
-                      }
-
-                      img.onerror = () => console.error('Image load error')
-                      img.src = event.target.result
-                    }
-
-                    reader.onerror = (err) => console.error('FileReader error:', err)
-                    reader.readAsDataURL(blob)
-                  })
-                  .catch(err => console.error('Failed to get blob:', err))
-
-                return // Stop after first image
-              }
+            if (hasImage) {
+              console.log('🖼️ Image detected in system clipboard, clearing old shape data')
+              // Clear the old shape clipboard when user copies an image
+              localStorage.removeItem(CLIPBOARD_KEY)
             }
 
-            console.log('No image found in clipboard')
+            // Handle shape paste from localStorage (takes priority if exists and no image)
+            if (shapeClipboard && !hasImage) {
+              console.log('📝 Found shapes in clipboard, letting keyboard shortcuts handler paste shapes')
+              // Don't prevent default - let the keyboard shortcuts handler deal with it
+              return
+            }
+
+            // Handle image paste (only if no shapes in localStorage)
+            if (hasImage && !shapeClipboard) {
+              console.log('🔐 Pasting image from clipboard...')
+              e.preventDefault()
+
+              for (let item of clipboardItems) {
+                const imageType = item.types.find(type => type.startsWith('image/'))
+
+                if (imageType) {
+                  item.getType(imageType)
+                    .then(blob => {
+                      const reader = new FileReader()
+                      reader.onload = (event) => {
+                        const img = new Image()
+
+                        img.onload = () => {
+                          const dpr = window.devicePixelRatio || 1
+                          const actualWidth = (img.naturalWidth || img.width) / dpr
+                          const actualHeight = (img.naturalHeight || img.height) / dpr
+
+                          const tempCanvas = document.createElement('canvas')
+                          tempCanvas.width = actualWidth
+                          tempCanvas.height = actualHeight
+                          const tempCtx = tempCanvas.getContext('2d')
+                          tempCtx.drawImage(img, 0, 0, actualWidth, actualHeight)
+
+                          const dataUrl = tempCanvas.toDataURL()
+
+                          const imageLayer = layerManagerRef.current.createLayer('Image', {
+                            image: {
+                              data: dataUrl,
+                              x: 0,
+                              y: 0,
+                              width: actualWidth,
+                              height: actualHeight
+                            },
+                          })
+
+                          console.log('✅ Image layer created:', imageLayer.id)
+                          setSelectedLayerId(imageLayer.id)
+                          setTool('select')
+                          updateLayersState()
+                          console.log('✅ Image paste completed successfully!')
+                        }
+
+                        img.onerror = () => console.error('Image load error')
+                        img.src = event.target.result
+                      }
+
+                      reader.onerror = (err) => console.error('FileReader error:', err)
+                      reader.readAsDataURL(blob)
+                    })
+                    .catch(err => console.error('Failed to get blob:', err))
+
+                  return // Stop after first image
+                }
+              }
+            } else if (!shapeClipboard && !hasImage) {
+              console.log('🔐 No image or shape data found in clipboard')
+            }
           })
           .catch(err => {
             console.error('Clipboard read failed:', err)
