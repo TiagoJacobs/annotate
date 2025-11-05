@@ -3,7 +3,7 @@
  * Separates event handling logic from main component
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { getToolConfig } from '../tools/toolRegistry'
 import { RESIZE_HANDLE_SIZE } from '../config/uiConstants'
 
@@ -58,6 +58,12 @@ export const useCanvasEvents = ({
     }
 
     const properties = getToolProperties()
+
+    // Clear selection when creating text
+    if (selectedShapeRef.current) {
+      selectedShapeRef.current = null
+      setSelectedShape(null)
+    }
 
     // Place an empty text shape
     toolHandlerRef.current?.placeText(coords, getToolConfig(tool), properties, ' ')
@@ -232,8 +238,18 @@ export const useCanvasEvents = ({
     }
 
     if (handler === 'startFreehandStroke') {
+      // Clear selection when starting to draw
+      if (selectedShapeRef.current) {
+        selectedShapeRef.current = null
+        setSelectedShape(null)
+      }
       toolHandlerRef.current?.startFreehandStroke(coords, toolConfig, properties)
     } else if (handler === 'startShape') {
+      // Clear selection when starting to draw
+      if (selectedShapeRef.current) {
+        selectedShapeRef.current = null
+        setSelectedShape(null)
+      }
       toolHandlerRef.current?.startShape(coords, toolConfig, properties)
     } else if (handler === 'startPan') {
       toolHandlerRef.current?.startPan(coords)
@@ -336,15 +352,60 @@ export const useCanvasEvents = ({
   }, [tool, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateLayersState])
 
   /**
-   * Handle mouse wheel for zoom
+   * Setup wheel event listener with passive: false to allow preventDefault
    */
-  const handleMouseWheel = useCallback((e, zoomIn) => {
-    if (!e.ctrlKey && !e.metaKey) return
+  useEffect(() => {
+    const canvas = canvasManagerRef.current?.canvas
+    if (!canvas) return
+
+    const handleWheel = (e) => {
+      e.preventDefault()
+      // Scroll up = zoom in (negative deltaY), scroll down = zoom out (positive deltaY)
+      const delta = e.deltaY > 0 ? -0.1 : 0.1
+      // Directly modify zoom via canvasManager
+      canvasManagerRef.current.zoomIn(delta)
+    }
+
+    // Add listener with passive: false to allow preventDefault
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel)
+    }
+  }, [canvasManagerRef])
+
+  /**
+   * Handle middle-mouse button drag for panning (regardless of tool)
+   */
+  const handleCanvasMiddleMouseDown = useCallback((e) => {
+    // Only handle middle mouse button (button === 1)
+    if (e.button !== 1) return
 
     e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.1 : 0.1
-    zoomIn(delta)
-  }, [])
+    toolHandlerRef.current?.startPan(getCanvasCoordinates(e))
+    toolHandlerRef.current.panLastScreenX = e.clientX
+    toolHandlerRef.current.panLastScreenY = e.clientY
+  }, [getCanvasCoordinates, toolHandlerRef])
+
+  const handleCanvasMiddleMouseMove = useCallback((e) => {
+    // Only pan if we're actively panning (triggered by middle mouse down)
+    if (e.buttons !== 4) return // 4 is the bitmask for middle mouse button
+
+    const coords = getCanvasCoordinates(e)
+    if (!coords) return
+
+    toolHandlerRef.current?.continuePan(coords, e.clientX, e.clientY)
+    toolHandlerRef.current.panLastScreenX = e.clientX
+    toolHandlerRef.current.panLastScreenY = e.clientY
+    renderCanvas()
+  }, [getCanvasCoordinates, toolHandlerRef, renderCanvas])
+
+  const handleCanvasMiddleMouseUp = useCallback((e) => {
+    // Only handle middle mouse button release
+    if (e.button !== 1) return
+
+    toolHandlerRef.current?.finishPan()
+  }, [toolHandlerRef])
 
   return {
     handleCanvasClick,
@@ -352,6 +413,8 @@ export const useCanvasEvents = ({
     handleCanvasMouseDown,
     handleCanvasMouseMove,
     handleCanvasMouseUp,
-    handleMouseWheel
+    handleCanvasMiddleMouseDown,
+    handleCanvasMiddleMouseMove,
+    handleCanvasMiddleMouseUp
   }
 }

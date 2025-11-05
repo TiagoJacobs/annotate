@@ -14,11 +14,9 @@ export const CanvasArea = ({
   handleCanvasMouseDown,
   handleCanvasMouseMove,
   handleCanvasMouseUp,
-  handleMouseWheel,
   handleInlineTextKeyPress,
   saveInlineTextEdit,
   zoom,
-  zoomIn,
   layers
 }) => {
   return (
@@ -31,7 +29,6 @@ export const CanvasArea = ({
         onMouseMove={handleCanvasMouseMove}
         onMouseUp={handleCanvasMouseUp}
         onMouseLeave={handleCanvasMouseUp}
-        onWheel={(e) => handleMouseWheel(e, zoomIn)}
         className={`drawing-canvas ${layers.length > 0 ? 'has-image' : ''}`}
       />
 

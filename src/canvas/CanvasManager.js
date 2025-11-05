@@ -3,6 +3,10 @@
  * Handles canvas rendering, zoom, pan, and coordinate transformations
  */
 
+// Zoom limits
+const MIN_ZOOM = 0.1  // 10% minimum zoom
+const MAX_ZOOM = 10   // 1000% maximum zoom
+
 export class CanvasManager {
   constructor(canvasElement) {
     this.canvas = canvasElement
@@ -29,7 +33,7 @@ export class CanvasManager {
    */
   setZoom(zoomLevel, centerX = this.width / 2, centerY = this.height / 2) {
     const oldZoom = this.zoom
-    this.zoom = Math.max(0.1, Math.min(10, zoomLevel)) // Clamp between 0.1 and 10
+    this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel))
 
     // Adjust pan to zoom towards center point
     const zoomDiff = this.zoom - oldZoom

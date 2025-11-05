@@ -4,8 +4,10 @@
  */
 
 import { useEffect } from 'react'
+import { serializeShapesToClipboard, deserializeShapesFromClipboard, pasteShapesIntoLayer, clipboardStateManager, calculateIncrementalOffset } from '../utils/shapeClipboard'
 
 const ZOOM_STEP = 0.1
+const CLIPBOARD_KEY = 'annotate-shapes-clipboard'
 
 export const useKeyboardShortcuts = ({
   layerManagerRef,
@@ -225,6 +227,43 @@ export const useKeyboardShortcuts = ({
             selectedShapeRef.current = allShapes
             setSelectedShape(allShapes)
             renderCanvas()
+          }
+        }
+        // Copy with Ctrl+C
+        else if (e.key === 'c') {
+          e.preventDefault()
+          if (selectedShape) {
+            const clipboard = serializeShapesToClipboard(selectedShape, layerManagerRef.current)
+            if (clipboard) {
+              localStorage.setItem(CLIPBOARD_KEY, clipboard)
+              clipboardStateManager.reset()
+            }
+          }
+        }
+        // Paste with Ctrl+V
+        else if (e.key === 'v') {
+          e.preventDefault()
+          const clipboard = localStorage.getItem(CLIPBOARD_KEY)
+          if (clipboard) {
+            clipboardStateManager.updateContent(clipboard)
+            const shapes = deserializeShapesFromClipboard(clipboard)
+
+            if (shapes && shapes.length > 0) {
+              const selectedLayer = layerManagerRef.current?.getSelectedLayer()
+              if (selectedLayer) {
+                // Get incremental offset for this paste
+                const { offsetX, offsetY } = calculateIncrementalOffset()
+                const pastedShapes = pasteShapesIntoLayer(selectedLayer, shapes, offsetX, offsetY)
+
+                if (pastedShapes.length > 0) {
+                  layerManagerRef.current?.updateLayerWithHistory(selectedLayer.id, selectedLayer)
+                  selectedShapeRef.current = pastedShapes
+                  setSelectedShape(pastedShapes)
+                  updateLayersState()
+                  renderCanvas()
+                }
+              }
+            }
           }
         }
       }

@@ -19,6 +19,7 @@ import { LayersPanel } from './components/LayersPanel'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Snackbar } from './components/Snackbar'
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal'
+import { Minimap } from './components/Minimap'
 import {
   CANVAS_UPDATE_INTERVAL,
   SELECTION_PADDING,
@@ -70,6 +71,7 @@ function Annotate() {
   const [snackbarOpen, setSnackbarOpen] = useState(false)
   const [snackbarMessage, setSnackbarMessage] = useState('')
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
+  const [showMinimap, setShowMinimap] = useState(false)
 
   // ==================== Hooks ====================
 
@@ -503,7 +505,9 @@ function Annotate() {
     handleCanvasMouseDown,
     handleCanvasMouseMove,
     handleCanvasMouseUp,
-    handleMouseWheel
+    handleCanvasMiddleMouseDown,
+    handleCanvasMiddleMouseMove,
+    handleCanvasMiddleMouseUp
   } = useCanvasEvents({
     tool,
     canvasManagerRef,
@@ -597,6 +601,126 @@ function Annotate() {
   useEffect(() => {
     renderCanvas()
   }, [zoom])
+
+  // Show minimap when content is outside viewport
+  useEffect(() => {
+    const checkContentOutsideViewport = () => {
+      // Get all content bounds
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      let hasContent = false
+
+      const allLayers = layerManagerRef.current?.getAllLayers() || []
+      for (const layer of allLayers) {
+        if (!layer.visible) continue
+
+        // Check image bounds
+        if (layer.image) {
+          hasContent = true
+          minX = Math.min(minX, layer.image.x || 0)
+          minY = Math.min(minY, layer.image.y || 0)
+          maxX = Math.max(maxX, (layer.image.x || 0) + layer.image.width)
+          maxY = Math.max(maxY, (layer.image.y || 0) + layer.image.height)
+        }
+
+        // Check shape bounds (simplified - only checking basic properties)
+        layer.strokes?.forEach(stroke => {
+          if (stroke.points && stroke.points.length > 0) {
+            hasContent = true
+            stroke.points.forEach(point => {
+              minX = Math.min(minX, point.x)
+              minY = Math.min(minY, point.y)
+              maxX = Math.max(maxX, point.x)
+              maxY = Math.max(maxY, point.y)
+            })
+          }
+        })
+
+        layer.arrows?.forEach(arrow => {
+          if (arrow.x1 !== undefined && arrow.x2 !== undefined) {
+            hasContent = true
+            minX = Math.min(minX, Math.min(arrow.x1, arrow.x2))
+            minY = Math.min(minY, Math.min(arrow.y1, arrow.y2))
+            maxX = Math.max(maxX, Math.max(arrow.x1, arrow.x2))
+            maxY = Math.max(maxY, Math.max(arrow.y1, arrow.y2))
+          }
+        })
+
+        layer.rects?.forEach(rect => {
+          if (rect.width && rect.height) {
+            hasContent = true
+            minX = Math.min(minX, rect.x)
+            minY = Math.min(minY, rect.y)
+            maxX = Math.max(maxX, rect.x + rect.width)
+            maxY = Math.max(maxY, rect.y + rect.height)
+          }
+        })
+
+        layer.ellipses?.forEach(ellipse => {
+          if (ellipse.width && ellipse.height) {
+            hasContent = true
+            minX = Math.min(minX, ellipse.x)
+            minY = Math.min(minY, ellipse.y)
+            maxX = Math.max(maxX, ellipse.x + ellipse.width)
+            maxY = Math.max(maxY, ellipse.y + ellipse.height)
+          }
+        })
+
+        layer.texts?.forEach(text => {
+          hasContent = true
+          const textWidth = text.content.length * text.fontSize * 0.6
+          minX = Math.min(minX, text.x)
+          minY = Math.min(minY, text.y)
+          maxX = Math.max(maxX, text.x + textWidth)
+          maxY = Math.max(maxY, text.y + text.fontSize)
+        })
+      }
+
+      // Get current viewport bounds
+      const canvas = canvasManagerRef.current?.canvas
+      if (!canvas) {
+        setShowMinimap(false)
+        return
+      }
+
+      const rect = canvas.getBoundingClientRect()
+      const canvasWidth = rect.width
+      const canvasHeight = rect.height
+      const { panX, panY, zoom: currentZoom } = canvasManagerRef.current
+
+      // Check if user is panned away from origin (0,0) at zoom 1
+      const isPannedAway = panX !== 0 || panY !== 0 || currentZoom !== 1
+
+      // If no content, show minimap only if panned away
+      if (!hasContent) {
+        setShowMinimap(isPannedAway)
+        return
+      }
+
+      // Get visible area in canvas coordinates
+      const visibleMinX = -panX / currentZoom
+      const visibleMinY = -panY / currentZoom
+      const visibleMaxX = visibleMinX + canvasWidth / currentZoom
+      const visibleMaxY = visibleMinY + canvasHeight / currentZoom
+
+      // Check if all content fits in visible area with some padding
+      const padding = 50
+      const contentFitsInViewport =
+        minX >= visibleMinX - padding &&
+        minY >= visibleMinY - padding &&
+        maxX <= visibleMaxX + padding &&
+        maxY <= visibleMaxY + padding
+
+      // Show minimap if content extends beyond viewport OR if user panned away
+      setShowMinimap(!contentFitsInViewport || isPannedAway)
+    }
+
+    // Check immediately
+    checkContentOutsideViewport()
+
+    // Also check periodically to catch pan/zoom changes
+    const interval = setInterval(checkContentOutsideViewport, 100)
+    return () => clearInterval(interval)
+  }, [layers])
 
   // Save tool properties to localStorage
   useEffect(() => {
@@ -844,11 +968,31 @@ function Annotate() {
               ref={canvasRef}
               onClick={handleCanvasClick}
               onDoubleClick={handleCanvasDoubleClick}
-              onMouseDown={handleCanvasMouseDown}
-              onMouseMove={handleCanvasMouseMove}
-              onMouseUp={handleCanvasMouseUp}
-              onMouseLeave={handleCanvasMouseUp}
-              onWheel={(e) => handleMouseWheel(e, zoomIn)}
+              onMouseDown={(e) => {
+                if (e.button === 1) {
+                  handleCanvasMiddleMouseDown(e)
+                } else {
+                  handleCanvasMouseDown(e)
+                }
+              }}
+              onMouseMove={(e) => {
+                if (e.buttons === 4) {
+                  handleCanvasMiddleMouseMove(e)
+                } else {
+                  handleCanvasMouseMove(e)
+                }
+              }}
+              onMouseUp={(e) => {
+                if (e.button === 1) {
+                  handleCanvasMiddleMouseUp(e)
+                } else {
+                  handleCanvasMouseUp(e)
+                }
+              }}
+              onMouseLeave={(e) => {
+                handleCanvasMiddleMouseUp(e)
+                handleCanvasMouseUp(e)
+              }}
               className={`drawing-canvas ${layers.length > 0 ? 'has-image' : ''}`}
             />
 
@@ -1001,6 +1145,14 @@ function Annotate() {
       <KeyboardShortcutsModal
         isOpen={showKeyboardShortcuts}
         onClose={() => setShowKeyboardShortcuts(false)}
+      />
+      <Minimap
+        canvasManagerRef={canvasManagerRef}
+        layerManagerRef={layerManagerRef}
+        shapeRendererRef={shapeRendererRef}
+        isVisible={showMinimap}
+        onZoomIn={() => zoomIn()}
+        onZoomOut={() => zoomOut()}
       />
     </div>
   )
