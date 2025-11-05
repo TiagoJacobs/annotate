@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Pen, ArrowRight, Square, Circle, Type, MousePointer, Hand, ZoomIn, ZoomOut, Home, Copy, Download, Eye, EyeOff, X, ChevronUp, ChevronDown, Plus, Trash2, Github } from 'lucide-react'
 import { CanvasManager } from './canvas/CanvasManager'
 import { LayerManager } from './layers/LayerManager'
@@ -740,53 +740,260 @@ function Annotate() {
     saveToolProperty('fontSize', fontSize)
   }, [fontSize])
 
-  useEffect(() => {
-    const handlePaste = (e) => {
-      const items = e.clipboardData?.items || []
-      for (let item of items) {
-        if (item.type.indexOf('image') !== -1) {
-          const file = item.getAsFile()
-          const reader = new FileReader()
-          reader.onload = (event) => {
-            const img = new Image()
-            img.onload = () => {
-              const tempCanvas = document.createElement('canvas')
-              tempCanvas.width = img.width
-              tempCanvas.height = img.height
-              const tempCtx = tempCanvas.getContext('2d')
-              tempCtx.drawImage(img, 0, 0)
+  // Refs for paste handling
+  const pasteInputRef = useRef(null)
 
-              // Store image at full original resolution
-              // The canvas zoom will handle scaling the display at different zoom levels
-              // At zoom 100%, the image will display at its actual pixel size
-              const imageLayer = layerManagerRef.current.createLayer('Image', {
-                image: {
-                  data: tempCanvas.toDataURL(),
-                  x: 0,
-                  y: 0,
-                  width: img.width,
-                  height: img.height
-                },
-              })
+  // Store the handlePaste function in a ref so it can be used in useEffect
+  const handlePasteRef = useRef(null)
 
-              // Select the new image layer
-              setSelectedLayerId(imageLayer.id)
+  // Define handlePaste
+  const handlePaste = (e) => {
+    console.log('=== PASTE EVENT FIRED ===')
+    console.log('Active element:', document.activeElement)
+    console.log('Paste div:', pasteInputRef.current)
+    console.log('Are they same?', document.activeElement === pasteInputRef.current)
+    console.log('Event:', e)
+    console.log('ClipboardData:', e.clipboardData)
 
-              // Switch to selection tool
-              setTool('select')
+    if (!e.clipboardData) {
+      console.log('No clipboardData')
+      return
+    }
 
-              updateLayersState()
-            }
-            img.src = event.target.result
-          }
-          reader.readAsDataURL(file)
+    const items = e.clipboardData.items
+    console.log('Items:', items)
+    console.log('Items length:', items?.length)
+
+    if (!items || items.length === 0) {
+      console.log('No items in clipboard')
+      return
+    }
+
+    let foundImage = false
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      console.log(`Item ${i}:`, item.type, item.kind)
+
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        foundImage = true
+        console.log('Found image file!')
+        e.preventDefault()
+
+        const file = item.getAsFile()
+        console.log('File:', file)
+
+        if (!file) {
+          console.log('Failed to get file from item')
+          continue
         }
+
+        const reader = new FileReader()
+
+        reader.onload = (event) => {
+          console.log('FileReader loaded, result length:', event.target.result.length)
+          const img = new Image()
+
+          img.onload = () => {
+            console.log('Image loaded:', img.width, 'x', img.height)
+
+            const tempCanvas = document.createElement('canvas')
+            tempCanvas.width = img.width
+            tempCanvas.height = img.height
+            const tempCtx = tempCanvas.getContext('2d')
+            tempCtx.drawImage(img, 0, 0)
+
+            console.log('Canvas created, converting to dataURL...')
+            const dataUrl = tempCanvas.toDataURL()
+            console.log('DataURL length:', dataUrl.length)
+
+            console.log('Creating image layer...')
+            const imageLayer = layerManagerRef.current.createLayer('Image', {
+              image: {
+                data: dataUrl,
+                x: 0,
+                y: 0,
+                width: img.width,
+                height: img.height
+              },
+            })
+
+            console.log('Image layer created:', imageLayer.id)
+            setSelectedLayerId(imageLayer.id)
+            setTool('select')
+            updateLayersState()
+            console.log('✅ Image paste completed successfully!')
+          }
+
+          img.onerror = (err) => {
+            console.error('❌ Image load error:', err)
+          }
+
+          console.log('Setting image src...')
+          img.src = event.target.result
+        }
+
+        reader.onerror = (err) => {
+          console.error('❌ FileReader error:', err)
+        }
+
+        console.log('Starting FileReader...')
+        reader.readAsDataURL(file)
       }
     }
 
-    window.addEventListener('paste', handlePaste)
-    return () => window.removeEventListener('paste', handlePaste)
+    if (foundImage) {
+      e.preventDefault()
+    }
+  }
+
+  // Store the handler in a ref
+  handlePasteRef.current = handlePaste
+
+  // Attach paste listener using callback ref
+  const setPasteInputRef = useCallback((element) => {
+    if (element) {
+      console.log('Setting paste input ref, attaching listener')
+      pasteInputRef.current = element
+
+      // Log before attaching
+      console.log('handlePasteRef.current:', handlePasteRef.current)
+
+      element.addEventListener('paste', handlePasteRef.current)
+      console.log('✅ Paste listener attached to element')
+
+      // Also add a debug listener to see if paste events reach this element at all
+      element.addEventListener('paste', (e) => {
+        console.log('🎯 DEBUG: Paste event reached contenteditable element!')
+        console.log('Event:', e)
+        console.log('ClipboardData:', e.clipboardData)
+      })
+
+      element.focus()
+      console.log('✅ Paste div focused')
+    }
   }, [])
+
+  // Cleanup paste listener
+  useEffect(() => {
+    return () => {
+      if (pasteInputRef.current && handlePasteRef.current) {
+        pasteInputRef.current.removeEventListener('paste', handlePasteRef.current)
+        console.log('✅ Paste listener removed')
+      }
+    }
+  }, [])
+
+  // Also attach paste listener to document as fallback
+  useEffect(() => {
+    const handleDocumentPaste = (e) => {
+      console.log('🔥 Document-level paste event triggered')
+      console.log('Active element when document paste fires:', document.activeElement)
+      console.log('Event target:', e.target)
+      // Call the same handler
+      if (handlePasteRef.current) {
+        handlePasteRef.current(e)
+      }
+    }
+
+    // Try both capture and bubble phases
+    document.addEventListener('paste', handleDocumentPaste, true) // capture phase
+    console.log('✅ Document paste listener attached (capture phase)')
+
+    return () => {
+      document.removeEventListener('paste', handleDocumentPaste, true)
+    }
+  }, [])
+
+  // Handle paste via Ctrl+V using Clipboard API
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isPasteKey = (e.ctrlKey || e.metaKey) && e.key === 'v'
+
+      if (isPasteKey) {
+        console.log('🔐 Paste key detected (Ctrl+V), accessing clipboard...')
+        e.preventDefault()
+
+        // Use Clipboard API to get clipboard items
+        navigator.clipboard.read()
+          .then(items => {
+            console.log('📋 Clipboard items:', items)
+
+            for (let item of items) {
+              console.log('Item types:', item.types)
+
+              // Check if any type is an image
+              const imageType = item.types.find(type => type.startsWith('image/'))
+
+              if (imageType) {
+                console.log('Found image type:', imageType)
+                item.getType(imageType)
+                  .then(blob => {
+                    console.log('Got blob:', blob)
+
+                    const reader = new FileReader()
+                    reader.onload = (event) => {
+                      console.log('FileReader loaded')
+                      const img = new Image()
+
+                      img.onload = () => {
+                        console.log('Image loaded:', img.width, 'x', img.height)
+
+                        const tempCanvas = document.createElement('canvas')
+                        tempCanvas.width = img.width
+                        tempCanvas.height = img.height
+                        const tempCtx = tempCanvas.getContext('2d')
+                        tempCtx.drawImage(img, 0, 0)
+
+                        const dataUrl = tempCanvas.toDataURL()
+                        console.log('DataURL created, length:', dataUrl.length)
+
+                        const imageLayer = layerManagerRef.current.createLayer('Image', {
+                          image: {
+                            data: dataUrl,
+                            x: 0,
+                            y: 0,
+                            width: img.width,
+                            height: img.height
+                          },
+                        })
+
+                        console.log('✅ Image layer created:', imageLayer.id)
+                        setSelectedLayerId(imageLayer.id)
+                        setTool('select')
+                        updateLayersState()
+                        console.log('✅ Image paste completed successfully!')
+                      }
+
+                      img.onerror = () => console.error('Image load error')
+                      img.src = event.target.result
+                    }
+
+                    reader.onerror = (err) => console.error('FileReader error:', err)
+                    reader.readAsDataURL(blob)
+                  })
+                  .catch(err => console.error('Failed to get blob:', err))
+
+                return // Stop after first image
+              }
+            }
+
+            console.log('No image found in clipboard')
+          })
+          .catch(err => {
+            console.error('Clipboard read failed:', err)
+          })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    console.log('✅ Clipboard API paste handler attached')
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
 
 
   // ==================== Render ====================
@@ -972,6 +1179,30 @@ function Annotate() {
         </div>
 
         <div className="annotate-content">
+          {/* Hidden div for paste handling - contenteditable accepts image files */}
+          <div
+            ref={setPasteInputRef}
+            contentEditable
+            suppressContentEditableWarning
+            style={{
+              position: 'fixed',
+              left: '-9999px',
+              top: '-9999px',
+              opacity: 0,
+              pointerEvents: 'none',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              width: '1px',
+              height: '1px',
+              outline: 'none'
+            }}
+            onInput={(e) => {
+              // Clear content to prevent text accumulation
+              e.currentTarget.innerHTML = ''
+            }}
+          />
+
           {/* Canvas */}
           <div className="canvas-container">
             <canvas

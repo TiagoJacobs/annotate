@@ -192,9 +192,20 @@ export const useKeyboardShortcuts = ({
 
   /**
    * Check if user is typing in an input field
+   * Excludes hidden paste div which should not block keyboard shortcuts
    */
   const isInputFocused = () => {
     const activeElement = document.activeElement
+
+    // Check if it's the hidden paste contenteditable div (which is position:fixed off-screen)
+    if (activeElement?.contentEditable === 'true') {
+      // Check if it's the hidden paste div by checking its style
+      const style = window.getComputedStyle(activeElement)
+      if (style.left === '-9999px' && style.position === 'fixed') {
+        return false // Don't block shortcuts for hidden paste div
+      }
+    }
+
     return (
       activeElement.tagName === 'INPUT' ||
       activeElement.tagName === 'TEXTAREA' ||
