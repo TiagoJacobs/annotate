@@ -90,9 +90,9 @@ export const LayersPanel = ({
                       className="layer-btn"
                       onClick={(e) => {
                         e.stopPropagation()
-                        moveLayerInStack(layer.id, 'down')
+                        moveLayerInStack(layer.id, 'up')
                       }}
-                      disabled={actualIndex === 0}
+                      disabled={actualIndex === layers.length - 1}
                       title="Move up in stack (visually higher)"
                     >
                       <ChevronUp size={14} />
@@ -101,9 +101,9 @@ export const LayersPanel = ({
                       className="layer-btn"
                       onClick={(e) => {
                         e.stopPropagation()
-                        moveLayerInStack(layer.id, 'up')
+                        moveLayerInStack(layer.id, 'down')
                       }}
-                      disabled={actualIndex === layers.length - 1}
+                      disabled={actualIndex === 0}
                       title="Move down in stack (visually lower)"
                     >
                       <ChevronDown size={14} />
