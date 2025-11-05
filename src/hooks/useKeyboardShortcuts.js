@@ -264,7 +264,7 @@ export const useKeyboardShortcuts = ({
               if (selectedLayer) {
                 // Get incremental offset for this paste
                 const { offsetX, offsetY } = calculateIncrementalOffset()
-                const pastedShapes = pasteShapesIntoLayer(selectedLayer, shapes, offsetX, offsetY)
+                const pastedShapes = pasteShapesIntoLayer(selectedLayer, shapes, offsetX, offsetY, layerManagerRef.current)
 
                 if (pastedShapes.length > 0) {
                   layerManagerRef.current?.updateLayerWithHistory(selectedLayer.id, selectedLayer)

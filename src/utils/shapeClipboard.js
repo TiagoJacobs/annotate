@@ -123,7 +123,7 @@ export const calculateIncrementalOffset = (baseOffset = 20) => {
 /**
  * Paste shapes into a layer with offset
  */
-export const pasteShapesIntoLayer = (layer, shapes, offsetX = 20, offsetY = 20) => {
+export const pasteShapesIntoLayer = (layer, shapes, offsetX = 20, offsetY = 20, layerManager = null) => {
   if (!layer || !shapes) return []
 
   const pastedShapeRefs = []
@@ -133,18 +133,36 @@ export const pasteShapesIntoLayer = (layer, shapes, offsetX = 20, offsetY = 20) 
     const arrayName = getShapeArrayName(shapeType)
 
     if (shapeType === 'image') {
-      // Clone image with offset
-      const newImage = {
-        ...shapeData,
-        x: (shapeData.x || 0) + offsetX,
-        y: (shapeData.y || 0) + offsetY
+      // If the layer already has an image, create a new layer for this image
+      if (layer.image && layerManager) {
+        const newLayer = layerManager.createLayer(`Image ${new Date().getTime()}`, {
+          image: {
+            data: shapeData.data,
+            x: (shapeData.x || 0) + offsetX,
+            y: (shapeData.y || 0) + offsetY,
+            width: shapeData.width,
+            height: shapeData.height
+          }
+        })
+        pastedShapeRefs.push({
+          layerId: newLayer.id,
+          shapeType: 'image',
+          shapeIndex: 0
+        })
+      } else {
+        // If no existing image or no layer manager, paste into current layer
+        const newImage = {
+          ...shapeData,
+          x: (shapeData.x || 0) + offsetX,
+          y: (shapeData.y || 0) + offsetY
+        }
+        layer.image = newImage
+        pastedShapeRefs.push({
+          layerId: layer.id,
+          shapeType: 'image',
+          shapeIndex: 0
+        })
       }
-      layer.image = newImage
-      pastedShapeRefs.push({
-        layerId: layer.id,
-        shapeType: 'image',
-        shapeIndex: 0
-      })
     } else if (arrayName && layer[arrayName]) {
       // Clone shape with offset
       const newShape = JSON.parse(JSON.stringify(shapeData))
