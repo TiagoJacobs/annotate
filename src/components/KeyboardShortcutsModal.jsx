@@ -20,19 +20,38 @@ export const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null
 
   const shortcuts = [
-    { key: '1-7', description: 'Select tool (1=Pen, 2=Arrow, 3=Rect, 4=Ellipse, 5=Text, 6=Select, 7=Pan)' },
-    { key: 'C', description: 'Focus color picker' },
-    { key: 'W', description: 'Focus line weight' },
-    { key: 'S', description: 'Focus line style' },
-    { key: 'K', description: 'Show keyboard shortcuts' },
+    // Tool Selection
+    { key: '1', description: 'Select Pen tool' },
+    { key: '2', description: 'Select Arrow tool' },
+    { key: '3', description: 'Select Rectangle tool' },
+    { key: '4', description: 'Select Ellipse tool' },
+    { key: '5', description: 'Select Text tool' },
+    { key: '6', description: 'Select Selection tool' },
+    { key: '7', description: 'Select Pan tool' },
+
+    // Editing
     { key: 'Ctrl+Z', description: 'Undo' },
     { key: 'Ctrl+Shift+Z', description: 'Redo' },
+    { key: 'Ctrl+C', description: 'Copy selected shapes' },
+    { key: 'Ctrl+V', description: 'Paste shapes (incremental offset)' },
     { key: 'Ctrl+A', description: 'Select all shapes' },
-    { key: 'Delete', description: 'Delete selected shape' },
+    { key: 'Delete / Backspace', description: 'Delete selected shape' },
+
+    // Canvas Navigation
+    { key: 'Scroll Wheel', description: 'Zoom in/out' },
     { key: '+', description: 'Zoom in' },
     { key: '-', description: 'Zoom out' },
-    { key: 'Arrow Keys', description: 'Move selected shape' },
-    { key: 'Shift + Arrow', description: 'Move shape 10px' },
+    { key: 'Arrow Keys', description: 'Pan canvas / Move selected shape' },
+    { key: 'Shift + Arrow', description: 'Move selected shape 10px' },
+    { key: 'Middle Mouse Drag', description: 'Pan canvas (any tool)' },
+
+    // Shape Properties
+    { key: 'C', description: 'Focus color picker' },
+    { key: 'W', description: 'Focus line weight slider' },
+    { key: 'S', description: 'Focus line style selector' },
+
+    // Other
+    { key: 'K', description: 'Show keyboard shortcuts' },
     { key: 'Escape', description: 'Clear selection / Back to select tool' },
   ]
 

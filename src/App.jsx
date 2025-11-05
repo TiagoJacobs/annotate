@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Pen, ArrowRight, Square, Circle, Type, MousePointer, Hand, ZoomIn, ZoomOut, Home, Copy, Download, Eye, EyeOff, X, ChevronUp, ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { Pen, ArrowRight, Square, Circle, Type, MousePointer, Hand, ZoomIn, ZoomOut, Home, Copy, Download, Eye, EyeOff, X, ChevronUp, ChevronDown, Plus, Trash2, Github } from 'lucide-react'
 import { CanvasManager } from './canvas/CanvasManager'
 import { LayerManager } from './layers/LayerManager'
 import { ToolHandler } from './tools/ToolHandler'
@@ -871,6 +871,15 @@ function Annotate() {
                 <option value="svg">SVG</option>
               </select>
             </div>
+            <a
+              href="https://github.com/TiagoJacobs/annotate"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="github-link"
+              title="View on GitHub"
+            >
+              <Github size={18} />
+            </a>
           </div>
         </div>
 
