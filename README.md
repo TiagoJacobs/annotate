@@ -123,15 +123,8 @@ npm run preview
 ### Future Enhancements
 
 Potential features for future versions:
-- Shape tools (lines, rectangles, circles)
-- Text annotations
-- Brush styles (dashed, dotted)
 - Image filters
-- Opacity/transparency controls
-- Keyboard shortcuts
 - Touch support for mobile devices
-- Export to other formats (JPG, WebP)
-- Layers support
 
 ### Contributing
 
