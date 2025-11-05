@@ -7,13 +7,13 @@
 import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
 import { ShapeOperations } from '../services/ShapeOperations'
 import { ShapeStrategyFactory, FreehandStrokeStrategy } from './strategies/ShapeCreationStrategies'
-
-// Constants
-const SELECTION_PADDING = 5
-const RESIZE_HANDLE_SIZE = 8
-const HANDLE_HIT_THRESHOLD = 10
-const LINE_HIT_THRESHOLD = 10
-const TEXT_WIDTH_FACTOR = 0.6  // Approximate width per character relative to font size
+import {
+  SELECTION_PADDING,
+  RESIZE_HANDLE_SIZE,
+  HANDLE_HIT_THRESHOLD,
+  LINE_HIT_THRESHOLD,
+  TEXT_WIDTH_FACTOR
+} from '../config/uiConstants'
 
 export class ToolHandler {
   constructor(canvasManager, layerManager) {

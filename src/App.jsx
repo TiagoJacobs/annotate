@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Copy, Trash2, Pen, Download, Square, Circle, ArrowRight, Type, Eye, EyeOff, X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Home, MousePointer, Plus, Hand } from 'lucide-react'
+import { Pen, ArrowRight, Square, Circle, Type, MousePointer, Hand, ZoomIn, ZoomOut, Home, Copy, Download, Eye, EyeOff, X, ChevronUp, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { CanvasManager } from './canvas/CanvasManager'
 import { LayerManager } from './layers/LayerManager'
 import { ToolHandler } from './tools/ToolHandler'
@@ -9,19 +9,30 @@ import { ShapeRendererFactory } from './renderers/ShapeRenderer'
 import { useCanvasRenderer } from './hooks/useCanvasRenderer'
 import { useCanvasEvents } from './hooks/useCanvasEvents'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useShapeProperties } from './hooks/useShapeProperties'
 import { getStoredToolProperties, saveToolProperty } from './utils/storageUtils'
+import { CanvasArea } from './components/CanvasArea'
+import { ToolsPanel } from './components/ToolsPanel'
+import { ShapeOptionsPanel } from './components/ShapeOptionsPanel'
+import { LayersPanel } from './components/LayersPanel'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import {
+  CANVAS_UPDATE_INTERVAL,
+  SELECTION_PADDING,
+  RESIZE_HANDLE_SIZE,
+  DEFAULT_BRUSH_SIZE,
+  DEFAULT_FONT_SIZE,
+  ZOOM_STEP,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  GRID_SIZE,
+  DEFAULT_COLOR,
+  MIN_TEXT_SIZE,
+  MAX_TEXT_SIZE,
+  MIN_BRUSH_SIZE,
+  MAX_BRUSH_SIZE
+} from './config/uiConstants'
 import './App.css'
-
-// Constants
-const CANVAS_UPDATE_INTERVAL = 100
-const SELECTION_PADDING = 5
-const RESIZE_HANDLE_SIZE = 8
-const DEFAULT_BRUSH_SIZE = 3
-const DEFAULT_FONT_SIZE = 20
-const ZOOM_STEP = 0.1
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 10
-const GRID_SIZE = 50
 
 function Annotate() {
   // Refs
@@ -50,6 +61,14 @@ function Annotate() {
   const [renamingLayerId, setRenamingLayerId] = useState(null)
   const [renamingLayerName, setRenamingLayerName] = useState('')
   const [downloadFormat, setDownloadFormat] = useState('png') // 'png' or 'svg'
+
+  // ==================== Hooks ====================
+
+  // Shape properties management hook
+  const shapePropertiesHook = useShapeProperties({
+    selectedShape,
+    layerManagerRef
+  })
 
   // ==================== Utility Functions (must be before hooks) ====================
 
@@ -92,10 +111,18 @@ function Annotate() {
   }
 
   /**
+   * Check if current tool uses fontSize property
+   */
+  const showFontSize = () => {
+    const toolConfig = getToolConfig(tool)
+    return toolConfig?.properties?.fontSize !== undefined
+  }
+
+  /**
    * Get color from a layer
    */
   const getLayerColor = (layer) => {
-    return layer?.color || '#000000'
+    return layer?.color || DEFAULT_COLOR
   }
 
   /**
@@ -111,226 +138,57 @@ function Annotate() {
   }
 
   /**
-   * Get color from selected shape
+   * Get color from selected shape - uses hook
    */
   const getSelectedShapeColor = () => {
-    if (!selectedShape) return null
-
-    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
-    const layer = layerManagerRef.current.getLayer(shape.layerId)
-    if (!layer) return null
-
-    const { shapeType, shapeIndex } = shape
-    const shapeArrayName = {
-      stroke: 'strokes',
-      arrow: 'arrows',
-      rect: 'rects',
-      ellipse: 'ellipses',
-      text: 'texts'
-    }[shapeType]
-
-    if (!shapeArrayName || !layer[shapeArrayName]) return null
-
-    const shapeData = layer[shapeArrayName][shapeIndex]
-    return shapeData?.color || '#000000'
+    return shapePropertiesHook.getColor()
   }
 
   /**
-   * Update color for selected shape(s)
+   * Update color for selected shape(s) - uses hook
    */
   const updateSelectedShapeColor = (newColor) => {
-    if (!selectedShape) return
-
-    const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
-    const updatedLayers = new Set()
-
-    for (const shape of shapes) {
-      const layer = layerManagerRef.current.getLayer(shape.layerId)
-      if (!layer) continue
-
-      const { shapeType, shapeIndex } = shape
-      const shapeArrayName = {
-        stroke: 'strokes',
-        arrow: 'arrows',
-        rect: 'rects',
-        ellipse: 'ellipses',
-        text: 'texts'
-      }[shapeType]
-
-      if (!shapeArrayName || !layer[shapeArrayName]) continue
-
-      const shapeData = layer[shapeArrayName][shapeIndex]
-      if (shapeData) {
-        shapeData.color = newColor
-        updatedLayers.add(layer.id)
-      }
+    const updatedLayers = shapePropertiesHook.updateColor(newColor)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
     }
-
-    // Update all affected layers with history
-    for (const layerId of updatedLayers) {
-      const layer = layerManagerRef.current.getLayer(layerId)
-      if (layer) {
-        layerManagerRef.current.updateLayerWithHistory(layerId, layer)
-      }
-    }
-
-    updateLayersState()
-    renderCanvas()
   }
 
   /**
-   * Get size/fontSize from selected shape(s)
+   * Get size/fontSize from selected shape(s) - uses hook
    */
   const getSelectedShapeSize = () => {
-    if (!selectedShape) return null
-
-    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
-    const layer = layerManagerRef.current.getLayer(shape.layerId)
-    if (!layer) return null
-
-    const { shapeType, shapeIndex } = shape
-    const shapeArrayName = {
-      stroke: 'strokes',
-      arrow: 'arrows',
-      rect: 'rects',
-      ellipse: 'ellipses',
-      text: 'texts'
-    }[shapeType]
-
-    if (!shapeArrayName || !layer[shapeArrayName]) return null
-
-    const shapeData = layer[shapeArrayName][shapeIndex]
-    if (!shapeData) return null
-
-    // Return size or fontSize depending on shape type
-    if (shapeType === 'text') {
-      return { type: 'fontSize', value: shapeData.fontSize || 20 }
-    } else {
-      return { type: 'size', value: shapeData.size || 3 }
-    }
+    return shapePropertiesHook.getSize()
   }
 
   /**
-   * Update size/fontSize for selected shape(s)
+   * Update size/fontSize for selected shape(s) - uses hook
    */
   const updateSelectedShapeSize = (newSize) => {
-    if (!selectedShape) return
-
-    const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
-    const updatedLayers = new Set()
-
-    for (const shape of shapes) {
-      const layer = layerManagerRef.current.getLayer(shape.layerId)
-      if (!layer) continue
-
-      const { shapeType, shapeIndex } = shape
-      const shapeArrayName = {
-        stroke: 'strokes',
-        arrow: 'arrows',
-        rect: 'rects',
-        ellipse: 'ellipses',
-        text: 'texts'
-      }[shapeType]
-
-      if (!shapeArrayName || !layer[shapeArrayName]) continue
-
-      const shapeData = layer[shapeArrayName][shapeIndex]
-      if (!shapeData) continue
-
-      // Update size or fontSize depending on shape type
-      if (shapeType === 'text') {
-        shapeData.fontSize = newSize
-      } else {
-        shapeData.size = newSize
-      }
-
-      updatedLayers.add(layer.id)
+    const updatedLayers = shapePropertiesHook.updateSize(newSize)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
     }
-
-    // Update all affected layers and save to history
-    for (const layerId of updatedLayers) {
-      const layer = layerManagerRef.current.getLayer(layerId)
-      if (layer) {
-        layerManagerRef.current.updateLayerWithHistory(layerId, layer)
-      }
-    }
-
-    updateLayersState()
-    renderCanvas()
   }
 
   /**
-   * Get lineStyle from selected shape
+   * Get lineStyle from selected shape - uses hook
    */
   const getSelectedShapeLineStyle = () => {
-    if (!selectedShape) return null
-
-    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
-    const layer = layerManagerRef.current.getLayer(shape.layerId)
-    if (!layer) return null
-
-    const { shapeType, shapeIndex } = shape
-
-    // Text shapes don't support lineStyle
-    if (shapeType === 'text') return null
-
-    const shapeArrayName = {
-      stroke: 'strokes',
-      arrow: 'arrows',
-      rect: 'rects',
-      ellipse: 'ellipses'
-    }[shapeType]
-
-    if (!shapeArrayName || !layer[shapeArrayName]) return null
-
-    const shapeData = layer[shapeArrayName][shapeIndex]
-    return shapeData?.lineStyle || 'solid'
+    return shapePropertiesHook.getLineStyle()
   }
 
   /**
-   * Update lineStyle for selected shape(s)
+   * Update lineStyle for selected shape(s) - uses hook
    */
   const updateSelectedShapeLineStyle = (newLineStyle) => {
-    if (!selectedShape) return
-
-    const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
-    const updatedLayers = new Set()
-
-    for (const shape of shapes) {
-      const layer = layerManagerRef.current.getLayer(shape.layerId)
-      if (!layer) continue
-
-      const { shapeType, shapeIndex } = shape
-
-      // Text shapes don't support lineStyle
-      if (shapeType === 'text') continue
-
-      const shapeArrayName = {
-        stroke: 'strokes',
-        arrow: 'arrows',
-        rect: 'rects',
-        ellipse: 'ellipses'
-      }[shapeType]
-
-      if (!shapeArrayName || !layer[shapeArrayName]) continue
-
-      const shapeData = layer[shapeArrayName][shapeIndex]
-      if (shapeData) {
-        shapeData.lineStyle = newLineStyle
-        updatedLayers.add(layer.id)
-      }
+    const updatedLayers = shapePropertiesHook.updateLineStyle(newLineStyle)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
     }
-
-    // Update all affected layers with history
-    for (const layerId of updatedLayers) {
-      const layer = layerManagerRef.current.getLayer(layerId)
-      if (layer) {
-        layerManagerRef.current.updateLayerWithHistory(layerId, layer)
-      }
-    }
-
-    updateLayersState()
-    renderCanvas()
   }
 
   /**
@@ -776,9 +634,7 @@ function Annotate() {
 
   // ==================== Render ====================
 
-  const selectedLayer = selectedLayerId ? layerManagerRef.current.getLayer(selectedLayerId) : null
-  const showFontSize = tool === 'text'
-
+  // Icon mapping for toolbar buttons
   const iconMap = {
     pen: <Pen size={20} />,
     'arrow-right': <ArrowRight size={20} />,
@@ -863,7 +719,7 @@ function Annotate() {
 
         {/* Options Toolbar - always visible but empty when no tool/shape is active */}
         <div className="shape-toolbar">
-          {(tool !== 'select' || selectedShape) && (
+          {(tool !== 'select' && tool !== 'pan' || selectedShape) ? (
             <>
               {/* Color Picker */}
               <div className="tool-group">
@@ -887,20 +743,20 @@ function Annotate() {
                 <label>
                   {selectedShape
                     ? (getSelectedShapeSize()?.type === 'fontSize' ? 'Font Size:' : 'Line Weight:')
-                    : (showFontSize ? 'Font Size:' : 'Line Weight:')
+                    : (showFontSize() ? 'Font Size:' : 'Line Weight:')
                   }
                 </label>
                 <input
                   type="range"
-                  min={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '10' : '1') : (showFontSize ? '10' : '1')}
-                  max={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '100' : '50') : (showFontSize ? '100' : '50')}
-                  value={selectedShape ? (getSelectedShapeSize()?.value || 3) : (showFontSize ? fontSize : brushSize)}
+                  min={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '10' : '1') : (showFontSize() ? '10' : '1')}
+                  max={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '100' : '50') : (showFontSize() ? '100' : '50')}
+                  value={selectedShape ? (getSelectedShapeSize()?.value || 3) : (showFontSize() ? fontSize : brushSize)}
                   onChange={(e) => {
                     const newValue = parseInt(e.target.value)
                     if (selectedShape) {
                       updateSelectedShapeSize(newValue)
                     } else {
-                      if (showFontSize) {
+                      if (showFontSize()) {
                         setFontSize(newValue)
                       } else {
                         setBrushSize(newValue)
@@ -912,7 +768,7 @@ function Annotate() {
                 <span className="size-display">
                   {selectedShape
                     ? (getSelectedShapeSize()?.value || 3)
-                    : (showFontSize ? fontSize : brushSize)
+                    : (showFontSize() ? fontSize : brushSize)
                   }px
                 </span>
               </div>
@@ -941,6 +797,8 @@ function Annotate() {
                 </div>
               )}
             </>
+          ) : (
+            <div className="toolbar-placeholder">Select a tool or shape to see options</div>
           )}
         </div>
 

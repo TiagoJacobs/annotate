@@ -5,6 +5,7 @@
 
 import { useCallback } from 'react'
 import { getToolConfig } from '../tools/toolRegistry'
+import { RESIZE_HANDLE_SIZE } from '../config/uiConstants'
 
 /**
  * Map resize handle names to CSS cursor values

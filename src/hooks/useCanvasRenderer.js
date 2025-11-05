@@ -4,10 +4,7 @@
  */
 
 import { useRef, useCallback } from 'react'
-
-const GRID_SIZE = 50
-const SELECTION_PADDING = 5
-const RESIZE_HANDLE_SIZE = 8
+import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE } from '../config/uiConstants'
 
 export const useCanvasRenderer = (
   canvasManagerRef,

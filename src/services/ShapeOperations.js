@@ -3,9 +3,8 @@
  * Consolidates all shape-related operations (hit detection, bounds, movement, resize)
  */
 
-// Constants
-const LINE_HIT_THRESHOLD = 10
-const TEXT_WIDTH_FACTOR = 0.6
+import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
+import { LINE_HIT_THRESHOLD, TEXT_WIDTH_FACTOR } from '../config/uiConstants'
 
 export class ShapeOperations {
   /**
@@ -456,13 +455,7 @@ export class ShapeOperations {
       if (!layer) continue
 
       const { shapeType, shapeIndex } = shape
-      const shapeArrayName = {
-        stroke: 'strokes',
-        arrow: 'arrows',
-        rect: 'rects',
-        ellipse: 'ellipses',
-        text: 'texts'
-      }[shapeType]
+      const shapeArrayName = SHAPE_ARRAY_MAP[shapeType]
 
       if (!shapeArrayName || !layer[shapeArrayName]) continue
 
@@ -524,13 +517,7 @@ export class ShapeOperations {
       if (!layer) continue
 
       const { shapeType, shapeIndex } = shape
-      const shapeArrayName = {
-        stroke: 'strokes',
-        arrow: 'arrows',
-        rect: 'rects',
-        ellipse: 'ellipses',
-        text: 'texts'
-      }[shapeType]
+      const shapeArrayName = SHAPE_ARRAY_MAP[shapeType]
 
       if (!shapeArrayName || !layer[shapeArrayName]) continue
 
