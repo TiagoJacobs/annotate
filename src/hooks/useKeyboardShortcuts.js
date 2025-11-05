@@ -16,7 +16,14 @@ export const useKeyboardShortcuts = ({
   updateLayersState,
   renderCanvas,
   zoomIn,
-  zoomOut
+  zoomOut,
+  panCanvas,
+  setTool,
+  tool,
+  colorPickerRef,
+  sizeSliderRef,
+  lineStyleSelectRef,
+  setShowKeyboardShortcuts
 }) => {
   /**
    * Get all shapes from all visible layers
@@ -168,8 +175,36 @@ export const useKeyboardShortcuts = ({
     renderCanvas()
   }
 
+  /**
+   * Tool ID mapping for keyboard shortcuts
+   */
+  const toolKeyMap = {
+    '1': 'pen',
+    '2': 'arrow',
+    '3': 'rect',
+    '4': 'ellipse',
+    '5': 'text',
+    '6': 'select',
+    '7': 'pan'
+  }
+
+  /**
+   * Check if user is typing in an input field
+   */
+  const isInputFocused = () => {
+    const activeElement = document.activeElement
+    return (
+      activeElement.tagName === 'INPUT' ||
+      activeElement.tagName === 'TEXTAREA' ||
+      activeElement.contentEditable === 'true'
+    )
+  }
+
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Skip keyboard shortcuts if user is typing in an input
+      if (isInputFocused()) return
+
       // Undo/Redo with Ctrl+Z / Ctrl+Shift+Z
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z') {
@@ -210,16 +245,73 @@ export const useKeyboardShortcuts = ({
         e.preventDefault()
         zoomOut(ZOOM_STEP)
       }
-      // Move selected shapes with arrow keys
+      // Move selected shapes or pan canvas with arrow keys
       else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault()
         if (selectedShape) {
-          e.preventDefault()
+          // Move selected shapes if any are selected
           moveSelectedShapes(e.key, e.shiftKey)
+        } else {
+          // Pan canvas if no shapes are selected
+          const panAmount = e.shiftKey ? 50 : 20
+          switch (e.key) {
+            case 'ArrowUp':
+              panCanvas(0, panAmount)
+              break
+            case 'ArrowDown':
+              panCanvas(0, -panAmount)
+              break
+            case 'ArrowLeft':
+              panCanvas(panAmount, 0)
+              break
+            case 'ArrowRight':
+              panCanvas(-panAmount, 0)
+              break
+          }
+        }
+      }
+      // C key for color picker
+      else if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault()
+        colorPickerRef.current?.focus()
+        colorPickerRef.current?.click()
+      }
+      // W key for line weight (size slider)
+      else if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault()
+        sizeSliderRef.current?.focus()
+      }
+      // S key for line style
+      else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        lineStyleSelectRef.current?.focus()
+      }
+      // K key for keyboard shortcuts help
+      else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault()
+        setShowKeyboardShortcuts(true)
+      }
+      // Number key shortcuts for tool selection (1-7)
+      else if (toolKeyMap[e.key]) {
+        e.preventDefault()
+        setTool(toolKeyMap[e.key])
+      }
+      // ESC key handling
+      else if (e.key === 'Escape') {
+        e.preventDefault()
+        if (selectedShape) {
+          // If shapes are selected, clear the selection
+          setSelectedShape(null)
+          selectedShapeRef.current = null
+          renderCanvas()
+        } else if (tool !== 'select') {
+          // If no shapes are selected and not in select tool, switch to select tool
+          setTool('select')
         }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [layerManagerRef, selectedShape, setSelectedShape, selectedShapeRef, deleteSelectedShape, updateLayersState, renderCanvas, zoomIn, zoomOut])
+  }, [layerManagerRef, selectedShape, setSelectedShape, selectedShapeRef, deleteSelectedShape, updateLayersState, renderCanvas, zoomIn, zoomOut, panCanvas, setTool, tool, colorPickerRef, sizeSliderRef, lineStyleSelectRef, setShowKeyboardShortcuts])
 }

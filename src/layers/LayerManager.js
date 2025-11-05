@@ -118,7 +118,15 @@ export class LayerManager {
    * Get selected layer
    */
   getSelectedLayer() {
-    return this.getLayer(this.selectedId)
+    const layer = this.getLayer(this.selectedId)
+
+    // If no layer is selected but layers exist, auto-select the last layer
+    if (!layer && this.layers.length > 0) {
+      this.selectedId = this.layers[this.layers.length - 1].id
+      return this.layers[this.layers.length - 1]
+    }
+
+    return layer
   }
 
   /**
@@ -203,7 +211,12 @@ export class LayerManager {
     if (this.historyIndex > 0) {
       this.historyIndex--
       this.layers = JSON.parse(JSON.stringify(this.history[this.historyIndex]))
-      this.selectedId = null
+      // Ensure a layer is selected after undo
+      if (this.layers.length > 0) {
+        this.selectedId = this.layers[this.layers.length - 1].id
+      } else {
+        this.selectedId = null
+      }
     }
   }
 
@@ -214,7 +227,12 @@ export class LayerManager {
     if (this.historyIndex < this.history.length - 1) {
       this.historyIndex++
       this.layers = JSON.parse(JSON.stringify(this.history[this.historyIndex]))
-      this.selectedId = null
+      // Ensure a layer is selected after redo
+      if (this.layers.length > 0) {
+        this.selectedId = this.layers[this.layers.length - 1].id
+      } else {
+        this.selectedId = null
+      }
     }
   }
 

@@ -394,11 +394,6 @@ export class ToolHandler {
       const dx = pos.x - this.resizeStartPos.x
       const dy = pos.y - this.resizeStartPos.y
 
-      console.log(`\n=== GROUP RESIZE ===`)
-      console.log(`Handle: ${this.resizeHandle}, ResizeStart: ${JSON.stringify(this.resizeStartPos)}, CurrentPos: ${JSON.stringify(pos)}`)
-      console.log(`Delta: dx=${dx}, dy=${dy}`)
-      console.log(`OriginalGroupBounds: ${JSON.stringify(originalGroupBounds)}`)
-
       const { newX, newY, newWidth, newHeight } = ShapeOperations.calculateNewBounds(
         this.resizeHandle,
         originalGroupBounds,
@@ -408,7 +403,6 @@ export class ToolHandler {
       )
 
       const newGroupBounds = { x: newX, y: newY, width: newWidth, height: newHeight }
-      console.log(`CalculatedNewGroupBounds: ${JSON.stringify(newGroupBounds)}`)
 
       // Check if any shape in the group is an image - if so, always preserve aspect ratio
       const hasImage = this.selectedShapes.some(shape => shape.shapeType === 'image')
@@ -423,22 +417,6 @@ export class ToolHandler {
         this.resizeHandle,
         preserveAspectRatio
       )
-
-      // After transformation, recalculate actual group bounds
-      const actualGroupBounds = ShapeOperations.getMultiShapeBounds(this.selectedShapes, this.layerManager)
-      console.log(`ActualGroupBounds after resize: ${JSON.stringify(actualGroupBounds)}`)
-      console.log(`Bounds Match: ${JSON.stringify(newGroupBounds) === JSON.stringify(actualGroupBounds) ? 'YES' : 'NO'}`)
-
-      // Log individual shapes
-      console.log(`Individual shapes after resize:`)
-      for (const shape of this.selectedShapes) {
-        const layer = this.layerManager.getLayer(shape.layerId)
-        if (layer) {
-          const bounds = ShapeOperations.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
-          console.log(`  ${shape.shapeType}[${shape.shapeIndex}]: ${JSON.stringify(bounds)}`)
-        }
-      }
-      console.log(`=== END RESIZE ===\n`)
 
       // Update all affected layers
       if (updatedLayers) {

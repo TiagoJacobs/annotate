@@ -18,6 +18,10 @@ body {
   flex-direction: column;
   height: 100vh;
   background-color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .status-bar {
@@ -32,6 +36,15 @@ body {
   margin: 0;
   color: #666;
   font-weight: 500;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.status-hint {
+  color: #999;
+  font-size: 0.85rem;
+  margin-left: auto;
 }
 
 .annotate-main {
@@ -474,6 +487,7 @@ body {
   font-weight: 500;
   color: #333;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .action-btn svg {
@@ -713,5 +727,30 @@ body {
     gap: 0.5rem;
     padding: 0.5rem;
     font-size: 0.85rem;
+  }
+
+  /* Hide button text and show only icons on small screens */
+  .action-btn .btn-text {
+    display: none;
+  }
+
+  .action-btn {
+    padding: 0.5rem;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+  }
+
+  .action-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .download-group {
+    gap: 0;
+  }
+
+  .download-format-select {
+    display: none;
   }
 }

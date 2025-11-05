@@ -31,7 +31,8 @@ export const useCanvasEvents = ({
   setSelectedShape,
   setInlineEditingText,
   updateLayersState,
-  renderCanvas
+  renderCanvas,
+  showSnackbar
 }) => {
   /**
    * Get coordinates from canvas event
@@ -48,6 +49,13 @@ export const useCanvasEvents = ({
 
     const coords = getCanvasCoordinates(e)
     if (!coords) return
+
+    // Check if user is trying to add text without any layers
+    const allLayers = layerManagerRef.current?.getAllLayers() || []
+    if (allLayers.length === 0) {
+      showSnackbar('Please create a layer first to add text')
+      return
+    }
 
     const properties = getToolProperties()
 
@@ -80,7 +88,7 @@ export const useCanvasEvents = ({
 
     updateLayersState()
     renderCanvas()
-  }, [tool, getCanvasCoordinates, toolHandlerRef, layerManagerRef, canvasManagerRef, getToolProperties, setInlineEditingText, updateLayersState, renderCanvas])
+  }, [tool, getCanvasCoordinates, toolHandlerRef, layerManagerRef, canvasManagerRef, getToolProperties, setInlineEditingText, updateLayersState, renderCanvas, showSnackbar])
 
   /**
    * Handle canvas double click
@@ -216,6 +224,13 @@ export const useCanvasEvents = ({
     const handler = toolConfig.handlers?.onMouseDown
     const properties = getToolProperties()
 
+    // Check if user is trying to draw without any layers
+    const allLayers = layerManagerRef.current?.getAllLayers() || []
+    if (allLayers.length === 0 && handler !== 'selectObject' && handler !== 'startPan') {
+      showSnackbar('Please create a layer first to draw shapes')
+      return
+    }
+
     if (handler === 'startFreehandStroke') {
       toolHandlerRef.current?.startFreehandStroke(coords, toolConfig, properties)
     } else if (handler === 'startShape') {
@@ -241,7 +256,7 @@ export const useCanvasEvents = ({
 
       renderCanvas()
     }
-  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateCursor])
+  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateCursor, layerManagerRef, showSnackbar])
 
   /**
    * Handle canvas mouse move (for drawing and dragging)

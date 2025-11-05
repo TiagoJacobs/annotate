@@ -11,11 +11,14 @@ import { useCanvasEvents } from './hooks/useCanvasEvents'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useShapeProperties } from './hooks/useShapeProperties'
 import { getStoredToolProperties, saveToolProperty } from './utils/storageUtils'
+import { createCroppedCanvas } from './utils/canvasExportUtils'
 import { CanvasArea } from './components/CanvasArea'
 import { ToolsPanel } from './components/ToolsPanel'
 import { ShapeOptionsPanel } from './components/ShapeOptionsPanel'
 import { LayersPanel } from './components/LayersPanel'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { Snackbar } from './components/Snackbar'
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal'
 import {
   CANVAS_UPDATE_INTERVAL,
   SELECTION_PADDING,
@@ -43,6 +46,9 @@ function Annotate() {
   const imageCache = useRef(new Map())
   const selectedShapeRef = useRef(null)
   const shapeRendererRef = useRef(null)
+  const colorPickerRef = useRef(null)
+  const sizeSliderRef = useRef(null)
+  const lineStyleSelectRef = useRef(null)
 
   // Load stored properties
   const storedProperties = getStoredToolProperties()
@@ -61,6 +67,9 @@ function Annotate() {
   const [renamingLayerId, setRenamingLayerId] = useState(null)
   const [renamingLayerName, setRenamingLayerName] = useState('')
   const [downloadFormat, setDownloadFormat] = useState('png') // 'png' or 'svg'
+  const [snackbarOpen, setSnackbarOpen] = useState(false)
+  const [snackbarMessage, setSnackbarMessage] = useState('')
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
 
   // ==================== Hooks ====================
 
@@ -71,6 +80,14 @@ function Annotate() {
   })
 
   // ==================== Utility Functions (must be before hooks) ====================
+
+  /**
+   * Show snackbar message
+   */
+  const showSnackbar = (message) => {
+    setSnackbarMessage(message)
+    setSnackbarOpen(true)
+  }
 
   /**
    * Update layers state from layer manager
@@ -297,14 +314,33 @@ function Annotate() {
     canvasManagerRef.current?.resetView()
   }
 
+  const panCanvas = (deltaX, deltaY) => {
+    canvasManagerRef.current?.pan(deltaX, deltaY)
+    renderCanvas()
+  }
+
   // ==================== Export & Actions ====================
 
   const copyToClipboard = async () => {
-    const canvas = canvasRef.current
-    canvas.toBlob((blob) => {
-      navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      alert('Image copied to clipboard!')
-    })
+    try {
+      const croppedCanvas = createCroppedCanvas(layerManagerRef.current, shapeRendererRef.current)
+
+      // Convert blob to promise-based format
+      const blob = await new Promise(resolve => croppedCanvas.toBlob(resolve, 'image/png'))
+
+      if (!blob || blob.size === 0) {
+        showSnackbar('Nothing to copy - canvas is empty')
+        return
+      }
+
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ])
+      showSnackbar('Image copied to clipboard!')
+    } catch (error) {
+      console.error('Copy to clipboard failed:', error)
+      showSnackbar('Failed to copy image to clipboard')
+    }
   }
 
   const downloadImage = () => {
@@ -316,26 +352,17 @@ function Annotate() {
   }
 
   const downloadPNG = () => {
-    // Render canvas without selection UI
-    renderCanvasForExport()
-
-    const canvas = canvasRef.current
+    const croppedCanvas = createCroppedCanvas(layerManagerRef.current, shapeRendererRef.current)
     const link = document.createElement('a')
-    link.href = canvas.toDataURL('image/png')
+    link.href = croppedCanvas.toDataURL('image/png')
     link.download = 'annotated-image.png'
     link.click()
-
-    // Restore normal rendering with selection UI
-    renderCanvas()
   }
 
   const downloadSVG = () => {
-    // Render canvas without selection UI
-    renderCanvasForExport()
-
-    const canvas = canvasRef.current
-    const width = canvas.width
-    const height = canvas.height
+    const croppedCanvas = createCroppedCanvas(layerManagerRef.current, shapeRendererRef.current)
+    const width = croppedCanvas.width
+    const height = croppedCanvas.height
 
     // Create SVG element
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
@@ -354,7 +381,7 @@ function Annotate() {
     const image = document.createElementNS('http://www.w3.org/2000/svg', 'image')
     image.setAttribute('width', width)
     image.setAttribute('height', height)
-    image.setAttribute('href', canvas.toDataURL('image/png'))
+    image.setAttribute('href', croppedCanvas.toDataURL('image/png'))
     svg.appendChild(image)
 
     // Create blob and download
@@ -366,9 +393,6 @@ function Annotate() {
     link.download = 'annotated-image.svg'
     link.click()
     URL.revokeObjectURL(url)
-
-    // Restore normal rendering with selection UI
-    renderCanvas()
   }
 
   const clearCanvas = () => {
@@ -490,7 +514,8 @@ function Annotate() {
     setSelectedShape,
     setInlineEditingText,
     updateLayersState,
-    renderCanvas
+    renderCanvas,
+    showSnackbar
   })
 
   // Use keyboard shortcuts hook
@@ -503,7 +528,14 @@ function Annotate() {
     updateLayersState,
     renderCanvas,
     zoomIn,
-    zoomOut
+    zoomOut,
+    panCanvas,
+    setTool,
+    tool,
+    colorPickerRef,
+    sizeSliderRef,
+    lineStyleSelectRef,
+    setShowKeyboardShortcuts
   })
 
   // ==================== Effects ====================
@@ -697,12 +729,12 @@ function Annotate() {
           <div className="tool-group">
             <button className="action-btn copy-btn" onClick={copyToClipboard} title="Copy to clipboard">
               <Copy size={18} />
-              Copy
+              <span className="btn-text">Copy</span>
             </button>
             <div className="download-group">
               <button className="action-btn download-btn" onClick={downloadImage} title="Download image">
                 <Download size={18} />
-                Download
+                <span className="btn-text">Download</span>
               </button>
               <select
                 className="download-format-select"
@@ -725,6 +757,7 @@ function Annotate() {
               <div className="tool-group">
                 <label>Color:</label>
                 <input
+                  ref={colorPickerRef}
                   type="color"
                   value={selectedShape ? (getSelectedShapeColor() || color) : color}
                   onChange={(e) => {
@@ -747,6 +780,7 @@ function Annotate() {
                   }
                 </label>
                 <input
+                  ref={sizeSliderRef}
                   type="range"
                   min={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '10' : '1') : (showFontSize() ? '10' : '1')}
                   max={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '100' : '50') : (showFontSize() ? '100' : '50')}
@@ -778,6 +812,7 @@ function Annotate() {
                 <div className="tool-group">
                   <label>Line Style:</label>
                   <select
+                    ref={lineStyleSelectRef}
                     value={selectedShape ? (getSelectedShapeLineStyle() || 'solid') : lineStyle}
                     onChange={(e) => {
                       if (selectedShape) {
@@ -956,8 +991,17 @@ function Annotate() {
         </div>
       </div>
       <div className="status-bar">
-        <p>{getStatusMessage()}</p>
+        <p>{getStatusMessage()} <span className="status-hint">· K for keyboard shortcuts</span></p>
       </div>
+      <Snackbar
+        message={snackbarMessage}
+        isOpen={snackbarOpen}
+        onClose={() => setSnackbarOpen(false)}
+      />
+      <KeyboardShortcutsModal
+        isOpen={showKeyboardShortcuts}
+        onClose={() => setShowKeyboardShortcuts(false)}
+      />
     </div>
   )
 }
