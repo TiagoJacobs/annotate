@@ -33,7 +33,8 @@ export const useCanvasEvents = ({
   updateLayersState,
   renderCanvas,
   showSnackbar,
-  setZoom
+  setZoom,
+  selectLayer
 }) => {
   /**
    * Get coordinates from canvas event
@@ -268,12 +269,17 @@ export const useCanvasEvents = ({
       selectedShapeRef.current = shape
       setSelectedShape(shape)
 
+      // Focus the corresponding layer in the layers panel
+      if (shape && !Array.isArray(shape) && shape.layerId) {
+        selectLayer(shape.layerId)
+      }
+
       // Update cursor immediately to show move cursor for selected shape
       updateCursor(coords, e.currentTarget)
 
       renderCanvas()
     }
-  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateCursor, layerManagerRef, showSnackbar])
+  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateCursor, layerManagerRef, showSnackbar, selectLayer])
 
   /**
    * Handle canvas mouse move (for drawing and dragging)
@@ -342,6 +348,10 @@ export const useCanvasEvents = ({
         if (selectedShapes) {
           selectedShapeRef.current = selectedShapes
           setSelectedShape(selectedShapes)
+          // Focus the layer of the first selected shape
+          if (selectedShapes.length > 0 && selectedShapes[0].layerId) {
+            selectLayer(selectedShapes[0].layerId)
+          }
         }
         renderCanvas()
       } else {
@@ -350,7 +360,7 @@ export const useCanvasEvents = ({
     }
 
     updateLayersState()
-  }, [tool, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateLayersState])
+  }, [tool, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateLayersState, selectLayer])
 
   /**
    * Setup wheel event listener with passive: false to allow preventDefault
