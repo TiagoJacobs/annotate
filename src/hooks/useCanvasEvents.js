@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect } from 'react'
 import { getToolConfig } from '../tools/toolRegistry'
-import { RESIZE_HANDLE_SIZE } from '../config/uiConstants'
+import { RESIZE_HANDLE_SIZE, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE } from '../config/uiConstants'
 
 /**
  * Map resize handle names to CSS cursor values
@@ -34,7 +34,9 @@ export const useCanvasEvents = ({
   renderCanvas,
   showSnackbar,
   setZoom,
-  selectLayer
+  selectLayer,
+  brushSize,
+  setBrushSize
 }) => {
   /**
    * Get coordinates from canvas event
@@ -370,20 +372,24 @@ export const useCanvasEvents = ({
     if (!canvas) return
 
     const handleWheel = (e) => {
-      // Only zoom when Ctrl (or Meta on Mac) is held
-      if (!e.ctrlKey && !e.metaKey) return
-      e.preventDefault()
-      // Scroll up = zoom in (negative deltaY), scroll down = zoom out (positive deltaY)
-      const delta = e.deltaY > 0 ? -0.1 : 0.1
-
-      const currentZoom = canvasManagerRef.current.zoom
-      const newZoom = currentZoom + delta
-
-      // Update both canvas manager and React state
-      canvasManagerRef.current.setZoom(newZoom)
-      setZoom(newZoom)
-
-      renderCanvas()
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl+scroll = zoom
+        e.preventDefault()
+        const delta = e.deltaY > 0 ? -0.1 : 0.1
+        const currentZoom = canvasManagerRef.current.zoom
+        const newZoom = currentZoom + delta
+        canvasManagerRef.current.setZoom(newZoom)
+        setZoom(newZoom)
+        renderCanvas()
+      } else {
+        // Plain scroll = adjust brush size for drawing tools
+        const drawingTools = ['pen', 'arrow', 'rect', 'ellipse']
+        if (drawingTools.includes(tool)) {
+          e.preventDefault()
+          const delta = e.deltaY > 0 ? -1 : 1
+          setBrushSize(prev => Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, prev + delta)))
+        }
+      }
     }
 
     // Add listener with passive: false to allow preventDefault
@@ -392,7 +398,7 @@ export const useCanvasEvents = ({
     return () => {
       canvas.removeEventListener('wheel', handleWheel)
     }
-  }, [canvasManagerRef, renderCanvas, setZoom])
+  }, [canvasManagerRef, renderCanvas, setZoom, tool, setBrushSize])
 
   /**
    * Handle middle-mouse button drag for panning (regardless of tool)

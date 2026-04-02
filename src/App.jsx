@@ -528,7 +528,9 @@ function Annotate() {
     renderCanvas,
     showSnackbar,
     setZoom,
-    selectLayer
+    selectLayer,
+    brushSize,
+    setBrushSize
   })
 
   // Use keyboard shortcuts hook
