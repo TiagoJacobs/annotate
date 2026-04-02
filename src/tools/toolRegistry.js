@@ -54,6 +54,7 @@ export const toolRegistry = {
     cursor: 'crosshair',
     properties: {
       color: { type: 'color', default: '#000000' },
+      fillColor: { type: 'color', default: '' },
       size: { type: 'number', min: 1, max: 50, default: 2 },
       lineStyle: { type: 'select', default: 'solid', options: ['solid', 'dashed', 'dotted', 'dashdot'] },
     },
@@ -75,6 +76,7 @@ export const toolRegistry = {
     cursor: 'crosshair',
     properties: {
       color: { type: 'color', default: '#000000' },
+      fillColor: { type: 'color', default: '' },
       size: { type: 'number', min: 1, max: 50, default: 2 },
       lineStyle: { type: 'select', default: 'solid', options: ['solid', 'dashed', 'dotted', 'dashdot'] },
     },

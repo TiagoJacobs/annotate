@@ -3,8 +3,8 @@
  * Renders the layers list with visibility toggles, reordering, and deletion
  */
 
-import React from 'react'
-import { Eye, EyeOff, X, ChevronUp, ChevronDown, Plus, Trash2 } from 'lucide-react'
+import React, { useEffect, useRef } from 'react'
+import { Eye, EyeOff, Lock, Unlock, X, ChevronUp, ChevronDown, Plus, Trash2 } from 'lucide-react'
 
 export const LayersPanel = ({
   layers,
@@ -13,6 +13,7 @@ export const LayersPanel = ({
   renamingLayerName,
   selectLayer,
   toggleLayerVisibility,
+  toggleLayerLock,
   moveLayerInStack,
   deleteLayer,
   clearCanvas,
@@ -22,6 +23,17 @@ export const LayersPanel = ({
   setRenamingLayerName,
   handleLayerRenameKeyPress
 }) => {
+  const listRef = useRef(null)
+
+  useEffect(() => {
+    if (selectedLayerId && listRef.current) {
+      const el = listRef.current.querySelector(`[data-layer-id="${selectedLayerId}"]`)
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedLayerId])
+
   return (
     <div className="layers-panel">
       <div className="layers-panel-header">
@@ -35,7 +47,7 @@ export const LayersPanel = ({
           </button>
         )}
       </div>
-      <div className="layers-list">
+      <div className="layers-list" ref={listRef}>
         {layers.length === 0 ? (
           <div className="no-layers">No layers yet</div>
         ) : (
@@ -47,6 +59,7 @@ export const LayersPanel = ({
               return (
                 <div
                   key={layer.id}
+                  data-layer-id={layer.id}
                   className={`layer-item ${selectedLayerId === layer.id ? 'selected' : ''}`}
                   onClick={() => selectLayer(layer.id)}
                 >
@@ -59,6 +72,16 @@ export const LayersPanel = ({
                       }}
                     >
                       {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </button>
+                    <button
+                      className="layer-visibility"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleLayerLock(layer.id)
+                      }}
+                      title={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                    >
+                      {layer.locked ? <Lock size={16} /> : <Unlock size={16} />}
                     </button>
                     <div className="layer-info">
                       {isRenaming ? (

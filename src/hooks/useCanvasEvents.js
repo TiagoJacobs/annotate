@@ -3,9 +3,9 @@
  * Separates event handling logic from main component
  */
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { getToolConfig } from '../tools/toolRegistry'
-import { RESIZE_HANDLE_SIZE } from '../config/uiConstants'
+import { RESIZE_HANDLE_SIZE, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE } from '../config/uiConstants'
 
 /**
  * Map resize handle names to CSS cursor values
@@ -33,8 +33,16 @@ export const useCanvasEvents = ({
   updateLayersState,
   renderCanvas,
   showSnackbar,
-  setZoom
+  setZoom,
+  selectLayer,
+  brushSize,
+  setBrushSize,
+  canvasReady
 }) => {
+  // Keep a ref to tool so the wheel handler always reads the current value
+  const toolRef = useRef(tool)
+  toolRef.current = tool
+
   /**
    * Get coordinates from canvas event
    */
@@ -268,12 +276,17 @@ export const useCanvasEvents = ({
       selectedShapeRef.current = shape
       setSelectedShape(shape)
 
+      // Focus the corresponding layer in the layers panel
+      if (shape && !Array.isArray(shape) && shape.layerId) {
+        selectLayer(shape.layerId)
+      }
+
       // Update cursor immediately to show move cursor for selected shape
       updateCursor(coords, e.currentTarget)
 
       renderCanvas()
     }
-  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateCursor, layerManagerRef, showSnackbar])
+  }, [getCanvasCoordinates, tool, getToolProperties, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateCursor, layerManagerRef, showSnackbar, selectLayer])
 
   /**
    * Handle canvas mouse move (for drawing and dragging)
@@ -342,6 +355,10 @@ export const useCanvasEvents = ({
         if (selectedShapes) {
           selectedShapeRef.current = selectedShapes
           setSelectedShape(selectedShapes)
+          // Focus the layer of the first selected shape
+          if (selectedShapes.length > 0 && selectedShapes[0].layerId) {
+            selectLayer(selectedShapes[0].layerId)
+          }
         }
         renderCanvas()
       } else {
@@ -350,7 +367,7 @@ export const useCanvasEvents = ({
     }
 
     updateLayersState()
-  }, [tool, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateLayersState])
+  }, [tool, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateLayersState, selectLayer])
 
   /**
    * Setup wheel event listener with passive: false to allow preventDefault
@@ -360,18 +377,48 @@ export const useCanvasEvents = ({
     if (!canvas) return
 
     const handleWheel = (e) => {
-      e.preventDefault()
-      // Scroll up = zoom in (negative deltaY), scroll down = zoom out (positive deltaY)
-      const delta = e.deltaY > 0 ? -0.1 : 0.1
-
-      const currentZoom = canvasManagerRef.current.zoom
-      const newZoom = currentZoom + delta
-
-      // Update both canvas manager and React state
-      canvasManagerRef.current.setZoom(newZoom)
-      setZoom(newZoom)
-
-      renderCanvas()
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl+scroll = zoom at mouse cursor position
+        e.preventDefault()
+        const rect = canvas.getBoundingClientRect()
+        const mouseX = e.clientX - rect.left
+        const mouseY = e.clientY - rect.top
+        const delta = e.deltaY > 0 ? -0.1 : 0.1
+        const currentZoom = canvasManagerRef.current.zoom
+        const newZoom = currentZoom + delta
+        canvasManagerRef.current.setZoom(newZoom, mouseX, mouseY)
+        setZoom(canvasManagerRef.current.zoom)
+        renderCanvas()
+      } else {
+        // Plain scroll = adjust brush size for drawing tools
+        const drawingTools = ['pen', 'arrow', 'rect', 'ellipse']
+        if (drawingTools.includes(toolRef.current)) {
+          e.preventDefault()
+          const delta = e.deltaY > 0 ? -1 : 1
+          setBrushSize(prev => {
+            const newSize = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, prev + delta))
+            // Update in-progress shape size if actively drawing
+            const handler = toolHandlerRef.current
+            if (handler && handler.isDrawing && handler.currentLayer) {
+              // Update freehand stroke
+              if (handler.currentStroke) {
+                handler.currentStroke.size = newSize
+              }
+              // Update preview shapes (arrow, rect, ellipse)
+              const layer = handler.currentLayer
+              const previewArrays = ['arrows', 'rects', 'ellipses']
+              for (const arr of previewArrays) {
+                if (layer[arr]) {
+                  const preview = layer[arr].find(s => s.isPreview)
+                  if (preview) preview.size = newSize
+                }
+              }
+            }
+            return newSize
+          })
+          renderCanvas()
+        }
+      }
     }
 
     // Add listener with passive: false to allow preventDefault
@@ -380,7 +427,7 @@ export const useCanvasEvents = ({
     return () => {
       canvas.removeEventListener('wheel', handleWheel)
     }
-  }, [canvasManagerRef, renderCanvas, setZoom])
+  }, [canvasManagerRef, renderCanvas, setZoom, setBrushSize, canvasReady])
 
   /**
    * Handle middle-mouse button drag for panning (regardless of tool)

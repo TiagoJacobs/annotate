@@ -1,21 +1,21 @@
 #!/bin/bash
 # Author: Tiago Daniel Jacobs <tiago.jacobs@gmail.com>
 
-mkdir -p .data/claude .data/claude-config .data/npm .data/npm-global && \
+mkdir -p .data/claude .data/claude-config .data/config .data/npm .data/npm-global && \
 docker run -it --rm \
   -e HOME=/home/node \
   -e TERM=xterm-256color \
   -e npm_config_cache=/workspace/.data/npm \
   -e npm_config_prefix=/workspace/.data/npm-global \
   -v $(pwd)/.data/claude:/home/node/.claude \
-  -v $(pwd)/.data/claude-config:/home/node/.config/claude-code \
+  -v $(pwd)/.data/config:/home/node/.config \
   -v $(pwd):/workspace \
   -w /workspace \
   --network host \
   node:24 \
   bash -lc '
     # Fix ownership so node user can use everything
-    chown -R node:node /home/node/.claude /home/node/.config/claude-code
+    chown -R node:node /home/node/.claude /home/node/.config
 
     # Drop to node user for Claude
     su node -c "

@@ -92,6 +92,7 @@ export class RectStrategy extends ShapeCreationStrategy {
       height: Math.abs(height),
       size: properties.size,
       color: properties.color,
+      fillColor: properties.fillColor || '',
       lineStyle: properties.lineStyle,
       isPreview: true,
     })
@@ -124,6 +125,7 @@ export class EllipseStrategy extends ShapeCreationStrategy {
       height: Math.abs(height),
       size: properties.size,
       color: properties.color,
+      fillColor: properties.fillColor || '',
       lineStyle: properties.lineStyle,
       isPreview: true,
     })

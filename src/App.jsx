@@ -6,6 +6,7 @@ import { ToolHandler } from './tools/ToolHandler'
 import { toolRegistry, getToolConfig } from './tools/toolRegistry'
 import { SHAPE_ARRAY_MAP } from './config/shapeConfig'
 import { ShapeRendererFactory } from './renderers/ShapeRenderer'
+import { ShapeOperations } from './services/ShapeOperations'
 import { useCanvasRenderer } from './hooks/useCanvasRenderer'
 import { useCanvasEvents } from './hooks/useCanvasEvents'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -62,6 +63,7 @@ function Annotate() {
   const [brushSize, setBrushSize] = useState(storedProperties.brushSize)
   const [fontSize, setFontSize] = useState(storedProperties.fontSize)
   const [lineStyle, setLineStyle] = useState(storedProperties.lineStyle)
+  const [fillColor, setFillColor] = useState('')
   const [zoom, setZoom] = useState(1)
   const [selectedShape, setSelectedShape] = useState(null) // { layerId, shapeType, shapeIndex }
   const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
@@ -72,6 +74,7 @@ function Annotate() {
   const [snackbarMessage, setSnackbarMessage] = useState('')
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
   const [showMinimap, setShowMinimap] = useState(false)
+  const [canvasReady, setCanvasReady] = useState(false)
 
   // ==================== Hooks ====================
 
@@ -107,6 +110,7 @@ function Annotate() {
 
     const propertyValueMap = {
       color,
+      fillColor,
       size: brushSize,
       fontSize,
       lineStyle
@@ -204,6 +208,18 @@ function Annotate() {
    */
   const updateSelectedShapeLineStyle = (newLineStyle) => {
     const updatedLayers = shapePropertiesHook.updateLineStyle(newLineStyle)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
+    }
+  }
+
+  const getSelectedShapeFillColor = () => {
+    return shapePropertiesHook.getFillColor()
+  }
+
+  const updateSelectedShapeFillColor = (newFillColor) => {
+    const updatedLayers = shapePropertiesHook.updateFillColor(newFillColor)
     if (updatedLayers && updatedLayers.size > 0) {
       updateLayersState()
       renderCanvas()
@@ -428,6 +444,11 @@ function Annotate() {
     updateLayersState()
   }
 
+  const toggleLayerLock = (layerId) => {
+    layerManagerRef.current.toggleLock(layerId)
+    updateLayersState()
+  }
+
   const moveLayerInStack = (layerId, direction) => {
     layerManagerRef.current.moveLayer(layerId, direction)
     updateLayersState()
@@ -489,6 +510,14 @@ function Annotate() {
     updateLayersState()
   }
 
+  const alignSelectedShapes = (alignment) => {
+    if (!selectedShape || !Array.isArray(selectedShape) || selectedShape.length < 2) return
+    layerManagerRef.current.saveHistory()
+    ShapeOperations.alignShapes(selectedShape, layerManagerRef.current, alignment)
+    updateLayersState()
+    renderCanvas()
+  }
+
   // ==================== Custom Hooks (called after all functions are defined) ====================
 
   // Use canvas renderer hook
@@ -522,7 +551,11 @@ function Annotate() {
     updateLayersState,
     renderCanvas,
     showSnackbar,
-    setZoom
+    setZoom,
+    selectLayer,
+    brushSize,
+    setBrushSize,
+    canvasReady
   })
 
   // Use keyboard shortcuts hook
@@ -553,6 +586,7 @@ function Annotate() {
       canvasManagerRef.current = new CanvasManager(canvasRef.current)
       toolHandlerRef.current = new ToolHandler(canvasManagerRef.current, layerManagerRef.current)
       shapeRendererRef.current = new ShapeRendererFactory(imageCache.current)
+      setCanvasReady(true)
 
       // Set up image reload callback
       const imageRenderer = shapeRendererRef.current.getRenderer('image')
@@ -1123,17 +1157,22 @@ function Annotate() {
           brushSize={brushSize}
           fontSize={fontSize}
           lineStyle={lineStyle}
+          fillColor={fillColor}
+          setFillColor={setFillColor}
           getSelectedShapeColor={getSelectedShapeColor}
           getSelectedShapeSize={getSelectedShapeSize}
+          getSelectedShapeFillColor={getSelectedShapeFillColor}
           getSelectedShapeLineStyle={getSelectedShapeLineStyle}
           updateSelectedShapeColor={updateSelectedShapeColor}
           updateSelectedShapeSize={updateSelectedShapeSize}
+          updateSelectedShapeFillColor={updateSelectedShapeFillColor}
           updateSelectedShapeLineStyle={updateSelectedShapeLineStyle}
           setColor={setColor}
           setBrushSize={setBrushSize}
           setFontSize={setFontSize}
           setLineStyle={setLineStyle}
           saveToolProperty={saveToolProperty}
+          alignSelectedShapes={alignSelectedShapes}
           colorPickerRef={colorPickerRef}
           sizeSliderRef={sizeSliderRef}
           lineStyleSelectRef={lineStyleSelectRef}
@@ -1191,6 +1230,7 @@ function Annotate() {
             renamingLayerName={renamingLayerName}
             selectLayer={selectLayer}
             toggleLayerVisibility={toggleLayerVisibility}
+            toggleLayerLock={toggleLayerLock}
             moveLayerInStack={moveLayerInStack}
             deleteLayer={(layerId) => {
               if (layers.length <= 1) {

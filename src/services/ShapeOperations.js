@@ -675,7 +675,7 @@ export class ShapeOperations {
 
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i]
-      if (!layer.visible) continue
+      if (!layer.visible || layer.locked) continue
 
       // Check image first
       if (layer.image) {
@@ -770,12 +770,87 @@ export class ShapeOperations {
     // Search from top layer to bottom
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i]
-      if (!layer.visible) continue
+      if (!layer.visible || layer.locked) continue
 
       const result = this.checkLayerShapes(pos, layer)
       if (result) return result
     }
 
     return null
+  }
+
+  /**
+   * Align multiple shapes along an edge or center
+   * @param {Array} shapes - Array of { layerId, shapeType, shapeIndex }
+   * @param {Object} layerManager
+   * @param {'left'|'right'|'top'|'bottom'|'centerH'|'centerV'} alignment
+   */
+  static alignShapes(shapes, layerManager, alignment) {
+    if (!shapes || shapes.length < 2) return
+
+    // Get bounds for each shape
+    const shapeBounds = shapes.map(shape => {
+      const layer = layerManager.getLayer(shape.layerId)
+      if (!layer) return null
+      const bounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+      return bounds ? { shape, bounds } : null
+    }).filter(Boolean)
+
+    if (shapeBounds.length < 2) return
+
+    // Compute the alignment target
+    let target
+    switch (alignment) {
+      case 'left':
+        target = Math.min(...shapeBounds.map(s => s.bounds.x))
+        break
+      case 'right':
+        target = Math.max(...shapeBounds.map(s => s.bounds.x + s.bounds.width))
+        break
+      case 'top':
+        target = Math.min(...shapeBounds.map(s => s.bounds.y))
+        break
+      case 'bottom':
+        target = Math.max(...shapeBounds.map(s => s.bounds.y + s.bounds.height))
+        break
+      case 'centerH':
+        target = shapeBounds.reduce((sum, s) => sum + s.bounds.x + s.bounds.width / 2, 0) / shapeBounds.length
+        break
+      case 'centerV':
+        target = shapeBounds.reduce((sum, s) => sum + s.bounds.y + s.bounds.height / 2, 0) / shapeBounds.length
+        break
+    }
+
+    // Move each shape to align
+    for (const { shape, bounds } of shapeBounds) {
+      const layer = layerManager.getLayer(shape.layerId)
+      if (!layer) continue
+
+      let dx = 0, dy = 0
+      switch (alignment) {
+        case 'left':
+          dx = target - bounds.x
+          break
+        case 'right':
+          dx = target - (bounds.x + bounds.width)
+          break
+        case 'top':
+          dy = target - bounds.y
+          break
+        case 'bottom':
+          dy = target - (bounds.y + bounds.height)
+          break
+        case 'centerH':
+          dx = target - (bounds.x + bounds.width / 2)
+          break
+        case 'centerV':
+          dy = target - (bounds.y + bounds.height / 2)
+          break
+      }
+
+      if (dx !== 0 || dy !== 0) {
+        this.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
+      }
+    }
   }
 }
