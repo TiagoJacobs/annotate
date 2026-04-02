@@ -623,6 +623,17 @@ function Annotate() {
 
   // ==================== Effects ====================
 
+  // Prevent browser zoom on Ctrl+scroll anywhere in the app
+  useEffect(() => {
+    const preventBrowserZoom = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+      }
+    }
+    document.addEventListener('wheel', preventBrowserZoom, { passive: false })
+    return () => document.removeEventListener('wheel', preventBrowserZoom)
+  }, [])
+
   useEffect(() => {
     if (canvasRef.current && !canvasManagerRef.current) {
       canvasManagerRef.current = new CanvasManager(canvasRef.current)
