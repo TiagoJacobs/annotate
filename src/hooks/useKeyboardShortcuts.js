@@ -92,6 +92,15 @@ export const useKeyboardShortcuts = ({
           shapeIndex: index
         })
       })
+
+      // Add all connectors
+      layer.connectors?.forEach((_, index) => {
+        allShapes.push({
+          layerId: layer.id,
+          shapeType: 'connector',
+          shapeIndex: index
+        })
+      })
     }
 
     return allShapes

@@ -28,6 +28,7 @@ export class LayerManager {
       ellipses: [],
       strokes: [],
       texts: [],
+      connectors: [],
       ...data,
     }
 

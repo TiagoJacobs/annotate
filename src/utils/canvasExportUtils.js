@@ -81,6 +81,15 @@ export const getContentBounds = (layerManager) => {
       maxX = Math.max(maxX, text.x + textWidth)
       maxY = Math.max(maxY, text.y + text.fontSize)
     })
+
+    layer.connectors?.forEach(c => {
+      if (c.fromX == null) return
+      hasContent = true
+      minX = Math.min(minX, c.fromX, c.toX)
+      minY = Math.min(minY, c.fromY, c.toY)
+      maxX = Math.max(maxX, c.fromX, c.toX)
+      maxY = Math.max(maxY, c.fromY, c.toY)
+    })
   })
 
   if (!hasContent) {
@@ -144,6 +153,7 @@ export const createCroppedCanvas = (layerManager, shapeRenderer) => {
       layer.rects?.forEach(rect => shapeRenderer.renderShape(tempCtx, 'rect', rect, rect.color || '#000000'))
       layer.ellipses?.forEach(ellipse => shapeRenderer.renderShape(tempCtx, 'ellipse', ellipse, ellipse.color || '#000000'))
       layer.texts?.forEach(text => shapeRenderer.renderShape(tempCtx, 'text', text, text.color || '#000000'))
+      layer.connectors?.forEach(c => shapeRenderer.renderShape(tempCtx, 'connector', c, c.color || '#000000'))
     }
 
     tempCtx.globalAlpha = 1

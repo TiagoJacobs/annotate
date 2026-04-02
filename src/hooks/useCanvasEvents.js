@@ -113,24 +113,45 @@ export const useCanvasEvents = ({
     if (!coords) return
 
     const selectedShape = selectedShapeRef.current
-    if (!selectedShape || selectedShape.shapeType !== 'text') return
+    if (!selectedShape) return
 
-    const layer = toolHandlerRef.current?.layerManager.getLayer(selectedShape.layerId)
-    if (!layer || !layer.texts?.[selectedShape.shapeIndex]) return
+    // Handle double-click on text shapes
+    if (selectedShape.shapeType === 'text') {
+      const layer = toolHandlerRef.current?.layerManager.getLayer(selectedShape.layerId)
+      if (!layer || !layer.texts?.[selectedShape.shapeIndex]) return
 
-    const text = layer.texts[selectedShape.shapeIndex]
-    const screenPos = canvasManagerRef.current?.canvasToScreen(text.x, text.y)
-    if (!screenPos) return
+      const text = layer.texts[selectedShape.shapeIndex]
+      const screenPos = canvasManagerRef.current?.canvasToScreen(text.x, text.y)
+      if (!screenPos) return
 
-    setInlineEditingText({
-      layerId: selectedShape.layerId,
-      textIndex: selectedShape.shapeIndex,
-      x: screenPos.screenX,
-      y: screenPos.screenY - text.fontSize,
-      content: text.content,
-      fontSize: text.fontSize
-    })
-  }, [getCanvasCoordinates, selectedShapeRef, toolHandlerRef, canvasManagerRef, setInlineEditingText])
+      setInlineEditingText({
+        layerId: selectedShape.layerId,
+        textIndex: selectedShape.shapeIndex,
+        x: screenPos.screenX,
+        y: screenPos.screenY - text.fontSize,
+        content: text.content,
+        fontSize: text.fontSize
+      })
+      return
+    }
+
+    // Handle double-click on rect/ellipse for label editing
+    if (selectedShape.shapeType === 'rect' || selectedShape.shapeType === 'ellipse') {
+      const layer = toolHandlerRef.current?.layerManager.getLayer(selectedShape.layerId)
+      if (!layer) return
+      const arrayName = selectedShape.shapeType === 'rect' ? 'rects' : 'ellipses'
+      const shape = layer[arrayName]?.[selectedShape.shapeIndex]
+      if (!shape) return
+
+      const label = prompt('Enter label:', shape.label || '')
+      if (label !== null) {
+        shape.label = label
+        toolHandlerRef.current?.layerManager.updateLayerWithHistory(layer.id, layer)
+        updateLayersState()
+        renderCanvas()
+      }
+    }
+  }, [getCanvasCoordinates, selectedShapeRef, toolHandlerRef, canvasManagerRef, setInlineEditingText, updateLayersState, renderCanvas])
 
   /**
    * Update cursor based on hover state and selected shapes
@@ -260,6 +281,12 @@ export const useCanvasEvents = ({
         setSelectedShape(null)
       }
       toolHandlerRef.current?.startShape(coords, toolConfig, properties)
+    } else if (handler === 'startConnector') {
+      if (selectedShapeRef.current) {
+        selectedShapeRef.current = null
+        setSelectedShape(null)
+      }
+      toolHandlerRef.current?.startConnector(coords, toolConfig, properties)
     } else if (handler === 'startPan') {
       toolHandlerRef.current?.startPan(coords)
       toolHandlerRef.current.panLastScreenX = e.clientX
@@ -314,6 +341,9 @@ export const useCanvasEvents = ({
     } else if (handler === 'previewShape') {
       toolHandlerRef.current?.previewShape(coords, toolConfig, properties)
       updateLayersState()
+    } else if (handler === 'previewConnector') {
+      toolHandlerRef.current?.previewConnector(coords, toolConfig, properties)
+      updateLayersState()
     } else if (handler === 'continuePan') {
       toolHandlerRef.current?.continuePan(coords, e.clientX, e.clientY)
       toolHandlerRef.current.panLastScreenX = e.clientX
@@ -345,6 +375,8 @@ export const useCanvasEvents = ({
       toolHandlerRef.current?.finishFreehandStroke()
     } else if (handler === 'finishShape') {
       toolHandlerRef.current?.finishShape()
+    } else if (handler === 'finishConnector') {
+      toolHandlerRef.current?.finishConnector()
     } else if (handler === 'finishPan') {
       toolHandlerRef.current?.finishPan()
       return // Don't update layers for pan

@@ -142,6 +142,152 @@ export class ToolHandler {
   }
 
   /**
+   * Get anchor point position on a shape's bounding box
+   */
+  getAnchorPoint(bounds, anchor) {
+    switch (anchor) {
+      case 'top': return { x: bounds.x + bounds.width / 2, y: bounds.y }
+      case 'bottom': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }
+      case 'left': return { x: bounds.x, y: bounds.y + bounds.height / 2 }
+      case 'right': return { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 }
+      case 'center': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      default: return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+    }
+  }
+
+  /**
+   * Find the nearest anchor on a shape near a position
+   */
+  findNearestAnchor(pos, threshold = 15) {
+    const layers = this.layerManager.getAllLayers()
+    const anchors = ['top', 'bottom', 'left', 'right', 'center']
+
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const layer = layers[i]
+      if (!layer.visible || layer.locked) continue
+
+      const shapeArrays = [
+        { type: 'rect', array: layer.rects },
+        { type: 'ellipse', array: layer.ellipses },
+        { type: 'arrow', array: layer.arrows },
+        { type: 'stroke', array: layer.strokes },
+        { type: 'text', array: layer.texts },
+      ]
+
+      for (const { type, array } of shapeArrays) {
+        if (!array) continue
+        for (let j = array.length - 1; j >= 0; j--) {
+          const bounds = this.getShapeBounds(layer, type, j)
+          if (!bounds) continue
+
+          for (const anchor of anchors) {
+            const pt = this.getAnchorPoint(bounds, anchor)
+            const dist = Math.hypot(pos.x - pt.x, pos.y - pt.y)
+            if (dist < threshold) {
+              return { layerId: layer.id, shapeType: type, shapeIndex: j, anchor, point: pt }
+            }
+          }
+        }
+      }
+    }
+    return null
+  }
+
+  /**
+   * Start connector - find anchor on shape at mouse position
+   */
+  startConnector(pos, toolConfig, properties) {
+    const layer = this.layerManager.getSelectedLayer()
+    if (!layer || layer.locked) return
+
+    const anchorResult = this.findNearestAnchor(pos)
+    this.connectorStart = anchorResult
+    this.connectorLayer = layer
+    this.isDrawing = true
+    this.startPos = anchorResult ? anchorResult.point : pos
+  }
+
+  /**
+   * Preview connector line while dragging
+   */
+  previewConnector(pos, toolConfig, properties) {
+    if (!this.isDrawing || !this.connectorLayer) return
+
+    this.connectorLastPos = pos
+    this.connectorProperties = properties
+    const layer = this.connectorLayer
+    // Remove existing connector previews
+    layer.connectors = (layer.connectors || []).filter(c => !c.isPreview)
+
+    const fromPt = this.connectorStart ? this.connectorStart.point : this.startPos
+
+    layer.connectors.push({
+      fromX: fromPt.x,
+      fromY: fromPt.y,
+      toX: pos.x,
+      toY: pos.y,
+      fromRef: this.connectorStart ? { layerId: this.connectorStart.layerId, shapeType: this.connectorStart.shapeType, shapeIndex: this.connectorStart.shapeIndex } : null,
+      toRef: null,
+      fromAnchor: this.connectorStart?.anchor || 'center',
+      toAnchor: 'center',
+      size: properties.size,
+      color: properties.color,
+      lineStyle: properties.lineStyle,
+      groupId: null,
+      isPreview: true,
+    })
+
+    this.layerManager.updateLayer(layer.id, layer)
+  }
+
+  /**
+   * Finish connector - find anchor at drop position
+   */
+  finishConnector() {
+    if (!this.connectorLayer) {
+      this.isDrawing = false
+      return
+    }
+
+    const layer = this.connectorLayer
+    layer.connectors = (layer.connectors || []).filter(c => !c.isPreview)
+
+    if (!this.connectorStart || !this.connectorLastPos) {
+      this.isDrawing = false
+      this.connectorStart = null
+      this.connectorLayer = null
+      return
+    }
+
+    const endAnchor = this.findNearestAnchor(this.connectorLastPos)
+    const fromPt = this.connectorStart.point
+    const toPt = endAnchor ? endAnchor.point : this.connectorLastPos
+
+    layer.connectors.push({
+      id: crypto.randomUUID(),
+      fromX: fromPt.x,
+      fromY: fromPt.y,
+      toX: toPt.x,
+      toY: toPt.y,
+      fromRef: { layerId: this.connectorStart.layerId, shapeType: this.connectorStart.shapeType, shapeIndex: this.connectorStart.shapeIndex },
+      toRef: endAnchor ? { layerId: endAnchor.layerId, shapeType: endAnchor.shapeType, shapeIndex: endAnchor.shapeIndex } : null,
+      fromAnchor: this.connectorStart.anchor,
+      toAnchor: endAnchor?.anchor || 'center',
+      size: this.connectorProperties?.size || 2,
+      color: this.connectorProperties?.color || '#000000',
+      lineStyle: this.connectorProperties?.lineStyle || 'solid',
+      groupId: null,
+    })
+
+    this.layerManager.updateLayerWithHistory(layer.id, layer)
+
+    this.isDrawing = false
+    this.connectorStart = null
+    this.connectorLayer = null
+    this.connectorLastPos = null
+  }
+
+  /**
    * Find shape at position (delegated to ShapeOperations)
    */
   findShapeAtPosition(pos) {

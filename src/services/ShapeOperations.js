@@ -153,6 +153,13 @@ export class ShapeOperations {
 
   static getShapeBounds(layer, shapeType, shapeIndex) {
     const boundsGetters = {
+      connector: () => {
+        const c = layer.connectors[shapeIndex]
+        if (!c || c.fromX == null) return null
+        const minX = Math.min(c.fromX, c.toX)
+        const minY = Math.min(c.fromY, c.toY)
+        return { x: minX, y: minY, width: Math.abs(c.toX - c.fromX), height: Math.abs(c.toY - c.fromY) }
+      },
       stroke: () => this.getBoundsFromPoints(layer.strokes[shapeIndex].points),
       arrow: () => {
         const arrow = layer.arrows[shapeIndex]
@@ -310,6 +317,15 @@ export class ShapeOperations {
         layer.texts[shapeIndex].x += dx
         layer.texts[shapeIndex].y += dy
       },
+      connector: () => {
+        const c = layer.connectors[shapeIndex]
+        c.fromX += dx
+        c.fromY += dy
+        c.toX += dx
+        c.toY += dy
+        c.fromRef = null
+        c.toRef = null
+      },
       image: () => {
         // Images are stored as layer.image (not in an array)
         if (layer.image) {
@@ -323,6 +339,55 @@ export class ShapeOperations {
     }
 
     moveHandlers[shapeType]?.()
+
+    // Update any connectors referencing this shape
+    this.updateConnectorsForShape(layer, shapeType, shapeIndex)
+  }
+
+  /**
+   * Recalculate connector endpoints that reference a shape
+   */
+  static updateConnectorsForShape(layer, shapeType, shapeIndex) {
+    if (!layer.connectors) return
+
+    for (const connector of layer.connectors) {
+      if (connector.fromRef &&
+          connector.fromRef.layerId === layer.id &&
+          connector.fromRef.shapeType === shapeType &&
+          connector.fromRef.shapeIndex === shapeIndex) {
+        const bounds = this.getShapeBounds(layer, shapeType, shapeIndex)
+        if (bounds) {
+          const pt = this.getAnchorPointFromBounds(bounds, connector.fromAnchor)
+          connector.fromX = pt.x
+          connector.fromY = pt.y
+        }
+      }
+      if (connector.toRef &&
+          connector.toRef.layerId === layer.id &&
+          connector.toRef.shapeType === shapeType &&
+          connector.toRef.shapeIndex === shapeIndex) {
+        const bounds = this.getShapeBounds(layer, shapeType, shapeIndex)
+        if (bounds) {
+          const pt = this.getAnchorPointFromBounds(bounds, connector.toAnchor)
+          connector.toX = pt.x
+          connector.toY = pt.y
+        }
+      }
+    }
+  }
+
+  /**
+   * Get anchor point from bounding box
+   */
+  static getAnchorPointFromBounds(bounds, anchor) {
+    switch (anchor) {
+      case 'top': return { x: bounds.x + bounds.width / 2, y: bounds.y }
+      case 'bottom': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }
+      case 'left': return { x: bounds.x, y: bounds.y + bounds.height / 2 }
+      case 'right': return { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 }
+      case 'center': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      default: return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+    }
   }
 
   /**
@@ -694,7 +759,8 @@ export class ShapeOperations {
         { type: 'arrow', array: layer.arrows },
         { type: 'rect', array: layer.rects },
         { type: 'ellipse', array: layer.ellipses },
-        { type: 'text', array: layer.texts }
+        { type: 'text', array: layer.texts },
+        { type: 'connector', array: layer.connectors || [] }
       ]
 
       for (const { type, array } of shapeArrays) {
@@ -716,6 +782,11 @@ export class ShapeOperations {
 
   static checkLayerShapes(pos, layer) {
     const shapeChecks = [
+      { type: 'connector', array: layer.connectors, test: (connector) => {
+        if (connector.fromX == null || connector.toX == null) return false
+        const threshold = (connector.size || 3) / 2
+        return this.isPointNearLine(pos.x, pos.y, connector.fromX, connector.fromY, connector.toX, connector.toY, threshold)
+      }},
       { type: 'text', array: layer.texts, test: (shape) => this.isPointOnText(pos.x, pos.y, shape) },
       { type: 'ellipse', array: layer.ellipses, test: (shape) => {
         // Check if point is inside the ellipse (fill) OR near the stroke

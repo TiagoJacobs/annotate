@@ -11,6 +11,7 @@ import {
   Square,
   Circle,
   ArrowRight,
+  Cable,
   Type,
   ZoomIn,
   ZoomOut,
@@ -56,6 +57,7 @@ export const ToolsPanel = ({
     square: <Square size={20} />,
     circle: <Circle size={20} />,
     type: <Type size={20} />,
+    cable: <Cable size={20} />,
     pointer: <MousePointer size={20} />,
     hand: <Hand size={20} />,
   }

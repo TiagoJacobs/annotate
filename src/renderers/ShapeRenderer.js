@@ -115,6 +115,48 @@ class ArrowRenderer extends BaseShapeRenderer {
 }
 
 /**
+ * Connector renderer - line with arrowhead between shapes
+ */
+class ConnectorRenderer extends BaseShapeRenderer {
+  render(ctx, connector, layerColor) {
+    const { fromX, fromY, toX, toY, size = 2 } = connector
+    if (fromX == null || toX == null) return
+
+    const { headAngle } = ARROW_RENDER_CONFIG
+    const angle = Math.atan2(toY - fromY, toX - fromX)
+    const color = this.getShapeColor(connector, layerColor)
+
+    ctx.strokeStyle = color
+    ctx.fillStyle = color
+    ctx.lineWidth = size
+
+    this.applyLineStyle(ctx, connector.lineStyle)
+
+    ctx.beginPath()
+    ctx.moveTo(fromX, fromY)
+    ctx.lineTo(toX, toY)
+    ctx.stroke()
+
+    // Arrowhead at the 'to' end
+    const headLength = Math.max(6, 8 + Math.log(size) * 6)
+    const leftX = toX - headLength * Math.cos(angle - headAngle)
+    const leftY = toY - headLength * Math.sin(angle - headAngle)
+    const rightX = toX - headLength * Math.cos(angle + headAngle)
+    const rightY = toY - headLength * Math.sin(angle + headAngle)
+
+    ctx.beginPath()
+    ctx.moveTo(toX, toY)
+    ctx.lineTo(leftX, leftY)
+    ctx.lineTo(rightX, rightY)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+
+    this.resetLineStyle(ctx)
+  }
+}
+
+/**
  * Rectangle renderer
  */
 class RectRenderer extends BaseShapeRenderer {
@@ -128,6 +170,18 @@ class RectRenderer extends BaseShapeRenderer {
     this.applyLineStyle(ctx, rect.lineStyle)
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
     this.resetLineStyle(ctx)
+
+    // Render label if set
+    if (rect.label) {
+      const fontSize = Math.min(rect.height * 0.4, 20)
+      ctx.fillStyle = this.getShapeColor(rect, layerColor)
+      ctx.font = `${fontSize}px Arial`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(rect.label, rect.x + rect.width / 2, rect.y + rect.height / 2)
+      ctx.textAlign = 'start'
+      ctx.textBaseline = 'alphabetic'
+    }
   }
 }
 
@@ -158,6 +212,18 @@ class EllipseRenderer extends BaseShapeRenderer {
     ctx.stroke()
 
     this.resetLineStyle(ctx)
+
+    // Render label if set
+    if (ellipse.label) {
+      const fontSize = Math.min(ellipse.height * 0.4, 20)
+      ctx.fillStyle = this.getShapeColor(ellipse, layerColor)
+      ctx.font = `${fontSize}px Arial`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(ellipse.label, ellipse.x + ellipse.width / 2, ellipse.y + ellipse.height / 2)
+      ctx.textAlign = 'start'
+      ctx.textBaseline = 'alphabetic'
+    }
   }
 }
 
@@ -228,6 +294,7 @@ class ShapeRendererFactory {
     this.renderers = {
       stroke: new StrokeRenderer(),
       arrow: new ArrowRenderer(),
+      connector: new ConnectorRenderer(),
       rect: new RectRenderer(),
       ellipse: new EllipseRenderer(),
       text: new TextRenderer(),

@@ -9,7 +9,8 @@ export const SHAPE_ARRAY_MAP = {
   arrow: 'arrows',
   rect: 'rects',
   ellipse: 'ellipses',
-  text: 'texts'
+  text: 'texts',
+  connector: 'connectors'
 }
 
 // Shape types enum
@@ -18,7 +19,8 @@ export const SHAPE_TYPES = {
   ARROW: 'arrow',
   RECT: 'rect',
   ELLIPSE: 'ellipse',
-  TEXT: 'text'
+  TEXT: 'text',
+  CONNECTOR: 'connector'
 }
 
 // Get array name for a shape type
