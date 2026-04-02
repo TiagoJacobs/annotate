@@ -36,7 +36,8 @@ export const useCanvasEvents = ({
   setZoom,
   selectLayer,
   brushSize,
-  setBrushSize
+  setBrushSize,
+  canvasReady
 }) => {
   // Keep a ref to tool so the wheel handler always reads the current value
   const toolRef = useRef(tool)
@@ -426,7 +427,7 @@ export const useCanvasEvents = ({
     return () => {
       canvas.removeEventListener('wheel', handleWheel)
     }
-  }, [canvasManagerRef, renderCanvas, setZoom, setBrushSize])
+  }, [canvasManagerRef, renderCanvas, setZoom, setBrushSize, canvasReady])
 
   /**
    * Handle middle-mouse button drag for panning (regardless of tool)

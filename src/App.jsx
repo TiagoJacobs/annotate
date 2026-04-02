@@ -74,6 +74,7 @@ function Annotate() {
   const [snackbarMessage, setSnackbarMessage] = useState('')
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
   const [showMinimap, setShowMinimap] = useState(false)
+  const [canvasReady, setCanvasReady] = useState(false)
 
   // ==================== Hooks ====================
 
@@ -553,7 +554,8 @@ function Annotate() {
     setZoom,
     selectLayer,
     brushSize,
-    setBrushSize
+    setBrushSize,
+    canvasReady
   })
 
   // Use keyboard shortcuts hook
@@ -584,6 +586,7 @@ function Annotate() {
       canvasManagerRef.current = new CanvasManager(canvasRef.current)
       toolHandlerRef.current = new ToolHandler(canvasManagerRef.current, layerManagerRef.current)
       shapeRendererRef.current = new ShapeRendererFactory(imageCache.current)
+      setCanvasReady(true)
 
       // Set up image reload callback
       const imageRenderer = shapeRendererRef.current.getRenderer('image')
