@@ -888,71 +888,95 @@ export class ShapeOperations {
    * @param {Object} layerManager
    * @param {'left'|'right'|'top'|'bottom'|'centerH'|'centerV'} alignment
    */
+  /**
+   * Build alignment units from shapes -- groups are treated as one unit
+   */
+  static buildAlignmentUnits(shapes, layerManager) {
+    const groupMap = new Map() // groupId → [shapes]
+    const ungrouped = []
+
+    for (const shape of shapes) {
+      const layer = layerManager.getLayer(shape.layerId)
+      if (!layer) continue
+      const arrayName = this.getShapeArrayName(shape.shapeType)
+      const shapeData = arrayName ? layer[arrayName]?.[shape.shapeIndex] : null
+      const groupId = shapeData?.groupId
+
+      if (groupId) {
+        if (!groupMap.has(groupId)) groupMap.set(groupId, [])
+        groupMap.get(groupId).push(shape)
+      } else {
+        ungrouped.push(shape)
+      }
+    }
+
+    const units = []
+    for (const [, groupShapes] of groupMap) {
+      const bounds = this.getMultiShapeBounds(groupShapes, layerManager)
+      if (bounds) units.push({ shapes: groupShapes, bounds })
+    }
+    for (const shape of ungrouped) {
+      const layer = layerManager.getLayer(shape.layerId)
+      if (!layer) continue
+      const bounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+      if (bounds) units.push({ shapes: [shape], bounds })
+    }
+    return units
+  }
+
+  /**
+   * Count alignment units for UI visibility
+   */
+  static getAlignmentUnitCount(shapes, layerManager) {
+    return this.buildAlignmentUnits(shapes, layerManager).length
+  }
+
   static alignShapes(shapes, layerManager, alignment) {
     if (!shapes || shapes.length < 2) return
 
-    // Get bounds for each shape
-    const shapeBounds = shapes.map(shape => {
-      const layer = layerManager.getLayer(shape.layerId)
-      if (!layer) return null
-      const bounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
-      return bounds ? { shape, bounds } : null
-    }).filter(Boolean)
+    const units = this.buildAlignmentUnits(shapes, layerManager)
+    if (units.length < 2) return
 
-    if (shapeBounds.length < 2) return
-
-    // Compute the alignment target
+    // Compute alignment target from unit bounds
     let target
     switch (alignment) {
       case 'left':
-        target = Math.min(...shapeBounds.map(s => s.bounds.x))
+        target = Math.min(...units.map(u => u.bounds.x))
         break
       case 'right':
-        target = Math.max(...shapeBounds.map(s => s.bounds.x + s.bounds.width))
+        target = Math.max(...units.map(u => u.bounds.x + u.bounds.width))
         break
       case 'top':
-        target = Math.min(...shapeBounds.map(s => s.bounds.y))
+        target = Math.min(...units.map(u => u.bounds.y))
         break
       case 'bottom':
-        target = Math.max(...shapeBounds.map(s => s.bounds.y + s.bounds.height))
+        target = Math.max(...units.map(u => u.bounds.y + u.bounds.height))
         break
       case 'centerH':
-        target = shapeBounds.reduce((sum, s) => sum + s.bounds.x + s.bounds.width / 2, 0) / shapeBounds.length
+        target = units.reduce((sum, u) => sum + u.bounds.x + u.bounds.width / 2, 0) / units.length
         break
       case 'centerV':
-        target = shapeBounds.reduce((sum, s) => sum + s.bounds.y + s.bounds.height / 2, 0) / shapeBounds.length
+        target = units.reduce((sum, u) => sum + u.bounds.y + u.bounds.height / 2, 0) / units.length
         break
     }
 
-    // Move each shape to align
-    for (const { shape, bounds } of shapeBounds) {
-      const layer = layerManager.getLayer(shape.layerId)
-      if (!layer) continue
-
+    // Move each unit -- all shapes in a unit get the same delta
+    for (const unit of units) {
       let dx = 0, dy = 0
       switch (alignment) {
-        case 'left':
-          dx = target - bounds.x
-          break
-        case 'right':
-          dx = target - (bounds.x + bounds.width)
-          break
-        case 'top':
-          dy = target - bounds.y
-          break
-        case 'bottom':
-          dy = target - (bounds.y + bounds.height)
-          break
-        case 'centerH':
-          dx = target - (bounds.x + bounds.width / 2)
-          break
-        case 'centerV':
-          dy = target - (bounds.y + bounds.height / 2)
-          break
+        case 'left': dx = target - unit.bounds.x; break
+        case 'right': dx = target - (unit.bounds.x + unit.bounds.width); break
+        case 'top': dy = target - unit.bounds.y; break
+        case 'bottom': dy = target - (unit.bounds.y + unit.bounds.height); break
+        case 'centerH': dx = target - (unit.bounds.x + unit.bounds.width / 2); break
+        case 'centerV': dy = target - (unit.bounds.y + unit.bounds.height / 2); break
       }
 
       if (dx !== 0 || dy !== 0) {
-        this.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
+        for (const shape of unit.shapes) {
+          const layer = layerManager.getLayer(shape.layerId)
+          if (layer) this.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
+        }
       }
     }
   }

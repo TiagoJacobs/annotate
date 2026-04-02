@@ -3,8 +3,9 @@
  * Renders color picker, size slider, and line style selector
  */
 
-import React from 'react'
+import React, { useMemo } from 'react'
 import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal } from 'lucide-react'
+import { ShapeOperations } from '../services/ShapeOperations'
 
 export const ShapeOptionsPanel = React.forwardRef(({
   tool,
@@ -28,6 +29,7 @@ export const ShapeOptionsPanel = React.forwardRef(({
   setFontSize,
   setLineStyle,
   alignSelectedShapes,
+  layerManagerRef,
   saveToolProperty,
   colorPickerRef,
   sizeSliderRef,
@@ -44,6 +46,10 @@ export const ShapeOptionsPanel = React.forwardRef(({
   )
   const showFill = fillableTools.includes(tool) || isFillableShape
   const isMultiSelect = Array.isArray(selectedShape) && selectedShape.length >= 2
+  const showAlignment = useMemo(() => {
+    if (!isMultiSelect || !layerManagerRef?.current) return false
+    return ShapeOperations.getAlignmentUnitCount(selectedShape, layerManagerRef.current) >= 2
+  }, [isMultiSelect, selectedShape, layerManagerRef])
 
   // Don't show shape options if an image is selected
   if (isImageSelected) {
@@ -177,7 +183,7 @@ export const ShapeOptionsPanel = React.forwardRef(({
           )}
 
           {/* Alignment Controls */}
-          {isMultiSelect && (
+          {showAlignment && (
             <div className="tool-group">
               <label>Align:</label>
               <div style={{ display: 'flex', gap: '2px' }}>

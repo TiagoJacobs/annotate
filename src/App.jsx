@@ -1173,6 +1173,7 @@ function Annotate() {
           setLineStyle={setLineStyle}
           saveToolProperty={saveToolProperty}
           alignSelectedShapes={alignSelectedShapes}
+          layerManagerRef={layerManagerRef}
           colorPickerRef={colorPickerRef}
           sizeSliderRef={sizeSliderRef}
           lineStyleSelectRef={lineStyleSelectRef}
