@@ -215,6 +215,7 @@ export class ToolHandler {
 
     this.connectorLastPos = pos
     this.connectorProperties = properties
+    this.connectorHoverTarget = this.findNearestAnchor(pos)
     const layer = this.connectorLayer
     // Remove existing connector previews
     layer.connectors = (layer.connectors || []).filter(c => !c.isPreview)
@@ -256,6 +257,8 @@ export class ToolHandler {
       this.isDrawing = false
       this.connectorStart = null
       this.connectorLayer = null
+      this.connectorHoverTarget = null
+      this.connectorHoverShape = null
       return
     }
 
@@ -285,6 +288,8 @@ export class ToolHandler {
     this.connectorStart = null
     this.connectorLayer = null
     this.connectorLastPos = null
+    this.connectorHoverTarget = null
+    this.connectorHoverShape = null
   }
 
   /**

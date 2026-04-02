@@ -4,7 +4,8 @@
  */
 
 import { useRef, useCallback } from 'react'
-import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE } from '../config/uiConstants'
+import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE, HANDLE_HIT_THRESHOLD } from '../config/uiConstants'
+import { ShapeOperations } from '../services/ShapeOperations'
 
 export const useCanvasRenderer = (
   canvasManagerRef,
@@ -60,6 +61,9 @@ export const useCanvasRenderer = (
 
     // Draw selection box with resize handles
     renderSelectionBox(canvasManager, ctx)
+
+    // Draw connector anchor dots and hover highlights
+    renderConnectorFeedback(canvasManager, ctx)
   }, [canvasManagerRef, layerManagerRef, toolHandlerRef, shapeRendererRef, selectedShapeRef])
 
   /**
@@ -186,6 +190,86 @@ export const useCanvasRenderer = (
     canvasManager.resetTransform()
     canvasManager.restore()
   }, [canvasManagerRef, layerManagerRef, toolHandlerRef, selectedShapeRef])
+
+  /**
+   * Render connector hover feedback: anchor dots on hovered shapes, highlight on target during drawing
+   */
+  const renderConnectorFeedback = useCallback((canvasManager, ctx) => {
+    const handler = toolHandlerRef.current
+    if (!handler) return
+
+    const anchors = ['top', 'bottom', 'left', 'right', 'center']
+    const getAnchorPt = (bounds, anchor) => {
+      switch (anchor) {
+        case 'top': return { x: bounds.x + bounds.width / 2, y: bounds.y }
+        case 'bottom': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }
+        case 'left': return { x: bounds.x, y: bounds.y + bounds.height / 2 }
+        case 'right': return { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 }
+        case 'center': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      }
+    }
+
+    const drawAnchorDots = (bounds, highlightAnchor) => {
+      const dotRadius = 4 / canvasManager.zoom
+      for (const anchor of anchors) {
+        const pt = getAnchorPt(bounds, anchor)
+        ctx.beginPath()
+        ctx.arc(pt.x, pt.y, dotRadius, 0, Math.PI * 2)
+        if (anchor === highlightAnchor) {
+          ctx.fillStyle = '#4a9eff'
+          ctx.fill()
+        } else {
+          ctx.fillStyle = '#ffffff'
+          ctx.fill()
+          ctx.strokeStyle = '#4a9eff'
+          ctx.lineWidth = 1.5 / canvasManager.zoom
+          ctx.stroke()
+        }
+      }
+    }
+
+    // During connector drawing: highlight target shape + anchor dots
+    if (handler.isDrawing && handler.connectorHoverTarget) {
+      const target = handler.connectorHoverTarget
+      const layer = layerManagerRef.current?.getLayer(target.layerId)
+      if (layer) {
+        const bounds = ShapeOperations.getShapeBounds(layer, target.shapeType, target.shapeIndex)
+        if (bounds) {
+          canvasManager.save()
+          canvasManager.applyTransform()
+
+          // Highlight rect around target shape
+          ctx.strokeStyle = '#4a9eff'
+          ctx.lineWidth = 2 / canvasManager.zoom
+          ctx.setLineDash([])
+          ctx.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6)
+
+          // Anchor dots with the snapped anchor highlighted
+          drawAnchorDots(bounds, target.anchor)
+
+          canvasManager.resetTransform()
+          canvasManager.restore()
+        }
+      }
+      return
+    }
+
+    // Hover (not drawing): show anchor dots on shape under cursor
+    if (handler.connectorHoverShape) {
+      const shape = handler.connectorHoverShape
+      const layer = layerManagerRef.current?.getLayer(shape.layerId)
+      if (layer) {
+        const bounds = ShapeOperations.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+        if (bounds) {
+          canvasManager.save()
+          canvasManager.applyTransform()
+          drawAnchorDots(bounds, null)
+          canvasManager.resetTransform()
+          canvasManager.restore()
+        }
+      }
+    }
+  }, [toolHandlerRef, layerManagerRef])
 
   /**
    * Render canvas for export (without selection UI)

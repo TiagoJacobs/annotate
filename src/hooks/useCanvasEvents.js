@@ -326,6 +326,16 @@ export const useCanvasEvents = ({
     // Always update cursor when hovering
     updateCursor(coords, canvas)
 
+    // Connector tool hover detection (show anchor dots on shapes)
+    if (toolRef.current === 'connector' && toolHandlerRef.current) {
+      if (e.buttons === 0) {
+        // Not drawing -- detect shape under cursor for anchor dot rendering
+        const shape = toolHandlerRef.current.findShapeAtPosition(coords)
+        toolHandlerRef.current.connectorHoverShape = shape || null
+        renderCanvas()
+      }
+    }
+
     // Only handle drag operations when mouse button is pressed
     if (e.buttons === 0) return
 
