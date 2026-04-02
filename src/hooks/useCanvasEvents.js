@@ -392,10 +392,22 @@ export const useCanvasEvents = ({
           const delta = e.deltaY > 0 ? -1 : 1
           setBrushSize(prev => {
             const newSize = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, prev + delta))
-            // Update in-progress stroke size if actively drawing
+            // Update in-progress shape size if actively drawing
             const handler = toolHandlerRef.current
-            if (handler && handler.currentStroke) {
-              handler.currentStroke.size = newSize
+            if (handler && handler.isDrawing && handler.currentLayer) {
+              // Update freehand stroke
+              if (handler.currentStroke) {
+                handler.currentStroke.size = newSize
+              }
+              // Update preview shapes (arrow, rect, ellipse)
+              const layer = handler.currentLayer
+              const previewArrays = ['arrows', 'rects', 'ellipses']
+              for (const arr of previewArrays) {
+                if (layer[arr]) {
+                  const preview = layer[arr].find(s => s.isPreview)
+                  if (preview) preview.size = newSize
+                }
+              }
             }
             return newSize
           })

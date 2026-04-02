@@ -37,7 +37,7 @@ export const useKeyboardShortcuts = ({
     const layers = layerManagerRef.current?.getAllLayers() || []
 
     for (const layer of layers) {
-      if (!layer.visible) continue
+      if (!layer.visible || layer.locked) continue
 
       // Add image if exists
       if (layer.image) {
