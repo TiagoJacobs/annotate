@@ -228,8 +228,8 @@ export const useCanvasRenderer = (
       }
     }
 
-    // During connector drawing: highlight target shape + anchor dots
-    if (handler.isDrawing && handler.connectorHoverTarget) {
+    // During connector drawing or endpoint dragging: highlight target shape + anchor dots
+    if ((handler.isDrawing || handler.isConnectorEndpointDragging) && handler.connectorHoverTarget) {
       const target = handler.connectorHoverTarget
       const layer = layerManagerRef.current?.getLayer(target.layerId)
       if (layer) {
