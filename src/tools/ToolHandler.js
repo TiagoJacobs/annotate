@@ -364,6 +364,27 @@ export class ToolHandler {
   }
 
   /**
+   * Detect if click is near a connector endpoint
+   */
+  getConnectorEndpointHandle(pos, connector) {
+    const threshold = HANDLE_HIT_THRESHOLD
+
+    const distFromStart = Math.sqrt((pos.x - connector.fromX) ** 2 + (pos.y - connector.fromY) ** 2)
+    if (distFromStart < threshold + 2) return 'from'
+
+    const size = connector.size || 2
+    const headLength = Math.max(6, 8 + Math.log(size) * 6)
+    const angle = Math.atan2(connector.toY - connector.fromY, connector.toX - connector.fromX)
+    const headTipX = connector.toX + headLength * Math.cos(angle)
+    const headTipY = connector.toY + headLength * Math.sin(angle)
+
+    const distFromEnd = Math.sqrt((pos.x - headTipX) ** 2 + (pos.y - headTipY) ** 2)
+    if (distFromEnd < threshold + 2) return 'to'
+
+    return null
+  }
+
+  /**
    * Start marquee selection
    */
   startMarqueeSelection(pos) {
@@ -485,10 +506,20 @@ export class ToolHandler {
             const arrow = layer.arrows[this.selectedShape.shapeIndex]
             const endpointHandle = this.getArrowEndpointHandle(pos, arrow)
             if (endpointHandle) {
-              // Activate endpoint drag mode
               this.isArrowEndpointDragging = true
               this.arrowEndpointHandle = endpointHandle
               this.arrowEndpointStartPos = pos
+              return this.selectedShape
+            }
+          }
+
+          // Check if this is a connector and clicking on an endpoint
+          if (this.selectedShape.shapeType === 'connector' && layer.connectors?.[this.selectedShape.shapeIndex]) {
+            const connector = layer.connectors[this.selectedShape.shapeIndex]
+            const endpointHandle = this.getConnectorEndpointHandle(pos, connector)
+            if (endpointHandle) {
+              this.isConnectorEndpointDragging = true
+              this.connectorEndpointHandle = endpointHandle
               return this.selectedShape
             }
           }
@@ -766,6 +797,40 @@ export class ToolHandler {
       return
     }
 
+    // Handle connector endpoint dragging
+    if (this.isConnectorEndpointDragging && this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      const connector = layer?.connectors?.[this.selectedShape.shapeIndex]
+      if (connector) {
+        // Detect snap target for visual feedback
+        this.connectorHoverTarget = this.findNearestAnchor(pos)
+
+        let newX = pos.x
+        let newY = pos.y
+
+        // Compensate for arrowhead on 'to' endpoint
+        if (this.connectorEndpointHandle === 'to') {
+          const size = connector.size || 2
+          const headLength = Math.max(6, 8 + Math.log(size) * 6)
+          const refX = this.connectorEndpointHandle === 'to' ? connector.fromX : connector.toX
+          const refY = this.connectorEndpointHandle === 'to' ? connector.fromY : connector.toY
+          const angle = Math.atan2(pos.y - refY, pos.x - refX)
+          newX = pos.x - headLength * Math.cos(angle)
+          newY = pos.y - headLength * Math.sin(angle)
+        }
+
+        if (this.connectorEndpointHandle === 'from') {
+          connector.fromX = newX
+          connector.fromY = newY
+        } else {
+          connector.toX = newX
+          connector.toY = newY
+        }
+        this.layerManager.updateLayer(layer.id, layer)
+      }
+      return
+    }
+
     // If resizing, call resize instead
     if (this.isResizing) {
       this.resizeShape(pos, isShiftHeld)
@@ -817,6 +882,39 @@ export class ToolHandler {
    */
   releaseObject() {
     // Save to history when drag/resize/endpoint-drag is complete
+    // Handle connector endpoint release -- snap to anchor
+    if (this.isConnectorEndpointDragging && this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      const connector = layer?.connectors?.[this.selectedShape.shapeIndex]
+      if (connector) {
+        const anchor = this.connectorHoverTarget
+        const handle = this.connectorEndpointHandle
+        if (anchor) {
+          const pt = anchor.point
+          if (handle === 'from') {
+            connector.fromX = pt.x
+            connector.fromY = pt.y
+            connector.fromRef = { layerId: anchor.layerId, shapeType: anchor.shapeType, shapeIndex: anchor.shapeIndex }
+            connector.fromAnchor = anchor.anchor
+          } else {
+            connector.toX = pt.x
+            connector.toY = pt.y
+            connector.toRef = { layerId: anchor.layerId, shapeType: anchor.shapeType, shapeIndex: anchor.shapeIndex }
+            connector.toAnchor = anchor.anchor
+          }
+        } else {
+          // No snap -- clear the ref for this endpoint
+          if (handle === 'from') { connector.fromRef = null }
+          else { connector.toRef = null }
+        }
+        this.layerManager.updateLayerWithHistory(layer.id, layer)
+      }
+      this.isConnectorEndpointDragging = false
+      this.connectorEndpointHandle = null
+      this.connectorHoverTarget = null
+      return
+    }
+
     if (this.isDragging || this.isResizing || this.isArrowEndpointDragging) {
       if (this.selectedShapes) {
         const updatedLayers = new Set()
