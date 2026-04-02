@@ -3,7 +3,7 @@
  * Separates event handling logic from main component
  */
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { getToolConfig } from '../tools/toolRegistry'
 import { RESIZE_HANDLE_SIZE, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE } from '../config/uiConstants'
 
@@ -38,6 +38,10 @@ export const useCanvasEvents = ({
   brushSize,
   setBrushSize
 }) => {
+  // Keep a ref to tool so the wheel handler always reads the current value
+  const toolRef = useRef(tool)
+  toolRef.current = tool
+
   /**
    * Get coordinates from canvas event
    */
@@ -387,7 +391,7 @@ export const useCanvasEvents = ({
       } else {
         // Plain scroll = adjust brush size for drawing tools
         const drawingTools = ['pen', 'arrow', 'rect', 'ellipse']
-        if (drawingTools.includes(tool)) {
+        if (drawingTools.includes(toolRef.current)) {
           e.preventDefault()
           const delta = e.deltaY > 0 ? -1 : 1
           setBrushSize(prev => {
@@ -422,7 +426,7 @@ export const useCanvasEvents = ({
     return () => {
       canvas.removeEventListener('wheel', handleWheel)
     }
-  }, [canvasManagerRef, renderCanvas, setZoom, tool, setBrushSize])
+  }, [canvasManagerRef, renderCanvas, setZoom, setBrushSize])
 
   /**
    * Handle middle-mouse button drag for panning (regardless of tool)
