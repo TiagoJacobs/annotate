@@ -34,6 +34,7 @@ export class ToolHandler {
     // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
+    if (layer.locked) return
 
     this.isDrawing = true
     this.startPos = pos
@@ -77,6 +78,7 @@ export class ToolHandler {
     // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
+    if (layer.locked) return
 
     this.isDrawing = true
     this.startPos = pos
@@ -129,6 +131,7 @@ export class ToolHandler {
     // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
+    if (layer.locked) return
 
     // Use strategy to place text
     const strategy = ShapeStrategyFactory.getStrategy('text')
@@ -543,6 +546,12 @@ export class ToolHandler {
    */
   dragObject(pos, isShiftHeld = false) {
     if (!this.selectedShape && !this.selectedShapes) return
+
+    // Prevent dragging shapes on locked layers
+    if (this.selectedShape && !Array.isArray(this.selectedShape)) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      if (layer && layer.locked) return
+    }
 
     // Handle arrow endpoint dragging
     if (this.isArrowEndpointDragging && this.selectedShape) {

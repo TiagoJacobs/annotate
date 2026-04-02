@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef } from 'react'
-import { Eye, EyeOff, X, ChevronUp, ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, Lock, Unlock, X, ChevronUp, ChevronDown, Plus, Trash2 } from 'lucide-react'
 
 export const LayersPanel = ({
   layers,
@@ -13,6 +13,7 @@ export const LayersPanel = ({
   renamingLayerName,
   selectLayer,
   toggleLayerVisibility,
+  toggleLayerLock,
   moveLayerInStack,
   deleteLayer,
   clearCanvas,
@@ -71,6 +72,16 @@ export const LayersPanel = ({
                       }}
                     >
                       {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </button>
+                    <button
+                      className="layer-visibility"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleLayerLock(layer.id)
+                      }}
+                      title={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                    >
+                      {layer.locked ? <Lock size={16} /> : <Unlock size={16} />}
                     </button>
                     <div className="layer-info">
                       {isRenaming ? (

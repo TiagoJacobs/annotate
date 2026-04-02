@@ -770,7 +770,7 @@ export class ShapeOperations {
     // Search from top layer to bottom
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i]
-      if (!layer.visible) continue
+      if (!layer.visible || layer.locked) continue
 
       const result = this.checkLayerShapes(pos, layer)
       if (result) return result

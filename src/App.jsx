@@ -428,6 +428,11 @@ function Annotate() {
     updateLayersState()
   }
 
+  const toggleLayerLock = (layerId) => {
+    layerManagerRef.current.toggleLock(layerId)
+    updateLayersState()
+  }
+
   const moveLayerInStack = (layerId, direction) => {
     layerManagerRef.current.moveLayer(layerId, direction)
     updateLayersState()
@@ -1192,6 +1197,7 @@ function Annotate() {
             renamingLayerName={renamingLayerName}
             selectLayer={selectLayer}
             toggleLayerVisibility={toggleLayerVisibility}
+            toggleLayerLock={toggleLayerLock}
             moveLayerInStack={moveLayerInStack}
             deleteLayer={(layerId) => {
               if (layers.length <= 1) {
