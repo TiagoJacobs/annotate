@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Pen, ArrowRight, Square, Circle, Type, Spline, MousePointer, Hand, ZoomIn, ZoomOut, Home, Copy, Download, Github } from 'lucide-react'
 import { CanvasManager } from './canvas/CanvasManager'
 import { LayerManager } from './layers/LayerManager'
 import { ToolHandler } from './tools/ToolHandler'
-import { toolRegistry, getToolConfig } from './tools/toolRegistry'
+import { getToolConfig } from './tools/toolRegistry'
 import { SHAPE_ARRAY_MAP } from './config/shapeConfig'
 import { ShapeRendererFactory } from './renderers/ShapeRenderer'
 import { ShapeOperations } from './services/ShapeOperations'
@@ -1110,18 +1109,6 @@ function Annotate() {
 
   // ==================== Render ====================
 
-  // Icon mapping for toolbar buttons
-  const iconMap = {
-    pen: <Pen size={20} />,
-    'arrow-right': <ArrowRight size={20} />,
-    square: <Square size={20} />,
-    circle: <Circle size={20} />,
-    type: <Type size={20} />,
-    cable: <Spline size={20} />,
-    pointer: <MousePointer size={20} />,
-    hand: <Hand size={20} />,
-  }
-
   // Determine status bar message based on current state
   const getStatusMessage = () => {
     if (selectedShape) {
@@ -1133,75 +1120,21 @@ function Annotate() {
   return (
     <div className="annotate-container">
       <div className="annotate-main">
-        <div className="annotate-toolbar">
-          {/* Tools */}
-          <div className="tool-group">
-            {Object.values(toolRegistry).map((toolConfig) => (
-              <button
-                key={toolConfig.id}
-                className={`tool-btn ${tool === toolConfig.id ? 'active' : ''}`}
-                onClick={() => {
-                  setTool(toolConfig.id)
-                  setSelectedShape(null)
-                  selectedShapeRef.current = null
-                  if (toolHandlerRef.current) {
-                    toolHandlerRef.current.clearSelection()
-                  }
-                }}
-                title={toolConfig.name}
-              >
-                {iconMap[toolConfig.icon]}
-              </button>
-            ))}
-          </div>
-
-
-          {/* Zoom Controls */}
-          <div className="tool-group">
-            <button className="action-btn" onClick={() => zoomIn()} title="Zoom in (Ctrl++)">
-              <ZoomIn size={18} />
-            </button>
-            <button className="action-btn" onClick={() => zoomOut()} title="Zoom out (Ctrl+-)">
-              <ZoomOut size={18} />
-            </button>
-            <button className="action-btn" onClick={resetView} title="Reset view">
-              <Home size={18} />
-            </button>
-            <span className="zoom-display">{Math.round(zoom * 100)}%</span>
-          </div>
-
-          {/* Export & Canvas Actions */}
-          <div className="tool-group">
-            <button className="action-btn copy-btn" onClick={copyToClipboard} title="Copy to clipboard">
-              <Copy size={18} />
-              <span className="btn-text">Copy</span>
-            </button>
-            <div className="download-group">
-              <button className="action-btn download-btn" onClick={downloadImage} title="Download image">
-                <Download size={18} />
-                <span className="btn-text">Download</span>
-              </button>
-              <select
-                className="download-format-select"
-                value={downloadFormat}
-                onChange={(e) => setDownloadFormat(e.target.value)}
-                title="Select download format"
-              >
-                <option value="png">PNG</option>
-                <option value="svg">SVG</option>
-              </select>
-            </div>
-            <a
-              href="https://github.com/TiagoJacobs/annotate"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="github-link"
-              title="View on GitHub"
-            >
-              <Github size={18} />
-            </a>
-          </div>
-        </div>
+        <ToolsPanel
+          tool={tool}
+          setTool={setTool}
+          selectedShapeRef={selectedShapeRef}
+          toolHandlerRef={toolHandlerRef}
+          zoom={zoom}
+          zoomIn={zoomIn}
+          zoomOut={zoomOut}
+          resetView={resetView}
+          copyToClipboard={copyToClipboard}
+          downloadImage={downloadImage}
+          downloadFormat={downloadFormat}
+          setDownloadFormat={setDownloadFormat}
+          setSelectedShape={setSelectedShape}
+        />
 
         {/* Options Toolbar - always visible but empty when no tool/shape is active */}
         <ShapeOptionsPanel
