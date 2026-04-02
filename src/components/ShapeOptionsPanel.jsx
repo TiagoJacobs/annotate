@@ -215,18 +215,20 @@ export const ShapeOptionsPanel = React.forwardRef(({
           {/* Group/Ungroup Controls */}
           {isMultiSelect && !isGroupSelected && (
             <div className="tool-group">
-              <button className="layer-btn" onClick={groupSelectedShapes} title="Group selected shapes (Ctrl+G)">
+              <button className="layer-btn" onClick={groupSelectedShapes} title="Group selected shapes (Ctrl+G)" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px' }}>
                 <Group size={14} />
+                <span style={{ fontSize: '11px' }}>Group</span>
+                <kbd style={{ fontSize: '10px', color: '#888', marginLeft: '2px' }}>Ctrl+G</kbd>
               </button>
-              <span style={{ fontSize: '11px', color: '#888', marginLeft: '4px' }}>Ctrl+G</span>
             </div>
           )}
           {isGroupSelected && (
             <div className="tool-group">
-              <button className="layer-btn" onClick={ungroupSelectedShapes} title="Ungroup shapes (Ctrl+Shift+G)">
+              <button className="layer-btn" onClick={ungroupSelectedShapes} title="Ungroup shapes (Ctrl+Shift+G)" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px' }}>
                 <Ungroup size={14} />
+                <span style={{ fontSize: '11px' }}>Ungroup</span>
+                <kbd style={{ fontSize: '10px', color: '#888', marginLeft: '2px' }}>Ctrl+Shift+G</kbd>
               </button>
-              <span style={{ fontSize: '11px', color: '#888', marginLeft: '4px' }}>Ctrl+Shift+G</span>
             </div>
           )}
         </>
