@@ -156,11 +156,13 @@ export class ToolHandler {
   }
 
   /**
-   * Find the nearest anchor on a shape near a position
+   * Find the nearest anchor on a shape near a position.
+   * If the mouse is inside a shape, returns the closest anchor on that shape.
    */
-  findNearestAnchor(pos, threshold = 15) {
+  findNearestAnchor(pos) {
     const layers = this.layerManager.getAllLayers()
     const anchors = ['top', 'bottom', 'left', 'right', 'center']
+    const padding = 10
 
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i]
@@ -180,13 +182,27 @@ export class ToolHandler {
           const bounds = this.getShapeBounds(layer, type, j)
           if (!bounds) continue
 
+          // Check if mouse is inside or near the shape's bounds
+          const expanded = {
+            x: bounds.x - padding,
+            y: bounds.y - padding,
+            width: bounds.width + padding * 2,
+            height: bounds.height + padding * 2
+          }
+          if (!ShapeOperations.isPointInRect(pos.x, pos.y, expanded)) continue
+
+          // Find the nearest anchor on this shape
+          let bestAnchor = null
+          let bestDist = Infinity
           for (const anchor of anchors) {
             const pt = this.getAnchorPoint(bounds, anchor)
             const dist = Math.hypot(pos.x - pt.x, pos.y - pt.y)
-            if (dist < threshold) {
-              return { layerId: layer.id, shapeType: type, shapeIndex: j, anchor, point: pt }
+            if (dist < bestDist) {
+              bestDist = dist
+              bestAnchor = { layerId: layer.id, shapeType: type, shapeIndex: j, anchor, point: pt }
             }
           }
+          if (bestAnchor) return bestAnchor
         }
       }
     }

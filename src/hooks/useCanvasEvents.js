@@ -330,8 +330,11 @@ export const useCanvasEvents = ({
     if (toolRef.current === 'connector' && toolHandlerRef.current) {
       if (e.buttons === 0) {
         // Not drawing -- detect shape under cursor for anchor dot rendering
-        const shape = toolHandlerRef.current.findShapeAtPosition(coords)
-        toolHandlerRef.current.connectorHoverShape = shape || null
+        // Use findNearestAnchor which checks if mouse is inside/near shape bounds
+        const anchor = toolHandlerRef.current.findNearestAnchor(coords)
+        toolHandlerRef.current.connectorHoverShape = anchor
+          ? { layerId: anchor.layerId, shapeType: anchor.shapeType, shapeIndex: anchor.shapeIndex }
+          : null
         renderCanvas()
       }
     }
