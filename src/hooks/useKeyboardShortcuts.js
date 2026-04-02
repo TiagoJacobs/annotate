@@ -5,6 +5,7 @@
 
 import { useEffect } from 'react'
 import { serializeShapesToClipboard, deserializeShapesFromClipboard, pasteShapesIntoLayer, clipboardStateManager, calculateIncrementalOffset } from '../utils/shapeClipboard'
+import { ShapeOperations } from '../services/ShapeOperations'
 
 const ZOOM_STEP = 0.1
 const CLIPBOARD_KEY = 'annotate-shapes-clipboard'
@@ -133,35 +134,7 @@ export const useKeyboardShortcuts = ({
       const layer = layerManagerRef.current?.getLayer(shape.layerId)
       if (!layer) continue
 
-      const { shapeType, shapeIndex } = shape
-
-      // Move the shape based on its type
-      if (shapeType === 'stroke') {
-        layer.strokes[shapeIndex].points = layer.strokes[shapeIndex].points.map(p => ({
-          x: p.x + dx,
-          y: p.y + dy
-        }))
-      } else if (shapeType === 'arrow') {
-        layer.arrows[shapeIndex].fromX += dx
-        layer.arrows[shapeIndex].fromY += dy
-        layer.arrows[shapeIndex].toX += dx
-        layer.arrows[shapeIndex].toY += dy
-      } else if (shapeType === 'rect') {
-        layer.rects[shapeIndex].x += dx
-        layer.rects[shapeIndex].y += dy
-      } else if (shapeType === 'ellipse') {
-        layer.ellipses[shapeIndex].x += dx
-        layer.ellipses[shapeIndex].y += dy
-      } else if (shapeType === 'text') {
-        layer.texts[shapeIndex].x += dx
-        layer.texts[shapeIndex].y += dy
-      } else if (shapeType === 'image') {
-        // Images are stored as layer.image (not in an array)
-        if (layer.image && typeof layer.image === 'object') {
-          layer.image.x = (layer.image.x || 0) + dx
-          layer.image.y = (layer.image.y || 0) + dy
-        }
-      }
+      ShapeOperations.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
 
       updatedLayers.add(layer.id)
     }

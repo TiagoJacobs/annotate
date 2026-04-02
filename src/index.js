@@ -21,10 +21,6 @@ export { ShapeFactory } from './factories/ShapeFactory'
 // ==================== Builders ====================
 export * from './builders/LayerBuilder'
 
-// ==================== Patterns ====================
-export * from './patterns/NullObjects'
-export * from './patterns/Observer'
-
 // ==================== Commands ====================
 export * from './commands/ShapeCommands'
 
@@ -40,11 +36,9 @@ export { useLayerOperations } from './hooks/useLayerOperations'
 export { useShapeOperations } from './hooks/useShapeOperations'
 
 // ==================== Utilities ====================
-export * from './utils/validators'
 export * from './utils/geometry'
 export * from './utils/performance'
 export * from './utils/colorUtils'
-export * from './utils/transform'
 export * from './utils/errorHandling'
 
 /**
