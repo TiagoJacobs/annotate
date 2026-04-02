@@ -590,7 +590,7 @@ export class ShapeOperations {
           y: groupBounds.y + (p.y - currentGroupBounds.y) / alreadyScaledY
         }))
         originalShapeData.set(key, { ...shapeData, points: reversedPoints })
-      } else if (shapeType === 'arrow') {
+      } else if (shapeType === 'arrow' || shapeType === 'connector') {
         originalShapeData.set(key, {
           ...shapeData,
           fromX: groupBounds.x + (shapeData.fromX - currentGroupBounds.x) / alreadyScaledX,
@@ -651,7 +651,7 @@ export class ShapeOperations {
       // 2. Scale the relative position
       // 3. Add to the new group position
 
-      if (shapeType === 'arrow') {
+      if (shapeType === 'arrow' || shapeType === 'connector') {
         const relFromX = originalData.fromX - groupBounds.x
         const relFromY = originalData.fromY - groupBounds.y
         const relToX = originalData.toX - groupBounds.x
@@ -662,7 +662,6 @@ export class ShapeOperations {
         let toX = newGroupBounds.x + relToX * scaleX
         let toY = newGroupBounds.y + relToY * scaleY
 
-        // Handle flipped arrows (negative scale)
         if (scaleX < 0) {
           [fromX, toX] = [toX, fromX]
         }
