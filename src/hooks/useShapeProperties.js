@@ -65,6 +65,19 @@ export const useShapeProperties = ({
   }, [selectedShape, getShapeData])
 
   /**
+   * Get fillColor from selected shape
+   */
+  const getFillColor = useCallback(() => {
+    if (!selectedShape) return null
+
+    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
+    if (shape.shapeType !== 'rect' && shape.shapeType !== 'ellipse') return null
+
+    const shapeData = getShapeData(shape)
+    return shapeData?.fillColor || ''
+  }, [selectedShape, getShapeData])
+
+  /**
    * Get lineStyle from selected shape
    */
   const getLineStyle = useCallback(() => {
@@ -130,6 +143,18 @@ export const useShapeProperties = ({
   }, [updateProperty])
 
   /**
+   * Update fillColor for selected shape(s)
+   */
+  const updateFillColor = useCallback((newFillColor) => {
+    const updatedLayers = updateProperty((shapeData, shapeType) => {
+      if (shapeType === 'rect' || shapeType === 'ellipse') {
+        shapeData.fillColor = newFillColor
+      }
+    })
+    return updatedLayers
+  }, [updateProperty])
+
+  /**
    * Update lineStyle for selected shape(s)
    */
   const updateLineStyle = useCallback((newLineStyle) => {
@@ -159,9 +184,11 @@ export const useShapeProperties = ({
   return {
     getColor,
     getSize,
+    getFillColor,
     getLineStyle,
     updateColor,
     updateSize,
+    updateFillColor,
     updateLineStyle,
     getShapeData
   }

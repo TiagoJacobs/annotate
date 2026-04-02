@@ -12,11 +12,15 @@ export const ShapeOptionsPanel = React.forwardRef(({
   brushSize,
   fontSize,
   lineStyle,
+  fillColor,
+  setFillColor,
   getSelectedShapeColor,
   getSelectedShapeSize,
+  getSelectedShapeFillColor,
   getSelectedShapeLineStyle,
   updateSelectedShapeColor,
   updateSelectedShapeSize,
+  updateSelectedShapeFillColor,
   updateSelectedShapeLineStyle,
   setColor,
   setBrushSize,
@@ -30,6 +34,9 @@ export const ShapeOptionsPanel = React.forwardRef(({
   const showFontSize = tool === 'text'
   const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
   const showOptions = tool !== 'select' && tool !== 'pan' || selectedShape
+  const fillableTools = ['rect', 'ellipse']
+  const isFillableShape = selectedShape && !Array.isArray(selectedShape) && fillableTools.includes(selectedShape.shapeType)
+  const showFill = fillableTools.includes(tool) || isFillableShape
 
   // Don't show shape options if an image is selected
   if (isImageSelected) {
@@ -61,6 +68,45 @@ export const ShapeOptionsPanel = React.forwardRef(({
               className="color-picker"
             />
           </div>
+
+          {/* Fill Color Picker */}
+          {showFill && (
+            <div className="tool-group">
+              <label>Fill:</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  type="color"
+                  value={(selectedShape ? getSelectedShapeFillColor() : fillColor) || '#ffffff'}
+                  onChange={(e) => {
+                    if (selectedShape) {
+                      updateSelectedShapeFillColor(e.target.value)
+                    } else {
+                      setFillColor(e.target.value)
+                    }
+                  }}
+                  className="color-picker"
+                />
+                <button
+                  className="layer-btn"
+                  onClick={() => {
+                    if (selectedShape) {
+                      updateSelectedShapeFillColor('')
+                    } else {
+                      setFillColor('')
+                    }
+                  }}
+                  title="No fill"
+                  style={{
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    opacity: (selectedShape ? !getSelectedShapeFillColor() : !fillColor) ? 0.5 : 1
+                  }}
+                >
+                  None
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Size Control */}
           <div className="tool-group">

@@ -119,6 +119,10 @@ class ArrowRenderer extends BaseShapeRenderer {
  */
 class RectRenderer extends BaseShapeRenderer {
   render(ctx, rect, layerColor) {
+    if (rect.fillColor) {
+      ctx.fillStyle = rect.fillColor
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height)
+    }
     ctx.strokeStyle = this.getShapeColor(rect, layerColor)
     ctx.lineWidth = rect.size
     this.applyLineStyle(ctx, rect.lineStyle)
@@ -132,11 +136,6 @@ class RectRenderer extends BaseShapeRenderer {
  */
 class EllipseRenderer extends BaseShapeRenderer {
   render(ctx, ellipse, layerColor) {
-    ctx.strokeStyle = this.getShapeColor(ellipse, layerColor)
-    ctx.lineWidth = ellipse.size
-
-    this.applyLineStyle(ctx, ellipse.lineStyle)
-
     ctx.beginPath()
     ctx.ellipse(
       ellipse.x + ellipse.width / 2,
@@ -147,6 +146,15 @@ class EllipseRenderer extends BaseShapeRenderer {
       0,
       Math.PI * 2
     )
+
+    if (ellipse.fillColor) {
+      ctx.fillStyle = ellipse.fillColor
+      ctx.fill()
+    }
+
+    ctx.strokeStyle = this.getShapeColor(ellipse, layerColor)
+    ctx.lineWidth = ellipse.size
+    this.applyLineStyle(ctx, ellipse.lineStyle)
     ctx.stroke()
 
     this.resetLineStyle(ctx)

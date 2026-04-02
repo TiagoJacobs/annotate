@@ -62,6 +62,7 @@ function Annotate() {
   const [brushSize, setBrushSize] = useState(storedProperties.brushSize)
   const [fontSize, setFontSize] = useState(storedProperties.fontSize)
   const [lineStyle, setLineStyle] = useState(storedProperties.lineStyle)
+  const [fillColor, setFillColor] = useState('')
   const [zoom, setZoom] = useState(1)
   const [selectedShape, setSelectedShape] = useState(null) // { layerId, shapeType, shapeIndex }
   const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
@@ -107,6 +108,7 @@ function Annotate() {
 
     const propertyValueMap = {
       color,
+      fillColor,
       size: brushSize,
       fontSize,
       lineStyle
@@ -204,6 +206,18 @@ function Annotate() {
    */
   const updateSelectedShapeLineStyle = (newLineStyle) => {
     const updatedLayers = shapePropertiesHook.updateLineStyle(newLineStyle)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
+    }
+  }
+
+  const getSelectedShapeFillColor = () => {
+    return shapePropertiesHook.getFillColor()
+  }
+
+  const updateSelectedShapeFillColor = (newFillColor) => {
+    const updatedLayers = shapePropertiesHook.updateFillColor(newFillColor)
     if (updatedLayers && updatedLayers.size > 0) {
       updateLayersState()
       renderCanvas()
@@ -1131,11 +1145,15 @@ function Annotate() {
           brushSize={brushSize}
           fontSize={fontSize}
           lineStyle={lineStyle}
+          fillColor={fillColor}
+          setFillColor={setFillColor}
           getSelectedShapeColor={getSelectedShapeColor}
           getSelectedShapeSize={getSelectedShapeSize}
+          getSelectedShapeFillColor={getSelectedShapeFillColor}
           getSelectedShapeLineStyle={getSelectedShapeLineStyle}
           updateSelectedShapeColor={updateSelectedShapeColor}
           updateSelectedShapeSize={updateSelectedShapeSize}
+          updateSelectedShapeFillColor={updateSelectedShapeFillColor}
           updateSelectedShapeLineStyle={updateSelectedShapeLineStyle}
           setColor={setColor}
           setBrushSize={setBrushSize}
