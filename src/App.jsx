@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Pen, ArrowRight, Square, Circle, Type, MousePointer, Hand, ZoomIn, ZoomOut, Home, Copy, Download, Github } from 'lucide-react'
+import { Pen, ArrowRight, Square, Circle, Type, Spline, MousePointer, Hand, ZoomIn, ZoomOut, Home, Copy, Download, Github } from 'lucide-react'
 import { CanvasManager } from './canvas/CanvasManager'
 import { LayerManager } from './layers/LayerManager'
 import { ToolHandler } from './tools/ToolHandler'
@@ -1117,6 +1117,7 @@ function Annotate() {
     square: <Square size={20} />,
     circle: <Circle size={20} />,
     type: <Type size={20} />,
+    cable: <Spline size={20} />,
     pointer: <MousePointer size={20} />,
     hand: <Hand size={20} />,
   }
