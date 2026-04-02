@@ -1,6 +1,8 @@
 # Annotate
 
-A simple, lightweight annotation tool built with React that allows you to paste images from your clipboard and draw on top of them directly in your browser.
+A lightweight, feature-rich annotation tool built with React. Paste images from your clipboard and annotate them with shapes, text, and freehand drawings — all directly in your browser.
+
+> This project started as an experiment to try out [Claude Code](https://claude.ai/claude-code), but ended up becoming a genuinely useful tool that I now use regularly.
 
 ---
 
@@ -14,47 +16,74 @@ No installation needed! Just open the link and start annotating.
 
 ### Features
 
-- **Clipboard Image Paste**: Simply paste an image (Ctrl+V / Cmd+V) directly into the application
+- **Clipboard Image Paste**: Paste an image (Ctrl+V / Cmd+V) directly into the canvas
 - **Drawing Tools**:
-  - Pen tool for drawing annotations
-  - Eraser tool to remove parts of drawings
-  - Adjustable brush size (1-50px)
-  - Custom colors with a color picker
-- **Edit History**:
-  - Undo and redo functionality for your annotations
-  - Full drawing history during your session
+  - **Pen** — Freehand drawing with adjustable brush size (1-50px)
+  - **Arrow** — Directional arrows to highlight areas
+  - **Rectangle** — Draw rectangles and boxes
+  - **Ellipse** — Draw circles and ovals
+  - **Text** — Add text annotations with adjustable font size
+  - **Selection** — Select, move, and resize shapes
+  - **Pan** — Navigate the canvas (or use middle-mouse drag with any tool)
+- **Shape Styling**:
+  - Color picker for custom colors
+  - Line styles: solid, dashed, dotted, dash-dot
+  - Adjustable stroke width and font size
+- **Layer Management**:
+  - Create, rename, and delete layers
+  - Toggle layer visibility and lock layers
+  - Reorder layers (move up/down)
+- **Canvas Navigation**:
+  - Zoom in/out (10% to 1000%) with scroll wheel or keyboard
+  - Pan canvas with middle mouse or the hand tool
+  - Minimap for quick navigation
+- **Selection & Editing**:
+  - Select and transform individual shapes
+  - Multi-select with Ctrl+A
+  - Copy/paste shapes with Ctrl+C / Ctrl+V
+  - Move shapes with arrow keys (hold Shift for 10px steps)
+- **Edit History**: Full undo/redo support (Ctrl+Z / Ctrl+Shift+Z)
 - **Export Options**:
-  - Copy annotated image to clipboard with one click
+  - Copy annotated image to clipboard
   - Download as PNG file
+- **Keyboard Shortcuts**: Press **K** to view all shortcuts
 - **Responsive Design**: Works on desktop and tablets
-- **100% Client-Side**: All processing happens in your browser - no server uploads
+- **100% Client-Side**: All processing happens in your browser — no server uploads
 
 ### Usage
 
-1. **Load an Image**: Copy an image to your clipboard and paste it into the application (Ctrl+V / Cmd+V)
-2. **Draw**: Use the pen tool to draw annotations on the image
-3. **Customize**:
-   - Select the pen or eraser tool using the buttons in the toolbar
-   - Choose a color using the color picker
-   - Adjust brush size with the size slider
-4. **Edit**: Use Undo and Redo buttons to correct mistakes
-5. **Export**:
-   - Click "Copy" to copy the annotated image to your clipboard
-   - Click "Download" to save it as a PNG file
-6. **Clear**: Click "Clear" to start fresh
+1. **Load an Image**: Copy an image to your clipboard and paste it (Ctrl+V / Cmd+V)
+2. **Pick a Tool**: Select a tool from the toolbar, or press **1-7** to switch quickly
+3. **Annotate**: Draw shapes, arrows, text, or freehand on the image
+4. **Style**: Change color, line style, or stroke width from the toolbar
+5. **Organize**: Use layers to group annotations — toggle visibility or lock layers
+6. **Navigate**: Scroll to zoom, middle-click drag to pan, or use the minimap
+7. **Edit**: Undo/redo mistakes, select and move shapes, or delete them
+8. **Export**: Click **Copy** to copy to clipboard, or **Download** to save as PNG
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| **1-7** | Switch tool (Pen, Arrow, Rect, Ellipse, Text, Select, Pan) |
+| **Ctrl+Z** | Undo |
+| **Ctrl+Shift+Z** | Redo |
+| **Ctrl+A** | Select all shapes |
+| **Ctrl+C / Ctrl+V** | Copy / paste shapes |
+| **Delete** | Delete selected shape |
+| **+** / **-** | Zoom in / out |
+| **Arrow keys** | Pan canvas or move selected shape |
+| **Shift+Arrow** | Move selected shape by 10px |
+| **K** | Show shortcuts help |
+| **Escape** | Clear selection |
 
 ### Browser Support
 
-This application works in any modern browser that supports:
-- HTML5 Canvas
-- Clipboard API
-- ES6+ JavaScript
+Works in any modern browser that supports HTML5 Canvas, Clipboard API, and ES6+ JavaScript.
 
 ---
 
 ## For Developers
-
-### Getting Started
 
 ### Prerequisites
 
@@ -65,7 +94,7 @@ This application works in any modern browser that supports:
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/tiagojacobs/annotate.git
 cd annotate
 ```
 
@@ -83,46 +112,61 @@ npm run dev
 
 ### Technology Stack
 
-- **React** - UI framework
-- **Vite** - Build tool and dev server
-- **Lucide React** - Icon library
-- **HTML5 Canvas** - Drawing functionality
+- **React 19** — UI framework
+- **Vite** — Build tool and dev server
+- **Lucide React** — Icon library
+- **HTML5 Canvas** — Drawing and rendering
+- **GitHub Actions** — CI/CD pipeline
+- **GitHub Pages** — Hosting
 
 ### Project Structure
 
 ```
 annotate/
 ├── src/
-│   ├── App.jsx          # Main annotation component
-│   ├── App.css          # Component styles
-│   ├── index.css        # Global styles
-│   ├── main.jsx         # Entry point
-│   └── assets/          # Static assets
-├── index.html           # HTML template
-├── vite.config.js       # Vite configuration
-├── package.json         # Dependencies
-└── README.md            # This file
+│   ├── App.jsx              # Main application component
+│   ├── components/          # React UI components (canvas, toolbar, layers, minimap, etc.)
+│   ├── hooks/               # Custom React hooks (events, state, rendering, shortcuts)
+│   ├── services/            # Business logic layer (canvas, keyboard, layer services)
+│   ├── tools/               # Tool handler and registry with creation strategies
+│   ├── renderers/           # Shape rendering strategies (stroke, arrow, rect, ellipse, text)
+│   ├── factories/           # Shape creation (Factory pattern)
+│   ├── builders/            # Layer construction (Builder pattern)
+│   ├── commands/            # Undo/redo support (Command pattern)
+│   ├── patterns/            # Observer and Null Object patterns
+│   ├── canvas/              # Canvas management (zoom, pan, coordinate transforms)
+│   ├── layers/              # Layer management (CRUD, ordering, history)
+│   ├── config/              # Centralized configuration (shapes, rendering, UI)
+│   ├── constants/           # Type-safe constants (tool types, key codes)
+│   ├── utils/               # Pure utilities (geometry, color, transform, performance)
+│   └── styles/              # Component-specific styles
+├── .github/workflows/       # CI/CD deployment pipeline
+├── index.html
+├── vite.config.js
+├── package.json
+├── ARCHITECTURE.md          # Design patterns and architecture docs
+└── README.md
 ```
 
 ### Building for Production
 
-To create a production build:
-
 ```bash
-npm run build
+npm run build     # Build to dist/
+npm run preview   # Preview production build locally
+npm run lint      # Run ESLint
 ```
 
-The optimized files will be in the `dist/` directory.
+### Architecture
 
-To preview the production build locally:
+The codebase uses several design patterns for maintainability and extensibility. See [ARCHITECTURE.md](ARCHITECTURE.md) for details on:
 
-```bash
-npm run preview
-```
+- Factory, Builder, Command, Observer, Strategy, Null Object, and Service Layer patterns
+- Custom React hooks for separation of concerns
+- Performance optimizations (debounce, throttle, memoization, object pooling)
+- Centralized configuration and validation
 
 ### Future Enhancements
 
-Potential features for future versions:
 - Image filters
 - Touch support for mobile devices
 
