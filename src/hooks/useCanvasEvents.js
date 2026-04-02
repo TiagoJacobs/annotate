@@ -360,6 +360,8 @@ export const useCanvasEvents = ({
     if (!canvas) return
 
     const handleWheel = (e) => {
+      // Only zoom when Ctrl (or Meta on Mac) is held
+      if (!e.ctrlKey && !e.metaKey) return
       e.preventDefault()
       // Scroll up = zoom in (negative deltaY), scroll down = zoom out (positive deltaY)
       const delta = e.deltaY > 0 ? -0.1 : 0.1
