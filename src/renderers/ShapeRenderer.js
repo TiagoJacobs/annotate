@@ -153,6 +153,25 @@ class ConnectorRenderer extends BaseShapeRenderer {
     ctx.stroke()
 
     this.resetLineStyle(ctx)
+
+    // Render label at midpoint
+    if (connector.label) {
+      const midX = (fromX + toX) / 2
+      const midY = (fromY + toY) / 2
+      const labelFontSize = Math.max(12, size * 3)
+      ctx.save()
+      ctx.font = `${labelFontSize}px Arial`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const metrics = ctx.measureText(connector.label)
+      const pad = 4
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(midX - metrics.width / 2 - pad, midY - labelFontSize / 2 - pad,
+                   metrics.width + pad * 2, labelFontSize + pad * 2)
+      ctx.fillStyle = color
+      ctx.fillText(connector.label, midX, midY)
+      ctx.restore()
+    }
   }
 }
 

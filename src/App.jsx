@@ -518,6 +518,48 @@ function Annotate() {
     renderCanvas()
   }
 
+  const groupSelectedShapes = () => {
+    if (!selectedShape || !Array.isArray(selectedShape) || selectedShape.length < 2) return
+    const groupId = crypto.randomUUID()
+    for (const shape of selectedShape) {
+      const layer = layerManagerRef.current?.getLayer(shape.layerId)
+      if (!layer) continue
+      const arrayName = ShapeOperations.getShapeArrayName(shape.shapeType)
+      if (arrayName && layer[arrayName]?.[shape.shapeIndex]) {
+        layer[arrayName][shape.shapeIndex].groupId = groupId
+      }
+    }
+    updateLayersState()
+    renderCanvas()
+  }
+
+  const ungroupSelectedShapes = () => {
+    if (!selectedShape) return
+    const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
+    for (const shape of shapes) {
+      const layer = layerManagerRef.current?.getLayer(shape.layerId)
+      if (!layer) continue
+      const arrayName = ShapeOperations.getShapeArrayName(shape.shapeType)
+      if (arrayName && layer[arrayName]?.[shape.shapeIndex]) {
+        layer[arrayName][shape.shapeIndex].groupId = null
+      }
+    }
+    updateLayersState()
+    renderCanvas()
+  }
+
+  const isGroupSelected = (() => {
+    if (!selectedShape) return false
+    const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
+    if (shapes.length < 2) return false
+    const groupIds = shapes.map(s => {
+      const layer = layerManagerRef.current?.getLayer(s.layerId)
+      const arrayName = ShapeOperations.getShapeArrayName(s.shapeType)
+      return layer?.[arrayName]?.[s.shapeIndex]?.groupId
+    }).filter(Boolean)
+    return groupIds.length === shapes.length && new Set(groupIds).size === 1
+  })()
+
   // ==================== Custom Hooks (called after all functions are defined) ====================
 
   // Use canvas renderer hook
@@ -1173,6 +1215,9 @@ function Annotate() {
           setLineStyle={setLineStyle}
           saveToolProperty={saveToolProperty}
           alignSelectedShapes={alignSelectedShapes}
+          groupSelectedShapes={groupSelectedShapes}
+          ungroupSelectedShapes={ungroupSelectedShapes}
+          isGroupSelected={isGroupSelected}
           layerManagerRef={layerManagerRef}
           colorPickerRef={colorPickerRef}
           sizeSliderRef={sizeSliderRef}

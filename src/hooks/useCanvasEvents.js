@@ -135,12 +135,12 @@ export const useCanvasEvents = ({
       return
     }
 
-    // Handle double-click on rect/ellipse for label editing
-    if (selectedShape.shapeType === 'rect' || selectedShape.shapeType === 'ellipse') {
+    // Handle double-click on rect/ellipse/connector for label editing
+    if (selectedShape.shapeType === 'rect' || selectedShape.shapeType === 'ellipse' || selectedShape.shapeType === 'connector') {
       const layer = toolHandlerRef.current?.layerManager.getLayer(selectedShape.layerId)
       if (!layer) return
-      const arrayName = selectedShape.shapeType === 'rect' ? 'rects' : 'ellipses'
-      const shape = layer[arrayName]?.[selectedShape.shapeIndex]
+      const arrayMap = { rect: 'rects', ellipse: 'ellipses', connector: 'connectors' }
+      const shape = layer[arrayMap[selectedShape.shapeType]]?.[selectedShape.shapeIndex]
       if (!shape) return
 
       const label = prompt('Enter label:', shape.label || '')

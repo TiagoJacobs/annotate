@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo } from 'react'
-import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal } from 'lucide-react'
+import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup } from 'lucide-react'
 import { ShapeOperations } from '../services/ShapeOperations'
 
 export const ShapeOptionsPanel = React.forwardRef(({
@@ -29,6 +29,9 @@ export const ShapeOptionsPanel = React.forwardRef(({
   setFontSize,
   setLineStyle,
   alignSelectedShapes,
+  groupSelectedShapes,
+  ungroupSelectedShapes,
+  isGroupSelected,
   layerManagerRef,
   saveToolProperty,
   colorPickerRef,
@@ -206,6 +209,24 @@ export const ShapeOptionsPanel = React.forwardRef(({
                   <AlignEndHorizontal size={14} />
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Group/Ungroup Controls */}
+          {isMultiSelect && !isGroupSelected && (
+            <div className="tool-group">
+              <button className="layer-btn" onClick={groupSelectedShapes} title="Group selected shapes (Ctrl+G)">
+                <Group size={14} />
+              </button>
+              <span style={{ fontSize: '11px', color: '#888', marginLeft: '4px' }}>Ctrl+G</span>
+            </div>
+          )}
+          {isGroupSelected && (
+            <div className="tool-group">
+              <button className="layer-btn" onClick={ungroupSelectedShapes} title="Ungroup shapes (Ctrl+Shift+G)">
+                <Ungroup size={14} />
+              </button>
+              <span style={{ fontSize: '11px', color: '#888', marginLeft: '4px' }}>Ctrl+Shift+G</span>
             </div>
           )}
         </>
