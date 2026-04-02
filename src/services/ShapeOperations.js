@@ -784,7 +784,7 @@ export class ShapeOperations {
     const shapeChecks = [
       { type: 'connector', array: layer.connectors, test: (connector) => {
         if (connector.fromX == null || connector.toX == null) return false
-        const threshold = (connector.size || 3) / 2
+        const threshold = Math.max(LINE_HIT_THRESHOLD, (connector.size || 3) / 2)
         return this.isPointNearLine(pos.x, pos.y, connector.fromX, connector.fromY, connector.toX, connector.toY, threshold)
       }},
       { type: 'text', array: layer.texts, test: (shape) => this.isPointOnText(pos.x, pos.y, shape) },
