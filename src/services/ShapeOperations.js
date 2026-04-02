@@ -323,8 +323,6 @@ export class ShapeOperations {
         c.fromY += dy
         c.toX += dx
         c.toY += dy
-        c.fromRef = null
-        c.toRef = null
       },
       image: () => {
         // Images are stored as layer.image (not in an array)
