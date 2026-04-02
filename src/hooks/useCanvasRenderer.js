@@ -116,8 +116,10 @@ export const useCanvasRenderer = (
     const padding = SELECTION_PADDING
     const handleSize = RESIZE_HANDLE_SIZE / canvasManager.zoom
 
-    const isSingle = !Array.isArray(selectedShapeRef.current)
-    const shapeType = isSingle ? selectedShapeRef.current.shapeType : null
+    const selected = selectedShapeRef.current
+    const effectiveShape = Array.isArray(selected) && selected.length === 1 ? selected[0] : selected
+    const isSingle = !Array.isArray(effectiveShape)
+    const shapeType = isSingle ? effectiveShape.shapeType : null
     const isEndpointShape = shapeType === 'arrow' || shapeType === 'connector'
 
     // Draw dashed bounding box (skip for arrows/connectors -- they use endpoint handles)
@@ -143,9 +145,9 @@ export const useCanvasRenderer = (
 
     // For arrows and connectors, show endpoint handles instead of corner resize handles
     if (isSingle && isEndpointShape) {
-      const layer = layerManagerRef.current.getLayer(selectedShapeRef.current.layerId)
+      const layer = layerManagerRef.current.getLayer(effectiveShape.layerId)
       const arrayName = shapeType === 'arrow' ? 'arrows' : 'connectors'
-      const shape = layer?.[arrayName]?.[selectedShapeRef.current.shapeIndex]
+      const shape = layer?.[arrayName]?.[effectiveShape.shapeIndex]
       if (shape) {
         const size = shape.size || 2
         const headLength = Math.max(6, 8 + Math.log(size) * 6)
