@@ -112,17 +112,23 @@ export const useCanvasRenderer = (
     const padding = SELECTION_PADDING
     const handleSize = RESIZE_HANDLE_SIZE / canvasManager.zoom
 
-    // Draw dashed bounding box
-    ctx.strokeStyle = '#667eea'
-    ctx.lineWidth = 2 / canvasManager.zoom
-    ctx.setLineDash([SELECTION_PADDING / canvasManager.zoom, SELECTION_PADDING / canvasManager.zoom])
-    ctx.strokeRect(
-      bounds.x - padding,
-      bounds.y - padding,
-      bounds.width + padding * 2,
-      bounds.height + padding * 2
-    )
-    ctx.setLineDash([])
+    const isSingle = !Array.isArray(selectedShapeRef.current)
+    const shapeType = isSingle ? selectedShapeRef.current.shapeType : null
+    const isEndpointShape = shapeType === 'arrow' || shapeType === 'connector'
+
+    // Draw dashed bounding box (skip for arrows/connectors -- they use endpoint handles)
+    if (!isEndpointShape) {
+      ctx.strokeStyle = '#667eea'
+      ctx.lineWidth = 2 / canvasManager.zoom
+      ctx.setLineDash([SELECTION_PADDING / canvasManager.zoom, SELECTION_PADDING / canvasManager.zoom])
+      ctx.strokeRect(
+        bounds.x - padding,
+        bounds.y - padding,
+        bounds.width + padding * 2,
+        bounds.height + padding * 2
+      )
+      ctx.setLineDash([])
+    }
 
     // Draw resize handles
     ctx.fillStyle = '#667eea'
@@ -131,37 +137,34 @@ export const useCanvasRenderer = (
 
     let handles = []
 
-    // For arrows, show endpoint handles instead of corner resize handles
-    if (!Array.isArray(selectedShapeRef.current) && selectedShapeRef.current.shapeType === 'arrow') {
+    // For arrows and connectors, show endpoint handles instead of corner resize handles
+    if (isSingle && isEndpointShape) {
       const layer = layerManagerRef.current.getLayer(selectedShapeRef.current.layerId)
-      if (layer && layer.arrows[selectedShapeRef.current.shapeIndex]) {
-        const arrow = layer.arrows[selectedShapeRef.current.shapeIndex]
-
-        // Calculate arrow head tip position (extend beyond toX, toY by the head length)
-        const size = arrow.size || 2
+      const arrayName = shapeType === 'arrow' ? 'arrows' : 'connectors'
+      const shape = layer?.[arrayName]?.[selectedShapeRef.current.shapeIndex]
+      if (shape) {
+        const size = shape.size || 2
         const headLength = Math.max(6, 8 + Math.log(size) * 6)
-        const angle = Math.atan2(arrow.toY - arrow.fromY, arrow.toX - arrow.fromX)
-        const headTipX = arrow.toX + headLength * Math.cos(angle)
-        const headTipY = arrow.toY + headLength * Math.sin(angle)
+        const angle = Math.atan2(shape.toY - shape.fromY, shape.toX - shape.fromX)
+        const headTipX = shape.toX + headLength * Math.cos(angle)
+        const headTipY = shape.toY + headLength * Math.sin(angle)
 
         handles = [
-          { x: arrow.fromX, y: arrow.fromY, cursor: 'crosshair' }, // start point
-          { x: headTipX, y: headTipY, cursor: 'crosshair' }, // arrow head tip (visual end)
+          { x: shape.fromX, y: shape.fromY, cursor: 'crosshair' },
+          { x: headTipX, y: headTipY, cursor: 'crosshair' },
         ]
       }
     } else {
       // Standard corner/edge handles for other shapes
       handles = [
-        // Corners
-        { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' }, // top-left
-        { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' }, // top-right
-        { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' }, // bottom-left
-        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' }, // bottom-right
-        // Edges
-        { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' }, // top
-        { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' }, // bottom
-        { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' }, // left
-        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' }, // right
+        { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' },
+        { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' },
+        { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' },
+        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' },
+        { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' },
+        { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' },
+        { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' },
+        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' },
       ]
     }
 
