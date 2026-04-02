@@ -224,6 +224,39 @@ export const useKeyboardShortcuts = ({
             renderCanvas()
           }
         }
+        // Group with Ctrl+G / Ungroup with Ctrl+Shift+G
+        else if (e.key === 'g') {
+          e.preventDefault()
+          if (!selectedShape) return
+
+          const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
+
+          if (e.shiftKey) {
+            // Ungroup: clear groupId on all selected shapes
+            for (const shape of shapes) {
+              const layer = layerManagerRef.current?.getLayer(shape.layerId)
+              if (!layer) continue
+              const arrayName = ShapeOperations.getShapeArrayName(shape.shapeType)
+              if (arrayName && layer[arrayName]?.[shape.shapeIndex]) {
+                layer[arrayName][shape.shapeIndex].groupId = null
+              }
+            }
+          } else {
+            // Group: assign shared groupId to all selected shapes
+            if (shapes.length < 2) return
+            const groupId = crypto.randomUUID()
+            for (const shape of shapes) {
+              const layer = layerManagerRef.current?.getLayer(shape.layerId)
+              if (!layer) continue
+              const arrayName = ShapeOperations.getShapeArrayName(shape.shapeType)
+              if (arrayName && layer[arrayName]?.[shape.shapeIndex]) {
+                layer[arrayName][shape.shapeIndex].groupId = groupId
+              }
+            }
+          }
+          updateLayersState()
+          renderCanvas()
+        }
         // Copy with Ctrl+C
         else if (e.key === 'c') {
           e.preventDefault()

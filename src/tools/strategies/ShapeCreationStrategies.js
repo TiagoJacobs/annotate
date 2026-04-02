@@ -30,6 +30,7 @@ export class FreehandStrokeStrategy extends ShapeCreationStrategy {
       color: properties.color,
       lineStyle: properties.lineStyle,
       points: [startPos],
+      groupId: null,
     }
     layer.strokes.push(stroke)
     return stroke
@@ -61,6 +62,7 @@ export class ArrowStrategy extends ShapeCreationStrategy {
       size: properties.size,
       color: properties.color,
       lineStyle: properties.lineStyle,
+      groupId: null,
       isPreview: true,
     })
   }
@@ -94,6 +96,7 @@ export class RectStrategy extends ShapeCreationStrategy {
       color: properties.color,
       fillColor: properties.fillColor || '',
       lineStyle: properties.lineStyle,
+      groupId: null,
       isPreview: true,
     })
   }
@@ -127,6 +130,7 @@ export class EllipseStrategy extends ShapeCreationStrategy {
       color: properties.color,
       fillColor: properties.fillColor || '',
       lineStyle: properties.lineStyle,
+      groupId: null,
       isPreview: true,
     })
   }
@@ -151,6 +155,7 @@ export class TextStrategy extends ShapeCreationStrategy {
       fontSize: properties.fontSize,
       fontFamily: 'Arial',
       color: properties.color,
+      groupId: null,
     })
   }
 }

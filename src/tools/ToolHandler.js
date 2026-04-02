@@ -386,6 +386,26 @@ export class ToolHandler {
       return this.toggleShapeInSelection(clickedShape)
     }
 
+    // Expand to group if the clicked shape has a groupId
+    if (clickedShape) {
+      const layer = this.layerManager.getLayer(clickedShape.layerId)
+      if (layer) {
+        const shapeArrayName = ShapeOperations.getShapeArrayName(clickedShape.shapeType)
+        const shapeData = shapeArrayName ? layer[shapeArrayName]?.[clickedShape.shapeIndex] : null
+        if (shapeData && shapeData.groupId) {
+          const groupShapes = ShapeOperations.findShapesInGroup(shapeData.groupId, this.layerManager)
+          if (groupShapes.length > 1) {
+            this.selectedShape = null
+            this.selectedShapes = groupShapes
+            this.isDragging = false
+            this.isResizing = false
+            this.resizeHandle = null
+            return groupShapes
+          }
+        }
+      }
+    }
+
     // Normal single selection (no shift)
     this.selectedShape = clickedShape
     this.selectedShapes = null

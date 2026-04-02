@@ -780,6 +780,38 @@ export class ShapeOperations {
   }
 
   /**
+   * Get shape array name from shape type
+   */
+  static getShapeArrayName(shapeType) {
+    return SHAPE_ARRAY_MAP[shapeType]
+  }
+
+  /**
+   * Find all shapes sharing a groupId across all layers
+   */
+  static findShapesInGroup(groupId, layerManager) {
+    if (!groupId) return []
+    const shapes = []
+    const layers = layerManager.getAllLayers()
+
+    for (const layer of layers) {
+      if (!layer.visible || layer.locked) continue
+
+      for (const [shapeType, arrayName] of Object.entries(SHAPE_ARRAY_MAP)) {
+        const arr = layer[arrayName]
+        if (!arr) continue
+        for (let i = 0; i < arr.length; i++) {
+          if (arr[i].groupId === groupId) {
+            shapes.push({ layerId: layer.id, shapeType, shapeIndex: i })
+          }
+        }
+      }
+    }
+
+    return shapes
+  }
+
+  /**
    * Align multiple shapes along an edge or center
    * @param {Array} shapes - Array of { layerId, shapeType, shapeIndex }
    * @param {Object} layerManager
