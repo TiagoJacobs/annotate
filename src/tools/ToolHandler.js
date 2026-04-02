@@ -287,7 +287,9 @@ export class ToolHandler {
   selectObject(pos, isShiftHeld = false) {
     // PRIORITY 1: Check if clicking on existing multi-shape selection bounds first
     // This ensures Ctrl+A selection takes priority for movement
-    if (this.selectedShapes && !isShiftHeld && this.selectedShapes.length > 0) {
+    // Skip if all shapes are on locked layers
+    if (this.selectedShapes && !isShiftHeld && this.selectedShapes.length > 0 &&
+        !this.selectedShapes.every(s => { const l = this.layerManager.getLayer(s.layerId); return l && l.locked })) {
       const bounds = this.getMultiShapeBounds(this.selectedShapes)
       if (bounds) {
         // Check if clicking inside multi-selection bounds or on resize handles
@@ -323,7 +325,7 @@ export class ToolHandler {
     // PRIORITY 2: Check single selection and handles
     if (this.selectedShape && !this.selectedShapes) {
       const layer = this.layerManager.getLayer(this.selectedShape.layerId)
-      if (layer) {
+      if (layer && !layer.locked) {
         const bounds = this.getShapeBounds(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex)
 
         if (bounds) {
@@ -547,10 +549,17 @@ export class ToolHandler {
   dragObject(pos, isShiftHeld = false) {
     if (!this.selectedShape && !this.selectedShapes) return
 
-    // Prevent dragging shapes on locked layers
-    if (this.selectedShape && !Array.isArray(this.selectedShape)) {
+    // Prevent dragging/resizing shapes on locked layers
+    if (this.selectedShape) {
       const layer = this.layerManager.getLayer(this.selectedShape.layerId)
       if (layer && layer.locked) return
+    }
+    if (this.selectedShapes) {
+      const allLocked = this.selectedShapes.every(s => {
+        const layer = this.layerManager.getLayer(s.layerId)
+        return layer && layer.locked
+      })
+      if (allLocked) return
     }
 
     // Handle arrow endpoint dragging

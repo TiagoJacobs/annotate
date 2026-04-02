@@ -373,13 +373,16 @@ export const useCanvasEvents = ({
 
     const handleWheel = (e) => {
       if (e.ctrlKey || e.metaKey) {
-        // Ctrl+scroll = zoom
+        // Ctrl+scroll = zoom at mouse cursor position
         e.preventDefault()
+        const rect = canvas.getBoundingClientRect()
+        const mouseX = e.clientX - rect.left
+        const mouseY = e.clientY - rect.top
         const delta = e.deltaY > 0 ? -0.1 : 0.1
         const currentZoom = canvasManagerRef.current.zoom
         const newZoom = currentZoom + delta
-        canvasManagerRef.current.setZoom(newZoom)
-        setZoom(newZoom)
+        canvasManagerRef.current.setZoom(newZoom, mouseX, mouseY)
+        setZoom(canvasManagerRef.current.zoom)
         renderCanvas()
       } else {
         // Plain scroll = adjust brush size for drawing tools
@@ -387,7 +390,16 @@ export const useCanvasEvents = ({
         if (drawingTools.includes(tool)) {
           e.preventDefault()
           const delta = e.deltaY > 0 ? -1 : 1
-          setBrushSize(prev => Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, prev + delta)))
+          setBrushSize(prev => {
+            const newSize = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, prev + delta))
+            // Update in-progress stroke size if actively drawing
+            const handler = toolHandlerRef.current
+            if (handler && handler.currentStroke) {
+              handler.currentStroke.size = newSize
+            }
+            return newSize
+          })
+          renderCanvas()
         }
       }
     }

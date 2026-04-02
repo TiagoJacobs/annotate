@@ -37,7 +37,11 @@ export const ShapeOptionsPanel = React.forwardRef(({
   const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
   const showOptions = tool !== 'select' && tool !== 'pan' || selectedShape
   const fillableTools = ['rect', 'ellipse']
-  const isFillableShape = selectedShape && !Array.isArray(selectedShape) && fillableTools.includes(selectedShape.shapeType)
+  const isFillableShape = selectedShape && (
+    Array.isArray(selectedShape)
+      ? selectedShape.every(s => fillableTools.includes(s.shapeType))
+      : fillableTools.includes(selectedShape.shapeType)
+  )
   const showFill = fillableTools.includes(tool) || isFillableShape
   const isMultiSelect = Array.isArray(selectedShape) && selectedShape.length >= 2
 
