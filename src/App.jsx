@@ -6,6 +6,7 @@ import { ToolHandler } from './tools/ToolHandler'
 import { toolRegistry, getToolConfig } from './tools/toolRegistry'
 import { SHAPE_ARRAY_MAP } from './config/shapeConfig'
 import { ShapeRendererFactory } from './renderers/ShapeRenderer'
+import { ShapeOperations } from './services/ShapeOperations'
 import { useCanvasRenderer } from './hooks/useCanvasRenderer'
 import { useCanvasEvents } from './hooks/useCanvasEvents'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -506,6 +507,14 @@ function Annotate() {
     selectedShapeRef.current = null
     toolHandlerRef.current?.clearSelection()
     updateLayersState()
+  }
+
+  const alignSelectedShapes = (alignment) => {
+    if (!selectedShape || !Array.isArray(selectedShape) || selectedShape.length < 2) return
+    layerManagerRef.current.saveHistory()
+    ShapeOperations.alignShapes(selectedShape, layerManagerRef.current, alignment)
+    updateLayersState()
+    renderCanvas()
   }
 
   // ==================== Custom Hooks (called after all functions are defined) ====================
@@ -1160,6 +1169,7 @@ function Annotate() {
           setFontSize={setFontSize}
           setLineStyle={setLineStyle}
           saveToolProperty={saveToolProperty}
+          alignSelectedShapes={alignSelectedShapes}
           colorPickerRef={colorPickerRef}
           sizeSliderRef={sizeSliderRef}
           lineStyleSelectRef={lineStyleSelectRef}
