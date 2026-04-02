@@ -35,10 +35,13 @@ export const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
     { key: 'Ctrl+C', description: 'Copy selected shapes' },
     { key: 'Ctrl+V', description: 'Paste shapes (incremental offset)' },
     { key: 'Ctrl+A', description: 'Select all shapes' },
+    { key: 'Ctrl+G', description: 'Group selected shapes' },
+    { key: 'Ctrl+Shift+G', description: 'Ungroup shapes' },
     { key: 'Delete / Backspace', description: 'Delete selected shape' },
 
     // Canvas Navigation
-    { key: 'Scroll Wheel', description: 'Zoom in/out' },
+    { key: 'Ctrl+Scroll', description: 'Zoom in/out' },
+    { key: 'Scroll Wheel', description: 'Adjust brush size (drawing tools)' },
     { key: '+', description: 'Zoom in' },
     { key: '-', description: 'Zoom out' },
     { key: 'Arrow Keys', description: 'Pan canvas / Move selected shape' },

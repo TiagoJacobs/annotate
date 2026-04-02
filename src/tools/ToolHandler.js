@@ -524,14 +524,16 @@ export class ToolHandler {
             }
           }
 
-          // Check if clicking on a resize handle
-          const handle = this.getResizeHandle(pos, bounds)
-          if (handle) {
-            this.resizeHandle = handle
-            this.resizeStartPos = pos
-            this.resizeStartBounds = { ...bounds }
-            this.isResizing = true
-            return this.selectedShape
+          // Check if clicking on a resize handle (skip for connectors -- they only use endpoint handles)
+          if (this.selectedShape.shapeType !== 'connector') {
+            const handle = this.getResizeHandle(pos, bounds)
+            if (handle) {
+              this.resizeHandle = handle
+              this.resizeStartPos = pos
+              this.resizeStartBounds = { ...bounds }
+              this.isResizing = true
+              return this.selectedShape
+            }
           }
 
           // Check if clicking inside the selected shape bounds (for dragging)
