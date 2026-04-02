@@ -35,29 +35,6 @@ export const clamp = (value, min, max) => {
 }
 
 /**
- * Calculate bounding box from array of points
- */
-export const getBoundingBox = (points) => {
-  if (!points || points.length === 0) {
-    return { x: 0, y: 0, width: 0, height: 0 }
-  }
-
-  const xs = points.map(p => p.x)
-  const ys = points.map(p => p.y)
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY
-  }
-}
-
-/**
  * Check if point is inside rectangle
  */
 export const isPointInRect = (point, rect) => {
@@ -67,13 +44,6 @@ export const isPointInRect = (point, rect) => {
     point.y >= rect.y &&
     point.y <= rect.y + rect.height
   )
-}
-
-/**
- * Check if point is inside circle
- */
-export const isPointInCircle = (point, center, radius) => {
-  return distance(point, center) <= radius
 }
 
 /**
@@ -114,64 +84,4 @@ export const closestPointOnLine = (point, lineStart, lineEnd) => {
   )
 
   return pointOnLine(lineStart, lineEnd, t)
-}
-
-/**
- * Calculate distance from point to line segment
- */
-export const distanceToLine = (point, lineStart, lineEnd) => {
-  const closest = closestPointOnLine(point, lineStart, lineEnd)
-  return distance(point, closest)
-}
-
-/**
- * Rotate point around center
- */
-export const rotatePoint = (point, center, angle) => {
-  const cos = Math.cos(angle)
-  const sin = Math.sin(angle)
-  const dx = point.x - center.x
-  const dy = point.y - center.y
-
-  return {
-    x: center.x + dx * cos - dy * sin,
-    y: center.y + dx * sin + dy * cos
-  }
-}
-
-/**
- * Scale point relative to center
- */
-export const scalePoint = (point, center, scaleX, scaleY = scaleX) => {
-  return {
-    x: center.x + (point.x - center.x) * scaleX,
-    y: center.y + (point.y - center.y) * scaleY
-  }
-}
-
-/**
- * Translate point by offset
- */
-export const translatePoint = (point, dx, dy) => ({
-  x: point.x + dx,
-  y: point.y + dy
-})
-
-/**
- * Linear interpolation between two values
- */
-export const lerp = (start, end, t) => {
-  return start + (end - start) * clamp(t, 0, 1)
-}
-
-/**
- * Normalize bounds (ensure positive width/height)
- */
-export const normalizeBounds = (x, y, width, height) => {
-  return {
-    x: width < 0 ? x + width : x,
-    y: height < 0 ? y + height : y,
-    width: Math.abs(width),
-    height: Math.abs(height)
-  }
 }

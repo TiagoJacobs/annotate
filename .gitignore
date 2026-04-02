@@ -24,4 +24,5 @@ dist-ssr
 *.sw?
 
 # Dev CLI
-.data
+/.data/
+/*.todo
