@@ -440,6 +440,9 @@ export class ToolHandler {
     if (this.selectedShape) {
       const layer = this.layerManager.getLayer(this.selectedShape.layerId)
       if (!layer) return 0
+      if (this.selectedShape.shapeType === 'image') {
+        return layer.image?.rotation || 0
+      }
       const arrayName = SHAPE_ARRAY_MAP[this.selectedShape.shapeType]
       const shape = arrayName ? layer[arrayName]?.[this.selectedShape.shapeIndex] : null
       return shape?.rotation || 0
@@ -463,7 +466,8 @@ export class ToolHandler {
       for (const shape of this.selectedShapes) {
         const layer = this.layerManager.getLayer(shape.layerId)
         const arrayName = SHAPE_ARRAY_MAP[shape.shapeType]
-        const shapeData = arrayName ? layer?.[arrayName]?.[shape.shapeIndex] : null
+        const shapeData = arrayName ? layer?.[arrayName]?.[shape.shapeIndex]
+          : (shape.shapeType === 'image' ? layer?.image : null)
         this.shapeStartRotations.push(shapeData?.rotation || 0)
         const shapeBounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
         this.shapeStartPositions.push(shapeBounds ? getBoundsCenter(shapeBounds) : null)
@@ -471,7 +475,8 @@ export class ToolHandler {
     } else if (this.selectedShape) {
       const layer = this.layerManager.getLayer(this.selectedShape.layerId)
       const arrayName = SHAPE_ARRAY_MAP[this.selectedShape.shapeType]
-      const shapeData = arrayName ? layer?.[arrayName]?.[this.selectedShape.shapeIndex] : null
+      const shapeData = arrayName ? layer?.[arrayName]?.[this.selectedShape.shapeIndex]
+        : (this.selectedShape.shapeType === 'image' ? layer?.image : null)
       this.shapeStartRotations = [shapeData?.rotation || 0]
     }
   }
@@ -495,7 +500,8 @@ export class ToolHandler {
         const shape = this.selectedShapes[i]
         const layer = this.layerManager.getLayer(shape.layerId)
         const arrayName = SHAPE_ARRAY_MAP[shape.shapeType]
-        const shapeData = arrayName ? layer?.[arrayName]?.[shape.shapeIndex] : null
+        const shapeData = arrayName ? layer?.[arrayName]?.[shape.shapeIndex]
+          : (shape.shapeType === 'image' ? layer?.image : null)
         if (!shapeData) continue
 
         // Update individual rotation
@@ -505,7 +511,6 @@ export class ToolHandler {
         if (this.shapeStartPositions[i]) {
           const startCenter = this.shapeStartPositions[i]
           const newCenter = rotatePoint(startCenter.x, startCenter.y, this.rotationCenter.x, this.rotationCenter.y, deltaAngle)
-          // Get current center to compute the needed delta
           const currentBounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
           if (currentBounds) {
             const currentCenter = getBoundsCenter(currentBounds)
@@ -517,14 +522,19 @@ export class ToolHandler {
           }
         }
 
+        // Update connectors after rotation
+        ShapeOperations.updateConnectorsForShape(layer, shape.shapeType, shape.shapeIndex)
         this.layerManager.updateLayer(layer.id, layer)
       }
     } else if (this.selectedShape) {
       const layer = this.layerManager.getLayer(this.selectedShape.layerId)
       const arrayName = SHAPE_ARRAY_MAP[this.selectedShape.shapeType]
-      const shapeData = arrayName ? layer?.[arrayName]?.[this.selectedShape.shapeIndex] : null
+      const shapeData = arrayName ? layer?.[arrayName]?.[this.selectedShape.shapeIndex]
+        : (this.selectedShape.shapeType === 'image' ? layer?.image : null)
       if (shapeData) {
         shapeData.rotation = (this.shapeStartRotations[0] || 0) + deltaAngle
+        // Update connectors after rotation
+        ShapeOperations.updateConnectorsForShape(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex)
         this.layerManager.updateLayer(layer.id, layer)
       }
     }
@@ -726,7 +736,7 @@ export class ToolHandler {
           }
 
           // Check rotation handle first (skip for arrows, connectors, images)
-          const noRotationTypes = ['arrow', 'connector', 'image']
+          const noRotationTypes = ['arrow', 'connector']
           if (!noRotationTypes.includes(this.selectedShape.shapeType)) {
             const shapeRotation = this.getSelectedShapeRotation()
             if (this.getRotationHandle(pos, bounds, shapeRotation)) {

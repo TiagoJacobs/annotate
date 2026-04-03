@@ -5,7 +5,7 @@
 
 import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
 import { LINE_HIT_THRESHOLD, TEXT_WIDTH_FACTOR } from '../config/uiConstants'
-import { inverseRotatePoint } from '../utils/rotationUtils'
+import { rotatePoint, inverseRotatePoint, getRotatedBoundingBox } from '../utils/rotationUtils'
 
 /**
  * Get the center point of a shape for rotation transforms
@@ -311,10 +311,15 @@ export class ShapeOperations {
       if (!layer) continue
 
       const bounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
-      minX = Math.min(minX, bounds.x)
-      minY = Math.min(minY, bounds.y)
-      maxX = Math.max(maxX, bounds.x + bounds.width)
-      maxY = Math.max(maxY, bounds.y + bounds.height)
+      // Expand bounds for rotated shapes
+      const arrayName = SHAPE_ARRAY_MAP[shape.shapeType]
+      const shapeData = arrayName ? layer[arrayName]?.[shape.shapeIndex] : null
+      const rotation = shapeData?.rotation || (shape.shapeType === 'image' ? layer.image?.rotation || 0 : 0)
+      const effectiveBounds = rotation ? getRotatedBoundingBox(bounds, rotation) : bounds
+      minX = Math.min(minX, effectiveBounds.x)
+      minY = Math.min(minY, effectiveBounds.y)
+      maxX = Math.max(maxX, effectiveBounds.x + effectiveBounds.width)
+      maxY = Math.max(maxY, effectiveBounds.y + effectiveBounds.height)
     }
 
     return {
@@ -401,6 +406,11 @@ export class ShapeOperations {
   static updateConnectorsForShape(layer, shapeType, shapeIndex) {
     if (!layer.connectors) return
 
+    // Get shape rotation for anchor point calculation
+    const arrayName = SHAPE_ARRAY_MAP[shapeType]
+    const shapeData = arrayName ? layer[arrayName]?.[shapeIndex] : null
+    const rotation = shapeData?.rotation || (shapeType === 'image' ? layer.image?.rotation || 0 : 0)
+
     for (const connector of layer.connectors) {
       if (connector.fromRef &&
           connector.fromRef.layerId === layer.id &&
@@ -408,7 +418,11 @@ export class ShapeOperations {
           connector.fromRef.shapeIndex === shapeIndex) {
         const bounds = this.getShapeBounds(layer, shapeType, shapeIndex)
         if (bounds) {
-          const pt = this.getAnchorPointFromBounds(bounds, connector.fromAnchor)
+          let pt = this.getAnchorPointFromBounds(bounds, connector.fromAnchor)
+          if (rotation) {
+            const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+            pt = rotatePoint(pt.x, pt.y, center.x, center.y, rotation)
+          }
           connector.fromX = pt.x
           connector.fromY = pt.y
         }
@@ -419,7 +433,11 @@ export class ShapeOperations {
           connector.toRef.shapeIndex === shapeIndex) {
         const bounds = this.getShapeBounds(layer, shapeType, shapeIndex)
         if (bounds) {
-          const pt = this.getAnchorPointFromBounds(bounds, connector.toAnchor)
+          let pt = this.getAnchorPointFromBounds(bounds, connector.toAnchor)
+          if (rotation) {
+            const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+            pt = rotatePoint(pt.x, pt.y, center.x, center.y, rotation)
+          }
           connector.toX = pt.x
           connector.toY = pt.y
         }

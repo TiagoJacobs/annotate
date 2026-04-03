@@ -126,10 +126,11 @@ export const useCanvasRenderer = (
 
     // Get rotation for single selected shape
     let shapeRotation = 0
-    if (isSingle && !isEndpointShape && shapeType !== 'image') {
+    if (isSingle && !isEndpointShape) {
       const layer = layerManagerRef.current.getLayer(effectiveShape.layerId)
       const arrayName = SHAPE_ARRAY_MAP[effectiveShape.shapeType]
-      const shapeData = arrayName ? layer?.[arrayName]?.[effectiveShape.shapeIndex] : null
+      const shapeData = arrayName ? layer?.[arrayName]?.[effectiveShape.shapeIndex]
+        : (effectiveShape.shapeType === 'image' ? layer?.image : null)
       shapeRotation = shapeData?.rotation || 0
     }
 
@@ -210,8 +211,8 @@ export const useCanvasRenderer = (
     })
 
 
-    // Draw rotation handle (skip for arrows/connectors/images)
-    if (!isEndpointShape && shapeType !== 'image') {
+    // Draw rotation handle (skip for arrows/connectors)
+    if (!isEndpointShape) {
       const rotHandleX = bounds.x + bounds.width / 2
       const rotHandleY = bounds.y - padding - ROTATION_HANDLE_OFFSET
       const rotRadius = ROTATION_HANDLE_RADIUS / canvasManager.zoom
