@@ -15,6 +15,7 @@ export const Minimap = ({
   const animationFrameRef = useRef(null)
   const isDraggingRef = useRef(false)
   const lastContentBoundsRef = useRef(null)
+  const dragWorldBoundsRef = useRef(null)
 
   /**
    * Draw the minimap canvas
@@ -65,12 +66,12 @@ export const Minimap = ({
       })
 
       layer.arrows?.forEach(arrow => {
-        if (arrow.x1 !== undefined && arrow.x2 !== undefined) {
+        if (arrow.fromX !== undefined && arrow.toX !== undefined) {
           hasContent = true
-          minX = Math.min(minX, Math.min(arrow.x1, arrow.x2))
-          minY = Math.min(minY, Math.min(arrow.y1, arrow.y2))
-          maxX = Math.max(maxX, Math.max(arrow.x1, arrow.x2))
-          maxY = Math.max(maxY, Math.max(arrow.y1, arrow.y2))
+          minX = Math.min(minX, Math.min(arrow.fromX, arrow.toX))
+          minY = Math.min(minY, Math.min(arrow.fromY, arrow.toY))
+          maxX = Math.max(maxX, Math.max(arrow.fromX, arrow.toX))
+          maxY = Math.max(maxY, Math.max(arrow.fromY, arrow.toY))
         }
       })
 
@@ -101,6 +102,26 @@ export const Minimap = ({
         minY = Math.min(minY, text.y)
         maxX = Math.max(maxX, text.x + textWidth)
         maxY = Math.max(maxY, text.y + text.fontSize)
+      })
+
+      layer.connectors?.forEach(c => {
+        if (c.fromX != null && c.toX != null) {
+          hasContent = true
+          minX = Math.min(minX, Math.min(c.fromX, c.toX))
+          minY = Math.min(minY, Math.min(c.fromY, c.toY))
+          maxX = Math.max(maxX, Math.max(c.fromX, c.toX))
+          maxY = Math.max(maxY, Math.max(c.fromY, c.toY))
+        }
+      })
+
+      layer.stamps?.forEach(stamp => {
+        if (stamp.width && stamp.height) {
+          hasContent = true
+          minX = Math.min(minX, stamp.x)
+          minY = Math.min(minY, stamp.y)
+          maxX = Math.max(maxX, stamp.x + stamp.width)
+          maxY = Math.max(maxY, stamp.y + stamp.height)
+        }
       })
     })
 
@@ -172,6 +193,8 @@ export const Minimap = ({
         layer.rects?.forEach(rect => shapeRenderer.renderShape(ctx, 'rect', rect, rect.color || '#000000'))
         layer.ellipses?.forEach(ellipse => shapeRenderer.renderShape(ctx, 'ellipse', ellipse, ellipse.color || '#000000'))
         layer.texts?.forEach(text => shapeRenderer.renderShape(ctx, 'text', text, text.color || '#000000'))
+        layer.connectors?.forEach(c => shapeRenderer.renderShape(ctx, 'connector', c, c.color || '#000000'))
+        layer.stamps?.forEach(stamp => shapeRenderer.renderShape(ctx, 'stamp', stamp))
       }
     })
 
@@ -232,7 +255,23 @@ export const Minimap = ({
    */
   const handleMouseDown = (e) => {
     const minimap = minimapCanvasRef.current
-    if (!minimap || !lastContentBoundsRef.current) return
+    const bounds = lastContentBoundsRef.current
+    const canvasManager = canvasManagerRef.current
+    if (!minimap || !bounds || !canvasManager) return
+
+    // Capture stable world bounds at drag start to prevent jitter
+    const canvasRect = canvasManager.canvas.getBoundingClientRect()
+    const visibleMinX = -canvasManager.panX / canvasManager.zoom
+    const visibleMinY = -canvasManager.panY / canvasManager.zoom
+    const visibleMaxX = visibleMinX + canvasRect.width / canvasManager.zoom
+    const visibleMaxY = visibleMinY + canvasRect.height / canvasManager.zoom
+
+    dragWorldBoundsRef.current = {
+      worldMinX: Math.min(bounds.minX, visibleMinX) - 50,
+      worldMinY: Math.min(bounds.minY, visibleMinY) - 50,
+      worldMaxX: Math.max(bounds.maxX, visibleMaxX) + 50,
+      worldMaxY: Math.max(bounds.maxY, visibleMaxY) + 50,
+    }
 
     isDraggingRef.current = true
   }
@@ -244,11 +283,10 @@ export const Minimap = ({
     if (!isDraggingRef.current) return
 
     const minimap = minimapCanvasRef.current
-    const bounds = lastContentBoundsRef.current
     const canvasManager = canvasManagerRef.current
-    const layerManager = layerManagerRef.current
+    const wb = dragWorldBoundsRef.current
 
-    if (!minimap || !bounds || !canvasManager || !layerManager) return
+    if (!minimap || !canvasManager || !wb) return
 
     // Get minimap canvas position and dimensions
     const rect = minimap.getBoundingClientRect()
@@ -263,34 +301,20 @@ export const Minimap = ({
       return
     }
 
-    // Get current viewport bounds in world space
     const canvasRect = canvasManager.canvas.getBoundingClientRect()
     const canvasWidth = canvasRect.width
     const canvasHeight = canvasRect.height
 
-    const visibleMinX = -canvasManager.panX / canvasManager.zoom
-    const visibleMinY = -canvasManager.panY / canvasManager.zoom
-    const visibleMaxX = visibleMinX + canvasWidth / canvasManager.zoom
-    const visibleMaxY = visibleMinY + canvasHeight / canvasManager.zoom
+    // Use stable world bounds captured at drag start
+    const worldWidth = wb.worldMaxX - wb.worldMinX
+    const worldHeight = wb.worldMaxY - wb.worldMinY
 
-    // Calculate the world bounds (same as in drawMinimap)
-    const { minX, minY, maxX, maxY } = bounds
-    const worldMinX = Math.min(minX, visibleMinX) - 50
-    const worldMinY = Math.min(minY, visibleMinY) - 50
-    const worldMaxX = Math.max(maxX, visibleMaxX) + 50
-    const worldMaxY = Math.max(maxY, visibleMaxY) + 50
-
-    const worldWidth = worldMaxX - worldMinX
-    const worldHeight = worldMaxY - worldMinY
-
-    // Calculate scale (same as in drawMinimap)
     const scaleX = minimapWidth / worldWidth
     const scaleY = minimapHeight / worldHeight
     const scale = Math.min(scaleX, scaleY)
 
-    // Calculate offset (same as in drawMinimap)
-    const offsetX = -worldMinX * scale
-    const offsetY = -worldMinY * scale
+    const offsetX = -wb.worldMinX * scale
+    const offsetY = -wb.worldMinY * scale
 
     // Convert minimap coordinates to world coordinates
     const worldX = (minimapX - offsetX) / scale
@@ -313,6 +337,7 @@ export const Minimap = ({
    */
   const handleMouseUp = () => {
     isDraggingRef.current = false
+    dragWorldBoundsRef.current = null
   }
 
   /**

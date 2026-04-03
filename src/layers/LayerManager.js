@@ -181,6 +181,10 @@ export class LayerManager {
       layer.strokes.push(shapeData)
     } else if (shapeType === 'text') {
       layer.texts.push(shapeData)
+    } else if (shapeType === 'connector') {
+      layer.connectors.push(shapeData)
+    } else if (shapeType === 'stamp') {
+      layer.stamps.push(shapeData)
     }
 
     this.saveHistory()

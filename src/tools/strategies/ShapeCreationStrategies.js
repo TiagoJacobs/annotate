@@ -71,7 +71,13 @@ export class ArrowStrategy extends ShapeCreationStrategy {
   finish(layer) {
     if (layer.arrows.length > 0) {
       const lastIndex = layer.arrows.length - 1
-      delete layer.arrows[lastIndex].isPreview
+      const arrow = layer.arrows[lastIndex]
+      // Remove zero-length arrows (click without drag)
+      if (arrow.fromX === arrow.toX && arrow.fromY === arrow.toY) {
+        layer.arrows.splice(lastIndex, 1)
+        return
+      }
+      delete arrow.isPreview
     }
   }
 }

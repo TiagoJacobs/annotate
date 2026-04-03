@@ -870,12 +870,12 @@ function Annotate() {
         })
 
         layer.arrows?.forEach(arrow => {
-          if (arrow.x1 !== undefined && arrow.x2 !== undefined) {
+          if (arrow.fromX !== undefined && arrow.toX !== undefined) {
             hasContent = true
-            minX = Math.min(minX, Math.min(arrow.x1, arrow.x2))
-            minY = Math.min(minY, Math.min(arrow.y1, arrow.y2))
-            maxX = Math.max(maxX, Math.max(arrow.x1, arrow.x2))
-            maxY = Math.max(maxY, Math.max(arrow.y1, arrow.y2))
+            minX = Math.min(minX, Math.min(arrow.fromX, arrow.toX))
+            minY = Math.min(minY, Math.min(arrow.fromY, arrow.toY))
+            maxX = Math.max(maxX, Math.max(arrow.fromX, arrow.toX))
+            maxY = Math.max(maxY, Math.max(arrow.fromY, arrow.toY))
           }
         })
 
@@ -906,6 +906,26 @@ function Annotate() {
           minY = Math.min(minY, text.y)
           maxX = Math.max(maxX, text.x + textWidth)
           maxY = Math.max(maxY, text.y + text.fontSize)
+        })
+
+        layer.connectors?.forEach(c => {
+          if (c.fromX != null && c.toX != null) {
+            hasContent = true
+            minX = Math.min(minX, Math.min(c.fromX, c.toX))
+            minY = Math.min(minY, Math.min(c.fromY, c.toY))
+            maxX = Math.max(maxX, Math.max(c.fromX, c.toX))
+            maxY = Math.max(maxY, Math.max(c.fromY, c.toY))
+          }
+        })
+
+        layer.stamps?.forEach(stamp => {
+          if (stamp.width && stamp.height) {
+            hasContent = true
+            minX = Math.min(minX, stamp.x)
+            minY = Math.min(minY, stamp.y)
+            maxX = Math.max(maxX, stamp.x + stamp.width)
+            maxY = Math.max(maxY, stamp.y + stamp.height)
+          }
         })
       }
 

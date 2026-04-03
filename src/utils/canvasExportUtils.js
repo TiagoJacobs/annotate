@@ -57,11 +57,11 @@ export const getContentBounds = (layerManager) => {
     })
 
     layer.arrows?.forEach(arrow => {
-      if (arrow.x1 !== undefined && arrow.x2 !== undefined) {
+      if (arrow.fromX !== undefined && arrow.toX !== undefined) {
         const padding = (arrow.size || 2) / 2
         addRect(
-          Math.min(arrow.x1, arrow.x2) - padding, Math.min(arrow.y1, arrow.y2) - padding,
-          Math.abs(arrow.x2 - arrow.x1) + padding * 2, Math.abs(arrow.y2 - arrow.y1) + padding * 2,
+          Math.min(arrow.fromX, arrow.toX) - padding, Math.min(arrow.fromY, arrow.toY) - padding,
+          Math.abs(arrow.toX - arrow.fromX) + padding * 2, Math.abs(arrow.toY - arrow.fromY) + padding * 2,
           arrow.rotation
         )
       }

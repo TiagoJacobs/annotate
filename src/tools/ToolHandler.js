@@ -504,9 +504,10 @@ export class ToolHandler {
         if (shape.shapeType === 'connector') continue
 
         const layer = this.layerManager.getLayer(shape.layerId)
+        if (!layer) continue
         const arrayName = SHAPE_ARRAY_MAP[shape.shapeType]
-        const shapeData = arrayName ? layer?.[arrayName]?.[shape.shapeIndex]
-          : (shape.shapeType === 'image' ? layer?.image : null)
+        const shapeData = arrayName ? layer[arrayName]?.[shape.shapeIndex]
+          : (shape.shapeType === 'image' ? layer.image : null)
         if (!shapeData) continue
 
         shapeData.rotation = (this.shapeStartRotations[i] || 0) + deltaAngle
