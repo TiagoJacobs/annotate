@@ -57,7 +57,7 @@ export const ShapeOptionsPanel = React.forwardRef(({
 }, ref) => {
   const showFontSize = tool === 'text'
   const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
-  const showOptions = tool !== 'select' && tool !== 'pan' || selectedShape
+  const showOptions = (tool !== 'select' && tool !== 'pan' && tool !== 'stamp') || selectedShape
   const fillableTools = ['rect', 'ellipse']
   const isFillableShape = selectedShape && (
     Array.isArray(selectedShape)
@@ -97,16 +97,19 @@ export const ShapeOptionsPanel = React.forwardRef(({
     )
   }
 
-  return (
-    <div className="shape-toolbar">
-      {/* Stamp Picker - shown when stamp tool is active */}
-      {tool === 'stamp' && (
+  if (tool === 'stamp') {
+    return (
+      <div className="shape-toolbar">
         <div className="tool-group">
           <label>Stamp:</label>
           <StampPicker selectedStampId={selectedStampId} onSelect={setSelectedStampId} />
         </div>
-      )}
+      </div>
+    )
+  }
 
+  return (
+    <div className="shape-toolbar">
       {showOptions ? (
         <>
           {/* Color Picker */}

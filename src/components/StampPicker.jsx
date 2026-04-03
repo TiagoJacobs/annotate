@@ -6,17 +6,21 @@
 import React from 'react'
 import { STAMPS, STAMP_IDS } from '../assets/stamps'
 
+const stampImages = {}
+STAMP_IDS.forEach(id => {
+  const encoded = btoa(STAMPS[id].svg)
+  stampImages[id] = `data:image/svg+xml;base64,${encoded}`
+})
+
 export const StampPicker = ({ selectedStampId, onSelect }) => {
   return (
     <div className="stamp-picker" style={{
       display: 'flex',
-      flexWrap: 'wrap',
-      gap: '4px',
-      padding: '4px',
-      maxWidth: '200px',
+      gap: '2px',
     }}>
       {STAMP_IDS.map(id => {
         const stamp = STAMPS[id]
+        const isSelected = selectedStampId === id
         return (
           <button
             key={id}
@@ -24,17 +28,22 @@ export const StampPicker = ({ selectedStampId, onSelect }) => {
             onClick={() => onSelect(id)}
             title={stamp.name}
             style={{
-              width: '36px',
-              height: '36px',
-              padding: '4px',
+              width: '32px',
+              height: '32px',
+              padding: '3px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: selectedStampId === id ? '#667eea' : undefined,
+              background: isSelected ? '#667eea' : undefined,
               borderRadius: '4px',
             }}
-            dangerouslySetInnerHTML={{ __html: stamp.svg }}
-          />
+          >
+            <img
+              src={stampImages[id]}
+              alt={stamp.name}
+              style={{ width: '24px', height: '24px', pointerEvents: 'none' }}
+            />
+          </button>
         )
       })}
     </div>
