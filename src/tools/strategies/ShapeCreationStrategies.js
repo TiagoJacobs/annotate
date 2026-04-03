@@ -7,15 +7,15 @@
  * Base Strategy
  */
 class ShapeCreationStrategy {
-  start(layer, startPos, properties) {
+  start(_layer, _startPos, _properties) {
     throw new Error('start() must be implemented')
   }
 
-  preview(layer, startPos, currentPos, properties) {
+  preview(_layer, _startPos, _currentPos, _properties) {
     throw new Error('preview() must be implemented')
   }
 
-  finish(layer) {
+  finish(_layer) {
     throw new Error('finish() must be implemented')
   }
 }
@@ -41,7 +41,7 @@ export class FreehandStrokeStrategy extends ShapeCreationStrategy {
     stroke.points.push(pos)
   }
 
-  finish(layer) {
+  finish() {
     // No preview flag to remove for strokes
   }
 }
@@ -71,7 +71,13 @@ export class ArrowStrategy extends ShapeCreationStrategy {
   finish(layer) {
     if (layer.arrows.length > 0) {
       const lastIndex = layer.arrows.length - 1
-      delete layer.arrows[lastIndex].isPreview
+      const arrow = layer.arrows[lastIndex]
+      // Remove zero-length arrows (click without drag)
+      if (arrow.fromX === arrow.toX && arrow.fromY === arrow.toY) {
+        layer.arrows.splice(lastIndex, 1)
+        return
+      }
+      delete arrow.isPreview
     }
   }
 }

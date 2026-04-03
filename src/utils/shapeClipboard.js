@@ -44,6 +44,15 @@ class ClipboardStateManager {
   getAndIncrement() {
     return this.pasteCount++
   }
+
+  /**
+   * Decrement paste count (called on undo after a paste)
+   */
+  decrementIfPositive() {
+    if (this.pasteCount > 0) {
+      this.pasteCount--
+    }
+  }
 }
 
 // Global clipboard state instance
@@ -77,7 +86,8 @@ export const serializeShapesToClipboard = (selectedShapes, layerManager) => {
     serialized.push({
       shapeType,
       shapeData,
-      color: shapeData.color
+      color: shapeData.color,
+      originalRef: { layerId: shape.layerId, shapeType, shapeIndex }
     })
   }
 
@@ -90,7 +100,7 @@ export const serializeShapesToClipboard = (selectedShapes, layerManager) => {
 export const deserializeShapesFromClipboard = (clipboardData) => {
   try {
     return JSON.parse(clipboardData)
-  } catch (e) {
+  } catch {
     return null
   }
 }
@@ -122,9 +132,11 @@ export const pasteShapesIntoLayer = (layer, shapes, offsetX = 20, offsetY = 20, 
   if (!layer || !shapes) return []
 
   const pastedShapeRefs = []
+  // Map from "layerId:shapeType:shapeIndex" of original to pasted ref
+  const refMap = new Map()
 
   for (const item of shapes) {
-    const { shapeType, shapeData } = item
+    const { shapeType, shapeData, originalRef } = item
     const arrayName = getShapeArrayName(shapeType)
 
     if (shapeType === 'image') {
@@ -169,22 +181,21 @@ export const pasteShapesIntoLayer = (layer, shapes, offsetX = 20, offsetY = 20, 
           y: p.y + offsetY
         }))
       } else if (shapeType === 'arrow') {
-        // Offset arrow endpoints
-        newShape.x1 = (newShape.x1 || 0) + offsetX
-        newShape.y1 = (newShape.y1 || 0) + offsetY
-        newShape.x2 = (newShape.x2 || 0) + offsetX
-        newShape.y2 = (newShape.y2 || 0) + offsetY
-        // Handle alternative property names
-        if (newShape.fromX !== undefined) {
-          newShape.fromX += offsetX
-          newShape.fromY += offsetY
-          newShape.toX += offsetX
-          newShape.toY += offsetY
-        }
+        // Offset arrow endpoints (arrows use fromX/fromY/toX/toY)
+        newShape.fromX = (newShape.fromX || 0) + offsetX
+        newShape.fromY = (newShape.fromY || 0) + offsetY
+        newShape.toX = (newShape.toX || 0) + offsetX
+        newShape.toY = (newShape.toY || 0) + offsetY
       } else if (shapeType === 'rect' || shapeType === 'ellipse') {
         // Offset position
         newShape.x = (newShape.x || 0) + offsetX
         newShape.y = (newShape.y || 0) + offsetY
+      } else if (shapeType === 'connector') {
+        // Offset connector endpoints (same coordinate scheme as arrows)
+        newShape.fromX = (newShape.fromX || 0) + offsetX
+        newShape.fromY = (newShape.fromY || 0) + offsetY
+        newShape.toX = (newShape.toX || 0) + offsetX
+        newShape.toY = (newShape.toY || 0) + offsetY
       } else if (shapeType === 'text' || shapeType === 'stamp') {
         // Offset position
         newShape.x = (newShape.x || 0) + offsetX
@@ -197,11 +208,39 @@ export const pasteShapesIntoLayer = (layer, shapes, offsetX = 20, offsetY = 20, 
       const index = layer[arrayName].length
       layer[arrayName].push(newShape)
 
-      pastedShapeRefs.push({
+      const pastedRef = {
         layerId: layer.id,
         shapeType,
         shapeIndex: index
-      })
+      }
+      pastedShapeRefs.push(pastedRef)
+
+      // Record mapping from original ref to pasted ref for connector remapping
+      if (originalRef) {
+        const key = `${originalRef.layerId}:${originalRef.shapeType}:${originalRef.shapeIndex}`
+        refMap.set(key, pastedRef)
+      }
+    }
+  }
+
+  // Remap connector references to point to pasted shapes instead of originals
+  const connectorArrayName = getShapeArrayName('connector')
+  for (const pastedRef of pastedShapeRefs) {
+    if (pastedRef.shapeType !== 'connector') continue
+    const connector = layer[connectorArrayName]?.[pastedRef.shapeIndex]
+    if (!connector) continue
+
+    for (const endpoint of ['fromRef', 'toRef']) {
+      const ref = connector[endpoint]
+      if (!ref) continue
+      const key = `${ref.layerId}:${ref.shapeType}:${ref.shapeIndex}`
+      const mapped = refMap.get(key)
+      if (mapped) {
+        connector[endpoint] = { layerId: mapped.layerId, shapeType: mapped.shapeType, shapeIndex: mapped.shapeIndex }
+      } else {
+        // Referenced shape wasn't part of the paste — clear dangling ref
+        connector[endpoint] = null
+      }
     }
   }
 

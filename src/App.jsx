@@ -148,33 +148,6 @@ function Annotate() {
   }
 
   /**
-   * Check if current tool uses fontSize property
-   */
-  const showFontSize = () => {
-    const toolConfig = getToolConfig(tool)
-    return toolConfig?.properties?.fontSize !== undefined
-  }
-
-  /**
-   * Get color from a layer
-   */
-  const getLayerColor = (layer) => {
-    return layer?.color || DEFAULT_COLOR
-  }
-
-  /**
-   * Update color for a layer
-   */
-  const updateLayerColor = (layerId, newColor) => {
-    const layer = layerManagerRef.current.getLayer(layerId)
-    if (!layer) return
-
-    layer.color = newColor
-    layerManagerRef.current.updateLayerWithHistory(layerId, { color: newColor })
-    updateLayersState()
-  }
-
-  /**
    * Get color from selected shape - uses hook
    */
   const getSelectedShapeColor = () => {
@@ -319,7 +292,7 @@ function Annotate() {
       updateLayersState()
       renderCanvas()
       showSnackbar('Image cropped')
-    } catch (_err) {
+    } catch {
       showSnackbar('Failed to crop image')
     }
 
@@ -551,18 +524,6 @@ function Annotate() {
     setSelectedLayerId(newLayer.id)
   }
 
-  const deleteSelectedLayer = () => {
-    if (selectedLayerId) {
-      // Don't allow deleting the last layer
-      if (layerManagerRef.current.getAllLayers().length <= 1) {
-        return
-      }
-      layerManagerRef.current.deleteLayer(selectedLayerId)
-      updateLayersState()
-      setSelectedLayerId(layerManagerRef.current.selectedId)
-    }
-  }
-
   const toggleLayerVisibility = (layerId) => {
     layerManagerRef.current.toggleVisibility(layerId)
     updateLayersState()
@@ -687,7 +648,7 @@ function Annotate() {
   // ==================== Custom Hooks (called after all functions are defined) ====================
 
   // Use canvas renderer hook
-  const { renderCanvas, renderCanvasForExport } = useCanvasRenderer(
+  const { renderCanvas } = useCanvasRenderer(
     canvasManagerRef,
     layerManagerRef,
     toolHandlerRef,
@@ -870,12 +831,12 @@ function Annotate() {
         })
 
         layer.arrows?.forEach(arrow => {
-          if (arrow.x1 !== undefined && arrow.x2 !== undefined) {
+          if (arrow.fromX !== undefined && arrow.toX !== undefined) {
             hasContent = true
-            minX = Math.min(minX, Math.min(arrow.x1, arrow.x2))
-            minY = Math.min(minY, Math.min(arrow.y1, arrow.y2))
-            maxX = Math.max(maxX, Math.max(arrow.x1, arrow.x2))
-            maxY = Math.max(maxY, Math.max(arrow.y1, arrow.y2))
+            minX = Math.min(minX, Math.min(arrow.fromX, arrow.toX))
+            minY = Math.min(minY, Math.min(arrow.fromY, arrow.toY))
+            maxX = Math.max(maxX, Math.max(arrow.fromX, arrow.toX))
+            maxY = Math.max(maxY, Math.max(arrow.fromY, arrow.toY))
           }
         })
 
@@ -906,6 +867,26 @@ function Annotate() {
           minY = Math.min(minY, text.y)
           maxX = Math.max(maxX, text.x + textWidth)
           maxY = Math.max(maxY, text.y + text.fontSize)
+        })
+
+        layer.connectors?.forEach(c => {
+          if (c.fromX != null && c.toX != null) {
+            hasContent = true
+            minX = Math.min(minX, Math.min(c.fromX, c.toX))
+            minY = Math.min(minY, Math.min(c.fromY, c.toY))
+            maxX = Math.max(maxX, Math.max(c.fromX, c.toX))
+            maxY = Math.max(maxY, Math.max(c.fromY, c.toY))
+          }
+        })
+
+        layer.stamps?.forEach(stamp => {
+          if (stamp.width && stamp.height) {
+            hasContent = true
+            minX = Math.min(minX, stamp.x)
+            minY = Math.min(minY, stamp.y)
+            maxX = Math.max(maxX, stamp.x + stamp.width)
+            maxY = Math.max(maxY, stamp.y + stamp.height)
+          }
         })
       }
 
@@ -1137,9 +1118,6 @@ function Annotate() {
       document.removeEventListener('paste', handleDocumentPaste, true)
     }
   }, [])
-
-  // Track last clipboard content to detect when user copies something external
-  const lastClipboardContentRef = useRef(null)
 
   // Handle paste via Ctrl+V using Clipboard API
   useEffect(() => {

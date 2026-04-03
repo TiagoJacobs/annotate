@@ -216,8 +216,10 @@ export const useKeyboardShortcuts = ({
           e.preventDefault()
           if (e.shiftKey) {
             layerManagerRef.current?.redo()
+            clipboardStateManager.getAndIncrement()
           } else {
             layerManagerRef.current?.undo()
+            clipboardStateManager.decrementIfPositive()
           }
           updateLayersState()
           renderCanvas()

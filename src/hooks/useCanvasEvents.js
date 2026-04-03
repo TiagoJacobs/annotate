@@ -35,7 +35,6 @@ export const useCanvasEvents = ({
   showSnackbar,
   setZoom,
   selectLayer,
-  brushSize,
   setBrushSize,
   canvasReady
 }) => {

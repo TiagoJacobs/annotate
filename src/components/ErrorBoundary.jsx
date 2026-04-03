@@ -50,7 +50,7 @@ export class ErrorBoundary extends React.Component {
             <p style={{ color: '#666', marginBottom: '20px' }}>
               The application encountered an unexpected error. Please try refreshing the page.
             </p>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details style={{ textAlign: 'left', marginBottom: '20px', padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
                 <summary style={{ cursor: 'pointer', color: '#d32f2f', marginBottom: '10px' }}>
                   Error Details (Development Only)

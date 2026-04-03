@@ -28,8 +28,6 @@ export const CanvasArea = ({
   confirmCrop,
   cancelCrop,
   canvasManagerRef,
-  selectedShape,
-  layerManagerRef,
 }) => {
   const [cropStart, setCropStart] = useState(null)
 
