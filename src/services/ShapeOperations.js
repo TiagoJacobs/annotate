@@ -153,6 +153,13 @@ export class ShapeOperations {
 
   static getShapeBounds(layer, shapeType, shapeIndex) {
     const boundsGetters = {
+      connector: () => {
+        const c = layer.connectors[shapeIndex]
+        if (!c || c.fromX == null) return null
+        const minX = Math.min(c.fromX, c.toX)
+        const minY = Math.min(c.fromY, c.toY)
+        return { x: minX, y: minY, width: Math.abs(c.toX - c.fromX), height: Math.abs(c.toY - c.fromY) }
+      },
       stroke: () => this.getBoundsFromPoints(layer.strokes[shapeIndex].points),
       arrow: () => {
         const arrow = layer.arrows[shapeIndex]
@@ -310,6 +317,13 @@ export class ShapeOperations {
         layer.texts[shapeIndex].x += dx
         layer.texts[shapeIndex].y += dy
       },
+      connector: () => {
+        const c = layer.connectors[shapeIndex]
+        c.fromX += dx
+        c.fromY += dy
+        c.toX += dx
+        c.toY += dy
+      },
       image: () => {
         // Images are stored as layer.image (not in an array)
         if (layer.image) {
@@ -323,6 +337,55 @@ export class ShapeOperations {
     }
 
     moveHandlers[shapeType]?.()
+
+    // Update any connectors referencing this shape
+    this.updateConnectorsForShape(layer, shapeType, shapeIndex)
+  }
+
+  /**
+   * Recalculate connector endpoints that reference a shape
+   */
+  static updateConnectorsForShape(layer, shapeType, shapeIndex) {
+    if (!layer.connectors) return
+
+    for (const connector of layer.connectors) {
+      if (connector.fromRef &&
+          connector.fromRef.layerId === layer.id &&
+          connector.fromRef.shapeType === shapeType &&
+          connector.fromRef.shapeIndex === shapeIndex) {
+        const bounds = this.getShapeBounds(layer, shapeType, shapeIndex)
+        if (bounds) {
+          const pt = this.getAnchorPointFromBounds(bounds, connector.fromAnchor)
+          connector.fromX = pt.x
+          connector.fromY = pt.y
+        }
+      }
+      if (connector.toRef &&
+          connector.toRef.layerId === layer.id &&
+          connector.toRef.shapeType === shapeType &&
+          connector.toRef.shapeIndex === shapeIndex) {
+        const bounds = this.getShapeBounds(layer, shapeType, shapeIndex)
+        if (bounds) {
+          const pt = this.getAnchorPointFromBounds(bounds, connector.toAnchor)
+          connector.toX = pt.x
+          connector.toY = pt.y
+        }
+      }
+    }
+  }
+
+  /**
+   * Get anchor point from bounding box
+   */
+  static getAnchorPointFromBounds(bounds, anchor) {
+    switch (anchor) {
+      case 'top': return { x: bounds.x + bounds.width / 2, y: bounds.y }
+      case 'bottom': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }
+      case 'left': return { x: bounds.x, y: bounds.y + bounds.height / 2 }
+      case 'right': return { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 }
+      case 'center': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      default: return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+    }
   }
 
   /**
@@ -527,7 +590,7 @@ export class ShapeOperations {
           y: groupBounds.y + (p.y - currentGroupBounds.y) / alreadyScaledY
         }))
         originalShapeData.set(key, { ...shapeData, points: reversedPoints })
-      } else if (shapeType === 'arrow') {
+      } else if (shapeType === 'arrow' || shapeType === 'connector') {
         originalShapeData.set(key, {
           ...shapeData,
           fromX: groupBounds.x + (shapeData.fromX - currentGroupBounds.x) / alreadyScaledX,
@@ -588,7 +651,7 @@ export class ShapeOperations {
       // 2. Scale the relative position
       // 3. Add to the new group position
 
-      if (shapeType === 'arrow') {
+      if (shapeType === 'arrow' || shapeType === 'connector') {
         const relFromX = originalData.fromX - groupBounds.x
         const relFromY = originalData.fromY - groupBounds.y
         const relToX = originalData.toX - groupBounds.x
@@ -599,7 +662,6 @@ export class ShapeOperations {
         let toX = newGroupBounds.x + relToX * scaleX
         let toY = newGroupBounds.y + relToY * scaleY
 
-        // Handle flipped arrows (negative scale)
         if (scaleX < 0) {
           [fromX, toX] = [toX, fromX]
         }
@@ -694,7 +756,8 @@ export class ShapeOperations {
         { type: 'arrow', array: layer.arrows },
         { type: 'rect', array: layer.rects },
         { type: 'ellipse', array: layer.ellipses },
-        { type: 'text', array: layer.texts }
+        { type: 'text', array: layer.texts },
+        { type: 'connector', array: layer.connectors || [] }
       ]
 
       for (const { type, array } of shapeArrays) {
@@ -716,6 +779,11 @@ export class ShapeOperations {
 
   static checkLayerShapes(pos, layer) {
     const shapeChecks = [
+      { type: 'connector', array: layer.connectors, test: (connector) => {
+        if (connector.fromX == null || connector.toX == null) return false
+        const threshold = Math.max(LINE_HIT_THRESHOLD, (connector.size || 3) / 2)
+        return this.isPointNearLine(pos.x, pos.y, connector.fromX, connector.fromY, connector.toX, connector.toY, threshold)
+      }},
       { type: 'text', array: layer.texts, test: (shape) => this.isPointOnText(pos.x, pos.y, shape) },
       { type: 'ellipse', array: layer.ellipses, test: (shape) => {
         // Check if point is inside the ellipse (fill) OR near the stroke
@@ -780,76 +848,132 @@ export class ShapeOperations {
   }
 
   /**
+   * Get shape array name from shape type
+   */
+  static getShapeArrayName(shapeType) {
+    return SHAPE_ARRAY_MAP[shapeType]
+  }
+
+  /**
+   * Find all shapes sharing a groupId across all layers
+   */
+  static findShapesInGroup(groupId, layerManager) {
+    if (!groupId) return []
+    const shapes = []
+    const layers = layerManager.getAllLayers()
+
+    for (const layer of layers) {
+      if (!layer.visible || layer.locked) continue
+
+      for (const [shapeType, arrayName] of Object.entries(SHAPE_ARRAY_MAP)) {
+        const arr = layer[arrayName]
+        if (!arr) continue
+        for (let i = 0; i < arr.length; i++) {
+          if (arr[i].groupId === groupId) {
+            shapes.push({ layerId: layer.id, shapeType, shapeIndex: i })
+          }
+        }
+      }
+    }
+
+    return shapes
+  }
+
+  /**
    * Align multiple shapes along an edge or center
    * @param {Array} shapes - Array of { layerId, shapeType, shapeIndex }
    * @param {Object} layerManager
    * @param {'left'|'right'|'top'|'bottom'|'centerH'|'centerV'} alignment
    */
+  /**
+   * Build alignment units from shapes -- groups are treated as one unit
+   */
+  static buildAlignmentUnits(shapes, layerManager) {
+    const groupMap = new Map() // groupId → [shapes]
+    const ungrouped = []
+
+    for (const shape of shapes) {
+      const layer = layerManager.getLayer(shape.layerId)
+      if (!layer) continue
+      const arrayName = this.getShapeArrayName(shape.shapeType)
+      const shapeData = arrayName ? layer[arrayName]?.[shape.shapeIndex] : null
+      const groupId = shapeData?.groupId
+
+      if (groupId) {
+        if (!groupMap.has(groupId)) groupMap.set(groupId, [])
+        groupMap.get(groupId).push(shape)
+      } else {
+        ungrouped.push(shape)
+      }
+    }
+
+    const units = []
+    for (const [, groupShapes] of groupMap) {
+      const bounds = this.getMultiShapeBounds(groupShapes, layerManager)
+      if (bounds) units.push({ shapes: groupShapes, bounds })
+    }
+    for (const shape of ungrouped) {
+      const layer = layerManager.getLayer(shape.layerId)
+      if (!layer) continue
+      const bounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+      if (bounds) units.push({ shapes: [shape], bounds })
+    }
+    return units
+  }
+
+  /**
+   * Count alignment units for UI visibility
+   */
+  static getAlignmentUnitCount(shapes, layerManager) {
+    return this.buildAlignmentUnits(shapes, layerManager).length
+  }
+
   static alignShapes(shapes, layerManager, alignment) {
     if (!shapes || shapes.length < 2) return
 
-    // Get bounds for each shape
-    const shapeBounds = shapes.map(shape => {
-      const layer = layerManager.getLayer(shape.layerId)
-      if (!layer) return null
-      const bounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
-      return bounds ? { shape, bounds } : null
-    }).filter(Boolean)
+    const units = this.buildAlignmentUnits(shapes, layerManager)
+    if (units.length < 2) return
 
-    if (shapeBounds.length < 2) return
-
-    // Compute the alignment target
+    // Compute alignment target from unit bounds
     let target
     switch (alignment) {
       case 'left':
-        target = Math.min(...shapeBounds.map(s => s.bounds.x))
+        target = Math.min(...units.map(u => u.bounds.x))
         break
       case 'right':
-        target = Math.max(...shapeBounds.map(s => s.bounds.x + s.bounds.width))
+        target = Math.max(...units.map(u => u.bounds.x + u.bounds.width))
         break
       case 'top':
-        target = Math.min(...shapeBounds.map(s => s.bounds.y))
+        target = Math.min(...units.map(u => u.bounds.y))
         break
       case 'bottom':
-        target = Math.max(...shapeBounds.map(s => s.bounds.y + s.bounds.height))
+        target = Math.max(...units.map(u => u.bounds.y + u.bounds.height))
         break
       case 'centerH':
-        target = shapeBounds.reduce((sum, s) => sum + s.bounds.x + s.bounds.width / 2, 0) / shapeBounds.length
+        target = units.reduce((sum, u) => sum + u.bounds.x + u.bounds.width / 2, 0) / units.length
         break
       case 'centerV':
-        target = shapeBounds.reduce((sum, s) => sum + s.bounds.y + s.bounds.height / 2, 0) / shapeBounds.length
+        target = units.reduce((sum, u) => sum + u.bounds.y + u.bounds.height / 2, 0) / units.length
         break
     }
 
-    // Move each shape to align
-    for (const { shape, bounds } of shapeBounds) {
-      const layer = layerManager.getLayer(shape.layerId)
-      if (!layer) continue
-
+    // Move each unit -- all shapes in a unit get the same delta
+    for (const unit of units) {
       let dx = 0, dy = 0
       switch (alignment) {
-        case 'left':
-          dx = target - bounds.x
-          break
-        case 'right':
-          dx = target - (bounds.x + bounds.width)
-          break
-        case 'top':
-          dy = target - bounds.y
-          break
-        case 'bottom':
-          dy = target - (bounds.y + bounds.height)
-          break
-        case 'centerH':
-          dx = target - (bounds.x + bounds.width / 2)
-          break
-        case 'centerV':
-          dy = target - (bounds.y + bounds.height / 2)
-          break
+        case 'left': dx = target - unit.bounds.x; break
+        case 'right': dx = target - (unit.bounds.x + unit.bounds.width); break
+        case 'top': dy = target - unit.bounds.y; break
+        case 'bottom': dy = target - (unit.bounds.y + unit.bounds.height); break
+        case 'centerH': dx = target - (unit.bounds.x + unit.bounds.width / 2); break
+        case 'centerV': dy = target - (unit.bounds.y + unit.bounds.height / 2); break
       }
 
       if (dx !== 0 || dy !== 0) {
-        this.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
+        for (const shape of unit.shapes) {
+          const layer = layerManager.getLayer(shape.layerId)
+          if (layer) this.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
+        }
       }
     }
   }

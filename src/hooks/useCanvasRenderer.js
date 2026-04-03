@@ -4,7 +4,8 @@
  */
 
 import { useRef, useCallback } from 'react'
-import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE } from '../config/uiConstants'
+import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE, HANDLE_HIT_THRESHOLD } from '../config/uiConstants'
+import { ShapeOperations } from '../services/ShapeOperations'
 
 export const useCanvasRenderer = (
   canvasManagerRef,
@@ -47,6 +48,7 @@ export const useCanvasRenderer = (
         layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, '#000000'))
         layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
         layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))
+        layer.connectors?.forEach(connector => shapeRendererRef.current.renderShape(ctx, 'connector', connector, '#000000'))
       }
 
       ctx.globalAlpha = 1
@@ -59,6 +61,9 @@ export const useCanvasRenderer = (
 
     // Draw selection box with resize handles
     renderSelectionBox(canvasManager, ctx)
+
+    // Draw connector anchor dots and hover highlights
+    renderConnectorFeedback(canvasManager, ctx)
   }, [canvasManagerRef, layerManagerRef, toolHandlerRef, shapeRendererRef, selectedShapeRef])
 
   /**
@@ -111,17 +116,25 @@ export const useCanvasRenderer = (
     const padding = SELECTION_PADDING
     const handleSize = RESIZE_HANDLE_SIZE / canvasManager.zoom
 
-    // Draw dashed bounding box
-    ctx.strokeStyle = '#667eea'
-    ctx.lineWidth = 2 / canvasManager.zoom
-    ctx.setLineDash([SELECTION_PADDING / canvasManager.zoom, SELECTION_PADDING / canvasManager.zoom])
-    ctx.strokeRect(
-      bounds.x - padding,
-      bounds.y - padding,
-      bounds.width + padding * 2,
-      bounds.height + padding * 2
-    )
-    ctx.setLineDash([])
+    const selected = selectedShapeRef.current
+    const effectiveShape = Array.isArray(selected) && selected.length === 1 ? selected[0] : selected
+    const isSingle = !Array.isArray(effectiveShape)
+    const shapeType = isSingle ? effectiveShape.shapeType : null
+    const isEndpointShape = shapeType === 'arrow' || shapeType === 'connector'
+
+    // Draw dashed bounding box (skip for arrows/connectors -- they use endpoint handles)
+    if (!isEndpointShape) {
+      ctx.strokeStyle = '#667eea'
+      ctx.lineWidth = 2 / canvasManager.zoom
+      ctx.setLineDash([SELECTION_PADDING / canvasManager.zoom, SELECTION_PADDING / canvasManager.zoom])
+      ctx.strokeRect(
+        bounds.x - padding,
+        bounds.y - padding,
+        bounds.width + padding * 2,
+        bounds.height + padding * 2
+      )
+      ctx.setLineDash([])
+    }
 
     // Draw resize handles
     ctx.fillStyle = '#667eea'
@@ -130,37 +143,34 @@ export const useCanvasRenderer = (
 
     let handles = []
 
-    // For arrows, show endpoint handles instead of corner resize handles
-    if (!Array.isArray(selectedShapeRef.current) && selectedShapeRef.current.shapeType === 'arrow') {
-      const layer = layerManagerRef.current.getLayer(selectedShapeRef.current.layerId)
-      if (layer && layer.arrows[selectedShapeRef.current.shapeIndex]) {
-        const arrow = layer.arrows[selectedShapeRef.current.shapeIndex]
-
-        // Calculate arrow head tip position (extend beyond toX, toY by the head length)
-        const size = arrow.size || 2
+    // For arrows and connectors, show endpoint handles instead of corner resize handles
+    if (isSingle && isEndpointShape) {
+      const layer = layerManagerRef.current.getLayer(effectiveShape.layerId)
+      const arrayName = shapeType === 'arrow' ? 'arrows' : 'connectors'
+      const shape = layer?.[arrayName]?.[effectiveShape.shapeIndex]
+      if (shape) {
+        const size = shape.size || 2
         const headLength = Math.max(6, 8 + Math.log(size) * 6)
-        const angle = Math.atan2(arrow.toY - arrow.fromY, arrow.toX - arrow.fromX)
-        const headTipX = arrow.toX + headLength * Math.cos(angle)
-        const headTipY = arrow.toY + headLength * Math.sin(angle)
+        const angle = Math.atan2(shape.toY - shape.fromY, shape.toX - shape.fromX)
+        const headTipX = shape.toX + headLength * Math.cos(angle)
+        const headTipY = shape.toY + headLength * Math.sin(angle)
 
         handles = [
-          { x: arrow.fromX, y: arrow.fromY, cursor: 'crosshair' }, // start point
-          { x: headTipX, y: headTipY, cursor: 'crosshair' }, // arrow head tip (visual end)
+          { x: shape.fromX, y: shape.fromY, cursor: 'crosshair' },
+          { x: headTipX, y: headTipY, cursor: 'crosshair' },
         ]
       }
     } else {
       // Standard corner/edge handles for other shapes
       handles = [
-        // Corners
-        { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' }, // top-left
-        { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' }, // top-right
-        { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' }, // bottom-left
-        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' }, // bottom-right
-        // Edges
-        { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' }, // top
-        { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' }, // bottom
-        { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' }, // left
-        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' }, // right
+        { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' },
+        { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' },
+        { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' },
+        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' },
+        { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' },
+        { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' },
+        { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' },
+        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' },
       ]
     }
 
@@ -182,6 +192,86 @@ export const useCanvasRenderer = (
     canvasManager.resetTransform()
     canvasManager.restore()
   }, [canvasManagerRef, layerManagerRef, toolHandlerRef, selectedShapeRef])
+
+  /**
+   * Render connector hover feedback: anchor dots on hovered shapes, highlight on target during drawing
+   */
+  const renderConnectorFeedback = useCallback((canvasManager, ctx) => {
+    const handler = toolHandlerRef.current
+    if (!handler) return
+
+    const anchors = ['top', 'bottom', 'left', 'right', 'center']
+    const getAnchorPt = (bounds, anchor) => {
+      switch (anchor) {
+        case 'top': return { x: bounds.x + bounds.width / 2, y: bounds.y }
+        case 'bottom': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }
+        case 'left': return { x: bounds.x, y: bounds.y + bounds.height / 2 }
+        case 'right': return { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 }
+        case 'center': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      }
+    }
+
+    const drawAnchorDots = (bounds, highlightAnchor) => {
+      const dotRadius = 4 / canvasManager.zoom
+      for (const anchor of anchors) {
+        const pt = getAnchorPt(bounds, anchor)
+        ctx.beginPath()
+        ctx.arc(pt.x, pt.y, dotRadius, 0, Math.PI * 2)
+        if (anchor === highlightAnchor) {
+          ctx.fillStyle = '#4a9eff'
+          ctx.fill()
+        } else {
+          ctx.fillStyle = '#ffffff'
+          ctx.fill()
+          ctx.strokeStyle = '#4a9eff'
+          ctx.lineWidth = 1.5 / canvasManager.zoom
+          ctx.stroke()
+        }
+      }
+    }
+
+    // During connector drawing or endpoint dragging: highlight target shape + anchor dots
+    if ((handler.isDrawing || handler.isConnectorEndpointDragging) && handler.connectorHoverTarget) {
+      const target = handler.connectorHoverTarget
+      const layer = layerManagerRef.current?.getLayer(target.layerId)
+      if (layer) {
+        const bounds = ShapeOperations.getShapeBounds(layer, target.shapeType, target.shapeIndex)
+        if (bounds) {
+          canvasManager.save()
+          canvasManager.applyTransform()
+
+          // Highlight rect around target shape
+          ctx.strokeStyle = '#4a9eff'
+          ctx.lineWidth = 2 / canvasManager.zoom
+          ctx.setLineDash([])
+          ctx.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6)
+
+          // Anchor dots with the snapped anchor highlighted
+          drawAnchorDots(bounds, target.anchor)
+
+          canvasManager.resetTransform()
+          canvasManager.restore()
+        }
+      }
+      return
+    }
+
+    // Hover (not drawing): show anchor dots on shape under cursor
+    if (handler.connectorHoverShape) {
+      const shape = handler.connectorHoverShape
+      const layer = layerManagerRef.current?.getLayer(shape.layerId)
+      if (layer) {
+        const bounds = ShapeOperations.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+        if (bounds) {
+          canvasManager.save()
+          canvasManager.applyTransform()
+          drawAnchorDots(bounds, null)
+          canvasManager.resetTransform()
+          canvasManager.restore()
+        }
+      }
+    }
+  }, [toolHandlerRef, layerManagerRef])
 
   /**
    * Render canvas for export (without selection UI)

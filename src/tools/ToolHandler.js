@@ -31,10 +31,11 @@ export class ToolHandler {
    * Start freehand stroke (pen, hand) - Using Strategy Pattern
    */
   startFreehandStroke(pos, toolConfig, properties) {
-    // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
-    if (layer.locked) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
 
     this.isDrawing = true
     this.startPos = pos
@@ -75,10 +76,11 @@ export class ToolHandler {
    * Start shape (arrow, rect, ellipse) - Using Strategy Pattern
    */
   startShape(pos, toolConfig, properties) {
-    // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
-    if (layer.locked) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
 
     this.isDrawing = true
     this.startPos = pos
@@ -128,10 +130,11 @@ export class ToolHandler {
   placeText(pos, toolConfig, properties, textContent) {
     if (!textContent) return
 
-    // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
-    if (layer.locked) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
 
     // Use strategy to place text
     const strategy = ShapeStrategyFactory.getStrategy('text')
@@ -139,6 +142,176 @@ export class ToolHandler {
 
     // Save to history when text is placed
     this.layerManager.updateLayerWithHistory(layer.id, { texts: layer.texts })
+  }
+
+  /**
+   * Get anchor point position on a shape's bounding box
+   */
+  getAnchorPoint(bounds, anchor) {
+    switch (anchor) {
+      case 'top': return { x: bounds.x + bounds.width / 2, y: bounds.y }
+      case 'bottom': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }
+      case 'left': return { x: bounds.x, y: bounds.y + bounds.height / 2 }
+      case 'right': return { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 }
+      case 'center': return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      default: return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+    }
+  }
+
+  /**
+   * Find the nearest anchor on a shape near a position.
+   * If the mouse is inside a shape, returns the closest anchor on that shape.
+   */
+  findNearestAnchor(pos) {
+    const layers = this.layerManager.getAllLayers()
+    const anchors = ['top', 'bottom', 'left', 'right', 'center']
+    const padding = 10
+
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const layer = layers[i]
+      if (!layer.visible || layer.locked) continue
+
+      const shapeArrays = [
+        { type: 'rect', array: layer.rects },
+        { type: 'ellipse', array: layer.ellipses },
+        { type: 'arrow', array: layer.arrows },
+        { type: 'stroke', array: layer.strokes },
+        { type: 'text', array: layer.texts },
+      ]
+
+      for (const { type, array } of shapeArrays) {
+        if (!array) continue
+        for (let j = array.length - 1; j >= 0; j--) {
+          const bounds = this.getShapeBounds(layer, type, j)
+          if (!bounds) continue
+
+          // Check if mouse is inside or near the shape's bounds
+          const expanded = {
+            x: bounds.x - padding,
+            y: bounds.y - padding,
+            width: bounds.width + padding * 2,
+            height: bounds.height + padding * 2
+          }
+          if (!ShapeOperations.isPointInRect(pos.x, pos.y, expanded)) continue
+
+          // Find the nearest anchor on this shape
+          let bestAnchor = null
+          let bestDist = Infinity
+          for (const anchor of anchors) {
+            const pt = this.getAnchorPoint(bounds, anchor)
+            const dist = Math.hypot(pos.x - pt.x, pos.y - pt.y)
+            if (dist < bestDist) {
+              bestDist = dist
+              bestAnchor = { layerId: layer.id, shapeType: type, shapeIndex: j, anchor, point: pt }
+            }
+          }
+          if (bestAnchor) return bestAnchor
+        }
+      }
+    }
+    return null
+  }
+
+  /**
+   * Start connector - find anchor on shape at mouse position
+   */
+  startConnector(pos, toolConfig, properties) {
+    const layer = this.layerManager.getSelectedLayer()
+    if (!layer) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
+
+    const anchorResult = this.findNearestAnchor(pos)
+    this.connectorStart = anchorResult
+    this.connectorLayer = layer
+    this.isDrawing = true
+    this.startPos = anchorResult ? anchorResult.point : pos
+  }
+
+  /**
+   * Preview connector line while dragging
+   */
+  previewConnector(pos, toolConfig, properties) {
+    if (!this.isDrawing || !this.connectorLayer) return
+
+    this.connectorLastPos = pos
+    this.connectorProperties = properties
+    this.connectorHoverTarget = this.findNearestAnchor(pos)
+    const layer = this.connectorLayer
+    // Remove existing connector previews
+    layer.connectors = (layer.connectors || []).filter(c => !c.isPreview)
+
+    const fromPt = this.connectorStart ? this.connectorStart.point : this.startPos
+
+    layer.connectors.push({
+      fromX: fromPt.x,
+      fromY: fromPt.y,
+      toX: pos.x,
+      toY: pos.y,
+      fromRef: this.connectorStart ? { layerId: this.connectorStart.layerId, shapeType: this.connectorStart.shapeType, shapeIndex: this.connectorStart.shapeIndex } : null,
+      toRef: null,
+      fromAnchor: this.connectorStart?.anchor || 'center',
+      toAnchor: 'center',
+      size: properties.size,
+      color: properties.color,
+      lineStyle: properties.lineStyle,
+      groupId: null,
+      isPreview: true,
+    })
+
+    this.layerManager.updateLayer(layer.id, layer)
+  }
+
+  /**
+   * Finish connector - find anchor at drop position
+   */
+  finishConnector() {
+    if (!this.connectorLayer) {
+      this.isDrawing = false
+      return
+    }
+
+    const layer = this.connectorLayer
+    layer.connectors = (layer.connectors || []).filter(c => !c.isPreview)
+
+    if (!this.connectorStart || !this.connectorLastPos) {
+      this.isDrawing = false
+      this.connectorStart = null
+      this.connectorLayer = null
+      this.connectorHoverTarget = null
+      this.connectorHoverShape = null
+      return
+    }
+
+    const endAnchor = this.findNearestAnchor(this.connectorLastPos)
+    const fromPt = this.connectorStart.point
+    const toPt = endAnchor ? endAnchor.point : this.connectorLastPos
+
+    layer.connectors.push({
+      id: crypto.randomUUID(),
+      fromX: fromPt.x,
+      fromY: fromPt.y,
+      toX: toPt.x,
+      toY: toPt.y,
+      fromRef: { layerId: this.connectorStart.layerId, shapeType: this.connectorStart.shapeType, shapeIndex: this.connectorStart.shapeIndex },
+      toRef: endAnchor ? { layerId: endAnchor.layerId, shapeType: endAnchor.shapeType, shapeIndex: endAnchor.shapeIndex } : null,
+      fromAnchor: this.connectorStart.anchor,
+      toAnchor: endAnchor?.anchor || 'center',
+      size: this.connectorProperties?.size || 2,
+      color: this.connectorProperties?.color || '#000000',
+      lineStyle: this.connectorProperties?.lineStyle || 'solid',
+      groupId: null,
+    })
+
+    this.layerManager.updateLayerWithHistory(layer.id, layer)
+
+    this.isDrawing = false
+    this.connectorStart = null
+    this.connectorLayer = null
+    this.connectorLastPos = null
+    this.connectorHoverTarget = null
+    this.connectorHoverShape = null
   }
 
   /**
@@ -208,6 +381,27 @@ export class ToolHandler {
     if (distFromEnd < threshold + 2) {
       return 'to'
     }
+
+    return null
+  }
+
+  /**
+   * Detect if click is near a connector endpoint
+   */
+  getConnectorEndpointHandle(pos, connector) {
+    const threshold = HANDLE_HIT_THRESHOLD
+
+    const distFromStart = Math.sqrt((pos.x - connector.fromX) ** 2 + (pos.y - connector.fromY) ** 2)
+    if (distFromStart < threshold + 2) return 'from'
+
+    const size = connector.size || 2
+    const headLength = Math.max(6, 8 + Math.log(size) * 6)
+    const angle = Math.atan2(connector.toY - connector.fromY, connector.toX - connector.fromX)
+    const headTipX = connector.toX + headLength * Math.cos(angle)
+    const headTipY = connector.toY + headLength * Math.sin(angle)
+
+    const distFromEnd = Math.sqrt((pos.x - headTipX) ** 2 + (pos.y - headTipY) ** 2)
+    if (distFromEnd < threshold + 2) return 'to'
 
     return null
   }
@@ -334,7 +528,6 @@ export class ToolHandler {
             const arrow = layer.arrows[this.selectedShape.shapeIndex]
             const endpointHandle = this.getArrowEndpointHandle(pos, arrow)
             if (endpointHandle) {
-              // Activate endpoint drag mode
               this.isArrowEndpointDragging = true
               this.arrowEndpointHandle = endpointHandle
               this.arrowEndpointStartPos = pos
@@ -342,14 +535,27 @@ export class ToolHandler {
             }
           }
 
-          // Check if clicking on a resize handle
-          const handle = this.getResizeHandle(pos, bounds)
-          if (handle) {
-            this.resizeHandle = handle
-            this.resizeStartPos = pos
-            this.resizeStartBounds = { ...bounds }
-            this.isResizing = true
-            return this.selectedShape
+          // Check if this is a connector and clicking on an endpoint
+          if (this.selectedShape.shapeType === 'connector' && layer.connectors?.[this.selectedShape.shapeIndex]) {
+            const connector = layer.connectors[this.selectedShape.shapeIndex]
+            const endpointHandle = this.getConnectorEndpointHandle(pos, connector)
+            if (endpointHandle) {
+              this.isConnectorEndpointDragging = true
+              this.connectorEndpointHandle = endpointHandle
+              return this.selectedShape
+            }
+          }
+
+          // Check if clicking on a resize handle (skip for connectors -- they only use endpoint handles)
+          if (this.selectedShape.shapeType !== 'connector') {
+            const handle = this.getResizeHandle(pos, bounds)
+            if (handle) {
+              this.resizeHandle = handle
+              this.resizeStartPos = pos
+              this.resizeStartBounds = { ...bounds }
+              this.isResizing = true
+              return this.selectedShape
+            }
           }
 
           // Check if clicking inside the selected shape bounds (for dragging)
@@ -384,6 +590,26 @@ export class ToolHandler {
     // Handle shift-click multi-selection
     if (isShiftHeld && clickedShape) {
       return this.toggleShapeInSelection(clickedShape)
+    }
+
+    // Expand to group if the clicked shape has a groupId
+    if (clickedShape) {
+      const layer = this.layerManager.getLayer(clickedShape.layerId)
+      if (layer) {
+        const shapeArrayName = ShapeOperations.getShapeArrayName(clickedShape.shapeType)
+        const shapeData = shapeArrayName ? layer[shapeArrayName]?.[clickedShape.shapeIndex] : null
+        if (shapeData && shapeData.groupId) {
+          const groupShapes = ShapeOperations.findShapesInGroup(shapeData.groupId, this.layerManager)
+          if (groupShapes.length > 1) {
+            this.selectedShape = null
+            this.selectedShapes = groupShapes
+            this.isDragging = false
+            this.isResizing = false
+            this.resizeHandle = null
+            return groupShapes
+          }
+        }
+      }
     }
 
     // Normal single selection (no shift)
@@ -595,6 +821,40 @@ export class ToolHandler {
       return
     }
 
+    // Handle connector endpoint dragging
+    if (this.isConnectorEndpointDragging && this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      const connector = layer?.connectors?.[this.selectedShape.shapeIndex]
+      if (connector) {
+        // Detect snap target for visual feedback
+        this.connectorHoverTarget = this.findNearestAnchor(pos)
+
+        let newX = pos.x
+        let newY = pos.y
+
+        // Compensate for arrowhead on 'to' endpoint
+        if (this.connectorEndpointHandle === 'to') {
+          const size = connector.size || 2
+          const headLength = Math.max(6, 8 + Math.log(size) * 6)
+          const refX = this.connectorEndpointHandle === 'to' ? connector.fromX : connector.toX
+          const refY = this.connectorEndpointHandle === 'to' ? connector.fromY : connector.toY
+          const angle = Math.atan2(pos.y - refY, pos.x - refX)
+          newX = pos.x - headLength * Math.cos(angle)
+          newY = pos.y - headLength * Math.sin(angle)
+        }
+
+        if (this.connectorEndpointHandle === 'from') {
+          connector.fromX = newX
+          connector.fromY = newY
+        } else {
+          connector.toX = newX
+          connector.toY = newY
+        }
+        this.layerManager.updateLayer(layer.id, layer)
+      }
+      return
+    }
+
     // If resizing, call resize instead
     if (this.isResizing) {
       this.resizeShape(pos, isShiftHeld)
@@ -646,6 +906,39 @@ export class ToolHandler {
    */
   releaseObject() {
     // Save to history when drag/resize/endpoint-drag is complete
+    // Handle connector endpoint release -- snap to anchor
+    if (this.isConnectorEndpointDragging && this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      const connector = layer?.connectors?.[this.selectedShape.shapeIndex]
+      if (connector) {
+        const anchor = this.connectorHoverTarget
+        const handle = this.connectorEndpointHandle
+        if (anchor) {
+          const pt = anchor.point
+          if (handle === 'from') {
+            connector.fromX = pt.x
+            connector.fromY = pt.y
+            connector.fromRef = { layerId: anchor.layerId, shapeType: anchor.shapeType, shapeIndex: anchor.shapeIndex }
+            connector.fromAnchor = anchor.anchor
+          } else {
+            connector.toX = pt.x
+            connector.toY = pt.y
+            connector.toRef = { layerId: anchor.layerId, shapeType: anchor.shapeType, shapeIndex: anchor.shapeIndex }
+            connector.toAnchor = anchor.anchor
+          }
+        } else {
+          // No snap -- clear the ref for this endpoint
+          if (handle === 'from') { connector.fromRef = null }
+          else { connector.toRef = null }
+        }
+        this.layerManager.updateLayerWithHistory(layer.id, layer)
+      }
+      this.isConnectorEndpointDragging = false
+      this.connectorEndpointHandle = null
+      this.connectorHoverTarget = null
+      return
+    }
+
     if (this.isDragging || this.isResizing || this.isArrowEndpointDragging) {
       if (this.selectedShapes) {
         const updatedLayers = new Set()

@@ -3,8 +3,9 @@
  * Renders color picker, size slider, and line style selector
  */
 
-import React from 'react'
-import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal } from 'lucide-react'
+import React, { useMemo } from 'react'
+import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup } from 'lucide-react'
+import { ShapeOperations } from '../services/ShapeOperations'
 
 export const ShapeOptionsPanel = React.forwardRef(({
   tool,
@@ -28,6 +29,10 @@ export const ShapeOptionsPanel = React.forwardRef(({
   setFontSize,
   setLineStyle,
   alignSelectedShapes,
+  groupSelectedShapes,
+  ungroupSelectedShapes,
+  isGroupSelected,
+  layerManagerRef,
   saveToolProperty,
   colorPickerRef,
   sizeSliderRef,
@@ -44,6 +49,10 @@ export const ShapeOptionsPanel = React.forwardRef(({
   )
   const showFill = fillableTools.includes(tool) || isFillableShape
   const isMultiSelect = Array.isArray(selectedShape) && selectedShape.length >= 2
+  const showAlignment = useMemo(() => {
+    if (!isMultiSelect || !layerManagerRef?.current) return false
+    return ShapeOperations.getAlignmentUnitCount(selectedShape, layerManagerRef.current) >= 2
+  }, [isMultiSelect, selectedShape, layerManagerRef])
 
   // Don't show shape options if an image is selected
   if (isImageSelected) {
@@ -177,7 +186,7 @@ export const ShapeOptionsPanel = React.forwardRef(({
           )}
 
           {/* Alignment Controls */}
-          {isMultiSelect && (
+          {showAlignment && (
             <div className="tool-group">
               <label>Align:</label>
               <div style={{ display: 'flex', gap: '2px' }}>
@@ -200,6 +209,26 @@ export const ShapeOptionsPanel = React.forwardRef(({
                   <AlignEndHorizontal size={14} />
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Group/Ungroup Controls */}
+          {isMultiSelect && !isGroupSelected && (
+            <div className="tool-group">
+              <button className="layer-btn" onClick={groupSelectedShapes} title="Group selected shapes (Ctrl+G)" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px' }}>
+                <Group size={14} />
+                <span style={{ fontSize: '11px' }}>Group</span>
+                <kbd style={{ fontSize: '10px', color: '#888', marginLeft: '2px' }}>Ctrl+G</kbd>
+              </button>
+            </div>
+          )}
+          {isGroupSelected && (
+            <div className="tool-group">
+              <button className="layer-btn" onClick={ungroupSelectedShapes} title="Ungroup shapes (Ctrl+Shift+G)" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px' }}>
+                <Ungroup size={14} />
+                <span style={{ fontSize: '11px' }}>Ungroup</span>
+                <kbd style={{ fontSize: '10px', color: '#888', marginLeft: '2px' }}>Ctrl+Shift+G</kbd>
+              </button>
             </div>
           )}
         </>

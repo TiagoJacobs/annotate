@@ -11,14 +11,27 @@ import {
   Square,
   Circle,
   ArrowRight,
+  Spline,
   Type,
   ZoomIn,
   ZoomOut,
   Home,
   MousePointer,
   Hand,
+  Github,
 } from 'lucide-react'
 import { toolRegistry } from '../tools/toolRegistry'
+
+const iconMap = {
+  pen: <Pen size={20} />,
+  'arrow-right': <ArrowRight size={20} />,
+  square: <Square size={20} />,
+  circle: <Circle size={20} />,
+  type: <Type size={20} />,
+  cable: <Spline size={20} />,
+  pointer: <MousePointer size={20} />,
+  hand: <Hand size={20} />,
+}
 
 export const ToolsPanel = ({
   tool,
@@ -33,33 +46,8 @@ export const ToolsPanel = ({
   downloadImage,
   downloadFormat,
   setDownloadFormat,
-  showFontSize,
-  color,
-  brushSize,
-  fontSize,
-  lineStyle,
-  getSelectedShapeColor,
-  getSelectedShapeSize,
-  getSelectedShapeLineStyle,
-  updateSelectedShapeColor,
-  updateSelectedShapeSize,
-  updateSelectedShapeLineStyle,
-  setColor,
-  setBrushSize,
-  setFontSize,
-  setLineStyle,
   setSelectedShape
 }) => {
-  const iconMap = {
-    pen: <Pen size={20} />,
-    'arrow-right': <ArrowRight size={20} />,
-    square: <Square size={20} />,
-    circle: <Circle size={20} />,
-    type: <Type size={20} />,
-    pointer: <MousePointer size={20} />,
-    hand: <Hand size={20} />,
-  }
-
   return (
     <div className="annotate-toolbar">
       {/* Tools */}
@@ -101,12 +89,12 @@ export const ToolsPanel = ({
       <div className="tool-group">
         <button className="action-btn copy-btn" onClick={copyToClipboard} title="Copy to clipboard">
           <Copy size={18} />
-          Copy
+          <span className="btn-text">Copy</span>
         </button>
         <div className="download-group">
           <button className="action-btn download-btn" onClick={downloadImage} title="Download image">
             <Download size={18} />
-            Download
+            <span className="btn-text">Download</span>
           </button>
           <select
             className="download-format-select"
@@ -118,6 +106,15 @@ export const ToolsPanel = ({
             <option value="svg">SVG</option>
           </select>
         </div>
+        <a
+          href="https://github.com/TiagoJacobs/annotate"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="github-link"
+          title="View on GitHub"
+        >
+          <Github size={18} />
+        </a>
       </div>
     </div>
   )

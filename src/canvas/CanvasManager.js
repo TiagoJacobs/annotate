@@ -3,9 +3,7 @@
  * Handles canvas rendering, zoom, pan, and coordinate transformations
  */
 
-// Zoom limits
-const MIN_ZOOM = 0.1  // 10% minimum zoom
-const MAX_ZOOM = 10   // 1000% maximum zoom
+import { MIN_ZOOM, MAX_ZOOM } from '../config/uiConstants'
 
 export class CanvasManager {
   constructor(canvasElement) {

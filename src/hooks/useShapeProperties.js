@@ -6,21 +6,13 @@
 
 import { useCallback } from 'react'
 import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
-
-const DEFAULT_COLOR = '#000000'
-const DEFAULT_SIZE = 3
-const DEFAULT_FONT_SIZE = 20
+import { DEFAULT_COLOR, DEFAULT_BRUSH_SIZE, DEFAULT_FONT_SIZE } from '../config/uiConstants'
 
 export const useShapeProperties = ({
   selectedShape,
   layerManagerRef
 }) => {
-  /**
-   * Get shape array name from shape type
-   */
-  const getShapeArrayName = useCallback((shapeType) => {
-    return SHAPE_ARRAY_MAP[shapeType]
-  }, [])
+  const getShapeArrayName = (shapeType) => SHAPE_ARRAY_MAP[shapeType]
 
   /**
    * Get the shape data object
@@ -60,7 +52,7 @@ export const useShapeProperties = ({
     if (shape.shapeType === 'text') {
       return { type: 'fontSize', value: shapeData.fontSize || DEFAULT_FONT_SIZE }
     } else {
-      return { type: 'size', value: shapeData.size || DEFAULT_SIZE }
+      return { type: 'size', value: shapeData.size || DEFAULT_BRUSH_SIZE }
     }
   }, [selectedShape, getShapeData])
 

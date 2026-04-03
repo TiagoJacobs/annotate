@@ -2,6 +2,8 @@
  * Shape clipboard utilities for copy/paste operations
  */
 
+import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
+
 /**
  * Clipboard state manager - tracks paste count to enable incremental offsets
  */
@@ -97,14 +99,7 @@ export const deserializeShapesFromClipboard = (clipboardData) => {
  * Get the array name for a shape type
  */
 export const getShapeArrayName = (shapeType) => {
-  const arrayMap = {
-    'stroke': 'strokes',
-    'arrow': 'arrows',
-    'rect': 'rects',
-    'ellipse': 'ellipses',
-    'text': 'texts'
-  }
-  return arrayMap[shapeType] || null
+  return SHAPE_ARRAY_MAP[shapeType] || null
 }
 
 /**

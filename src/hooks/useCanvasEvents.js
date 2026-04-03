@@ -113,24 +113,45 @@ export const useCanvasEvents = ({
     if (!coords) return
 
     const selectedShape = selectedShapeRef.current
-    if (!selectedShape || selectedShape.shapeType !== 'text') return
+    if (!selectedShape) return
 
-    const layer = toolHandlerRef.current?.layerManager.getLayer(selectedShape.layerId)
-    if (!layer || !layer.texts?.[selectedShape.shapeIndex]) return
+    // Handle double-click on text shapes
+    if (selectedShape.shapeType === 'text') {
+      const layer = toolHandlerRef.current?.layerManager.getLayer(selectedShape.layerId)
+      if (!layer || !layer.texts?.[selectedShape.shapeIndex]) return
 
-    const text = layer.texts[selectedShape.shapeIndex]
-    const screenPos = canvasManagerRef.current?.canvasToScreen(text.x, text.y)
-    if (!screenPos) return
+      const text = layer.texts[selectedShape.shapeIndex]
+      const screenPos = canvasManagerRef.current?.canvasToScreen(text.x, text.y)
+      if (!screenPos) return
 
-    setInlineEditingText({
-      layerId: selectedShape.layerId,
-      textIndex: selectedShape.shapeIndex,
-      x: screenPos.screenX,
-      y: screenPos.screenY - text.fontSize,
-      content: text.content,
-      fontSize: text.fontSize
-    })
-  }, [getCanvasCoordinates, selectedShapeRef, toolHandlerRef, canvasManagerRef, setInlineEditingText])
+      setInlineEditingText({
+        layerId: selectedShape.layerId,
+        textIndex: selectedShape.shapeIndex,
+        x: screenPos.screenX,
+        y: screenPos.screenY - text.fontSize,
+        content: text.content,
+        fontSize: text.fontSize
+      })
+      return
+    }
+
+    // Handle double-click on rect/ellipse/connector for label editing
+    if (selectedShape.shapeType === 'rect' || selectedShape.shapeType === 'ellipse' || selectedShape.shapeType === 'connector') {
+      const layer = toolHandlerRef.current?.layerManager.getLayer(selectedShape.layerId)
+      if (!layer) return
+      const arrayMap = { rect: 'rects', ellipse: 'ellipses', connector: 'connectors' }
+      const shape = layer[arrayMap[selectedShape.shapeType]]?.[selectedShape.shapeIndex]
+      if (!shape) return
+
+      const label = prompt('Enter label:', shape.label || '')
+      if (label !== null) {
+        shape.label = label
+        toolHandlerRef.current?.layerManager.updateLayerWithHistory(layer.id, layer)
+        updateLayersState()
+        renderCanvas()
+      }
+    }
+  }, [getCanvasCoordinates, selectedShapeRef, toolHandlerRef, canvasManagerRef, setInlineEditingText, updateLayersState, renderCanvas])
 
   /**
    * Update cursor based on hover state and selected shapes
@@ -260,6 +281,12 @@ export const useCanvasEvents = ({
         setSelectedShape(null)
       }
       toolHandlerRef.current?.startShape(coords, toolConfig, properties)
+    } else if (handler === 'startConnector') {
+      if (selectedShapeRef.current) {
+        selectedShapeRef.current = null
+        setSelectedShape(null)
+      }
+      toolHandlerRef.current?.startConnector(coords, toolConfig, properties)
     } else if (handler === 'startPan') {
       toolHandlerRef.current?.startPan(coords)
       toolHandlerRef.current.panLastScreenX = e.clientX
@@ -299,6 +326,19 @@ export const useCanvasEvents = ({
     // Always update cursor when hovering
     updateCursor(coords, canvas)
 
+    // Connector tool hover detection (show anchor dots on shapes)
+    if (toolRef.current === 'connector' && toolHandlerRef.current) {
+      if (e.buttons === 0) {
+        // Not drawing -- detect shape under cursor for anchor dot rendering
+        // Use findNearestAnchor which checks if mouse is inside/near shape bounds
+        const anchor = toolHandlerRef.current.findNearestAnchor(coords)
+        toolHandlerRef.current.connectorHoverShape = anchor
+          ? { layerId: anchor.layerId, shapeType: anchor.shapeType, shapeIndex: anchor.shapeIndex }
+          : null
+        renderCanvas()
+      }
+    }
+
     // Only handle drag operations when mouse button is pressed
     if (e.buttons === 0) return
 
@@ -313,6 +353,9 @@ export const useCanvasEvents = ({
       updateLayersState()
     } else if (handler === 'previewShape') {
       toolHandlerRef.current?.previewShape(coords, toolConfig, properties)
+      updateLayersState()
+    } else if (handler === 'previewConnector') {
+      toolHandlerRef.current?.previewConnector(coords, toolConfig, properties)
       updateLayersState()
     } else if (handler === 'continuePan') {
       toolHandlerRef.current?.continuePan(coords, e.clientX, e.clientY)
@@ -345,6 +388,8 @@ export const useCanvasEvents = ({
       toolHandlerRef.current?.finishFreehandStroke()
     } else if (handler === 'finishShape') {
       toolHandlerRef.current?.finishShape()
+    } else if (handler === 'finishConnector') {
+      toolHandlerRef.current?.finishConnector()
     } else if (handler === 'finishPan') {
       toolHandlerRef.current?.finishPan()
       return // Don't update layers for pan
