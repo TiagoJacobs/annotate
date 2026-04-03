@@ -36,22 +36,14 @@ export const CanvasArea = ({
   const handleCropMouseDown = useCallback((e) => {
     if (!isCropping || !canvasManagerRef?.current) return
     e.preventDefault()
-    const rect = e.currentTarget.getBoundingClientRect()
-    const coords = canvasManagerRef.current.screenToCanvas(
-      e.clientX - rect.left,
-      e.clientY - rect.top
-    )
+    const coords = canvasManagerRef.current.screenToCanvas(e.clientX, e.clientY)
     setCropStart(coords)
     setCropRect(null)
   }, [isCropping, canvasManagerRef, setCropRect])
 
   const handleCropMouseMove = useCallback((e) => {
     if (!cropStart || !canvasManagerRef?.current) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const coords = canvasManagerRef.current.screenToCanvas(
-      e.clientX - rect.left,
-      e.clientY - rect.top
-    )
+    const coords = canvasManagerRef.current.screenToCanvas(e.clientX, e.clientY)
     setCropRect({
       x: Math.min(cropStart.x, coords.x),
       y: Math.min(cropStart.y, coords.y),
@@ -74,13 +66,19 @@ export const CanvasArea = ({
 
   // Get crop overlay position in screen coords
   const getCropOverlayStyle = () => {
-    if (!cropRect || !canvasManagerRef?.current) return null
+    if (!cropRect || !canvasManagerRef?.current || !canvasRef?.current) return null
     const cm = canvasManagerRef.current
+    const canvasEl = canvasRef.current
+    const containerEl = canvasEl.parentElement
+    const canvasBounds = canvasEl.getBoundingClientRect()
+    const containerBounds = containerEl.getBoundingClientRect()
+    const offsetX = canvasBounds.left - containerBounds.left
+    const offsetY = canvasBounds.top - containerBounds.top
     const topLeft = cm.canvasToScreen(cropRect.x, cropRect.y)
     const bottomRight = cm.canvasToScreen(cropRect.x + cropRect.width, cropRect.y + cropRect.height)
     return {
-      left: topLeft.screenX,
-      top: topLeft.screenY,
+      left: topLeft.screenX + offsetX,
+      top: topLeft.screenY + offsetY,
       width: bottomRight.screenX - topLeft.screenX,
       height: bottomRight.screenY - topLeft.screenY,
     }
