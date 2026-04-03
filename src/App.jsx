@@ -79,6 +79,7 @@ function Annotate() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
   const [showMinimap, setShowMinimap] = useState(false)
   const [canvasReady, setCanvasReady] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState(null)
   const [isCropping, setIsCropping] = useState(false)
   const [cropRect, setCropRect] = useState(null) // { x, y, width, height } in canvas coords
 
@@ -725,6 +726,25 @@ function Annotate() {
 
   // ==================== Effects ====================
 
+  // PWA install prompt
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault()
+      setInstallPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const installApp = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const result = await installPrompt.userChoice
+    if (result.outcome === 'accepted') {
+      setInstallPrompt(null)
+    }
+  }
+
   // Prevent browser zoom on Ctrl+scroll anywhere in the app
   useEffect(() => {
     const preventBrowserZoom = (e) => {
@@ -1237,6 +1257,7 @@ function Annotate() {
           downloadFormat={downloadFormat}
           setDownloadFormat={setDownloadFormat}
           setSelectedShape={setSelectedShape}
+          installApp={installPrompt ? installApp : null}
         />
 
         {/* Options Toolbar - always visible but empty when no tool/shape is active */}

@@ -19,6 +19,7 @@ import {
   MousePointer,
   Hand,
   Github,
+  Monitor,
 } from 'lucide-react'
 import { toolRegistry } from '../tools/toolRegistry'
 
@@ -46,7 +47,8 @@ export const ToolsPanel = ({
   downloadImage,
   downloadFormat,
   setDownloadFormat,
-  setSelectedShape
+  setSelectedShape,
+  installApp,
 }) => {
   return (
     <div className="annotate-toolbar">
@@ -106,6 +108,12 @@ export const ToolsPanel = ({
             <option value="svg">SVG</option>
           </select>
         </div>
+        {installApp && (
+          <button className="action-btn" onClick={installApp} title="Install as app">
+            <Monitor size={18} />
+            <span className="btn-text">Install</span>
+          </button>
+        )}
         <a
           href="https://github.com/TiagoJacobs/annotate"
           target="_blank"
