@@ -12,6 +12,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useShapeProperties } from './hooks/useShapeProperties'
 import { getStoredToolProperties, saveToolProperty } from './utils/storageUtils'
 import { createCroppedCanvas } from './utils/canvasExportUtils'
+import { cropImageDataUrl } from './utils/imageCropUtils'
 import { CanvasArea } from './components/CanvasArea'
 import { ToolsPanel } from './components/ToolsPanel'
 import { ShapeOptionsPanel } from './components/ShapeOptionsPanel'
@@ -78,6 +79,8 @@ function Annotate() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
   const [showMinimap, setShowMinimap] = useState(false)
   const [canvasReady, setCanvasReady] = useState(false)
+  const [isCropping, setIsCropping] = useState(false)
+  const [cropRect, setCropRect] = useState(null) // { x, y, width, height } in canvas coords
 
   // ==================== Hooks ====================
 
@@ -252,6 +255,77 @@ function Annotate() {
       updateLayersState()
       renderCanvas()
     }
+  }
+
+  // ==================== Crop Functions ====================
+
+  const startCrop = () => {
+    // Only start crop if an image is selected
+    if (!selectedShape || selectedShape.shapeType !== 'image') return
+    const layer = layerManagerRef.current?.getLayer(selectedShape.layerId)
+    if (!layer?.image) return
+    setIsCropping(true)
+    setCropRect(null)
+  }
+
+  const confirmCrop = async () => {
+    if (!cropRect || !selectedShape) {
+      setIsCropping(false)
+      setCropRect(null)
+      return
+    }
+
+    const layer = layerManagerRef.current?.getLayer(selectedShape.layerId)
+    if (!layer?.image) {
+      setIsCropping(false)
+      setCropRect(null)
+      return
+    }
+
+    const image = layer.image
+    // Convert crop rect from canvas coords to image-relative coords
+    const relX = cropRect.x - (image.x || 0)
+    const relY = cropRect.y - (image.y || 0)
+
+    // Clamp to image bounds
+    const srcX = Math.max(0, relX)
+    const srcY = Math.max(0, relY)
+    const srcW = Math.min(cropRect.width, image.width - srcX)
+    const srcH = Math.min(cropRect.height, image.height - srcY)
+
+    if (srcW <= 0 || srcH <= 0) {
+      showSnackbar('Invalid crop area')
+      setIsCropping(false)
+      setCropRect(null)
+      return
+    }
+
+    try {
+      const croppedDataUrl = await cropImageDataUrl(image.data, { x: srcX, y: srcY, width: srcW, height: srcH })
+      layer.image = {
+        data: croppedDataUrl,
+        x: (image.x || 0) + srcX,
+        y: (image.y || 0) + srcY,
+        width: srcW,
+        height: srcH,
+      }
+      // Clear image cache for this layer so it re-renders
+      imageCache.current.delete(image.data)
+      layerManagerRef.current.updateLayerWithHistory(layer.id, { image: layer.image })
+      updateLayersState()
+      renderCanvas()
+      showSnackbar('Image cropped')
+    } catch (_err) {
+      showSnackbar('Failed to crop image')
+    }
+
+    setIsCropping(false)
+    setCropRect(null)
+  }
+
+  const cancelCrop = () => {
+    setIsCropping(false)
+    setCropRect(null)
   }
 
   /**
@@ -1209,6 +1283,7 @@ function Annotate() {
           getSelectedShapeTextDecoration={getSelectedShapeTextDecoration}
           getSelectedShapeHighlightColor={getSelectedShapeHighlightColor}
           updateSelectedShapeTextFormat={updateSelectedShapeTextFormat}
+          onStartCrop={startCrop}
         />
 
         <div className="annotate-content">
@@ -1253,6 +1328,14 @@ function Annotate() {
             saveInlineTextEdit={saveInlineTextEdit}
             zoom={zoom}
             layers={layers}
+            isCropping={isCropping}
+            cropRect={cropRect}
+            setCropRect={setCropRect}
+            confirmCrop={confirmCrop}
+            cancelCrop={cancelCrop}
+            canvasManagerRef={canvasManagerRef}
+            selectedShape={selectedShape}
+            layerManagerRef={layerManagerRef}
           />
 
           {/* Layers Panel */}

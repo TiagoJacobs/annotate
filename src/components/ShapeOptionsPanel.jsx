@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo } from 'react'
-import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup, Bold, Italic, Underline, Highlighter } from 'lucide-react'
+import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup, Bold, Italic, Underline, Highlighter, Crop } from 'lucide-react'
 import { ShapeOperations } from '../services/ShapeOperations'
 
 export const ShapeOptionsPanel = React.forwardRef(({
@@ -50,6 +50,7 @@ export const ShapeOptionsPanel = React.forwardRef(({
   getSelectedShapeTextDecoration,
   getSelectedShapeHighlightColor,
   updateSelectedShapeTextFormat,
+  onStartCrop,
 }, ref) => {
   const showFontSize = tool === 'text'
   const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
@@ -70,11 +71,25 @@ export const ShapeOptionsPanel = React.forwardRef(({
     return ShapeOperations.getAlignmentUnitCount(selectedShape, layerManagerRef.current) >= 2
   }, [isMultiSelect, selectedShape, layerManagerRef])
 
-  // Don't show shape options if an image is selected
+  // Show crop button for images
   if (isImageSelected) {
     return (
       <div className="shape-toolbar">
-        <div className="toolbar-placeholder">No options available for images</div>
+        {onStartCrop ? (
+          <div className="tool-group">
+            <button
+              className="layer-btn"
+              onClick={onStartCrop}
+              title="Crop image"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px' }}
+            >
+              <Crop size={14} />
+              <span style={{ fontSize: '11px' }}>Crop</span>
+            </button>
+          </div>
+        ) : (
+          <div className="toolbar-placeholder">No options available for images</div>
+        )}
       </div>
     )
   }
