@@ -272,13 +272,14 @@ function Annotate() {
   }
 
   const confirmCrop = async () => {
-    if (!cropRect || !selectedShape) {
+    const currentSelectedShape = selectedShapeRef.current || selectedShape
+    if (!cropRect || !currentSelectedShape) {
       setIsCropping(false)
       setCropRect(null)
       return
     }
 
-    const layer = layerManagerRef.current?.getLayer(selectedShape.layerId)
+    const layer = layerManagerRef.current?.getLayer(currentSelectedShape.layerId)
     if (!layer?.image) {
       setIsCropping(false)
       setCropRect(null)
@@ -330,6 +331,24 @@ function Annotate() {
     setIsCropping(false)
     setCropRect(null)
   }
+
+  // Global keyboard handler for crop mode
+  const confirmCropRef = useRef(confirmCrop)
+  confirmCropRef.current = confirmCrop
+  useEffect(() => {
+    if (!isCropping) return
+    const handler = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        confirmCropRef.current()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        cancelCrop()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isCropping])
 
   /**
    * Select a layer

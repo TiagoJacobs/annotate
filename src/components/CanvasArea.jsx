@@ -56,14 +56,6 @@ export const CanvasArea = ({
     setCropStart(null)
   }, [])
 
-  const handleCropKeyDown = useCallback((e) => {
-    if (e.key === 'Enter') {
-      confirmCrop()
-    } else if (e.key === 'Escape') {
-      cancelCrop()
-    }
-  }, [confirmCrop, cancelCrop])
-
   // Get crop overlay position in screen coords
   const getCropOverlayStyle = () => {
     if (!cropRect || !canvasManagerRef?.current || !canvasRef?.current) return null
@@ -115,8 +107,6 @@ export const CanvasArea = ({
           handleCanvasMiddleMouseUp(e)
           handleCanvasMouseUp(e)
         }}
-        onKeyDown={isCropping ? handleCropKeyDown : undefined}
-        tabIndex={isCropping ? 0 : undefined}
         className={`drawing-canvas ${layers.length > 0 ? 'has-image' : ''}`}
         style={isCropping ? { cursor: 'crosshair' } : undefined}
       />
