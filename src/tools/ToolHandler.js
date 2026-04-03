@@ -170,7 +170,8 @@ export class ToolHandler {
     if (!stampDef) return
 
     if (!layer.stamps) layer.stamps = []
-    layer.stamps.push({
+
+    const stampData = {
       stampId,
       x: pos.x - stampDef.defaultWidth / 2,
       y: pos.y - stampDef.defaultHeight / 2,
@@ -178,8 +179,22 @@ export class ToolHandler {
       height: stampDef.defaultHeight,
       groupId: null,
       rotation: 0,
-    })
+    }
 
+    // Auto-increment counter value
+    if (stampId === 'counter') {
+      let maxCounter = 0
+      for (const l of this.layerManager.getAllLayers()) {
+        for (const s of (l.stamps || [])) {
+          if (s.stampId === 'counter' && s.counterValue > maxCounter) {
+            maxCounter = s.counterValue
+          }
+        }
+      }
+      stampData.counterValue = maxCounter + 1
+    }
+
+    layer.stamps.push(stampData)
     this.layerManager.updateLayerWithHistory(layer.id, { stamps: layer.stamps })
   }
 

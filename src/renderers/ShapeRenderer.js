@@ -5,7 +5,7 @@
 
 import { ARROW_RENDER_CONFIG, STROKE_RENDER_CONFIG, TEXT_RENDER_CONFIG } from '../config/renderConfig'
 import { getShapeCenterForType } from '../services/ShapeOperations'
-import { STAMPS } from '../assets/stamps'
+import { STAMPS, generateCounterSvg } from '../assets/stamps'
 
 /**
  * Base shape renderer interface
@@ -341,30 +341,38 @@ class StampRenderer extends BaseShapeRenderer {
     this.stampImageCache = new Map()
   }
 
-  getStampImage(stampId) {
-    if (this.stampImageCache.has(stampId)) {
-      return this.stampImageCache.get(stampId)
+  getStampImage(cacheKey, svgString) {
+    if (this.stampImageCache.has(cacheKey)) {
+      return this.stampImageCache.get(cacheKey)
     }
 
-    const stampDef = STAMPS[stampId]
-    if (!stampDef) return null
-
     const img = new Image()
-    const svgBlob = new Blob([stampDef.svg], { type: 'image/svg+xml' })
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml' })
     const url = URL.createObjectURL(svgBlob)
     img.src = url
 
     img.onload = () => {
-      this.stampImageCache.set(stampId, img)
+      this.stampImageCache.set(cacheKey, img)
     }
 
-    // Store as pending
-    this.stampImageCache.set(stampId, img)
+    this.stampImageCache.set(cacheKey, img)
     return img
   }
 
   render(ctx, stamp) {
-    const img = this.getStampImage(stamp.stampId)
+    let cacheKey = stamp.stampId
+    let svgString
+
+    if (stamp.stampId === 'counter' && stamp.counterValue != null) {
+      cacheKey = `counter_${stamp.counterValue}`
+      svgString = generateCounterSvg(stamp.counterValue)
+    } else {
+      const stampDef = STAMPS[stamp.stampId]
+      if (!stampDef) return
+      svgString = stampDef.svg
+    }
+
+    const img = this.getStampImage(cacheKey, svgString)
     if (!img || !img.complete) return
 
     ctx.drawImage(img, stamp.x, stamp.y, stamp.width, stamp.height)

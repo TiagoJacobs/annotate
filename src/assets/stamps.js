@@ -2,6 +2,14 @@
  * Stamp assets - SVG strings and metadata for the stamp tool
  */
 
+export function generateCounterSvg(n) {
+  const fontSize = n >= 100 ? 12 : n >= 10 ? 16 : 20
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+    <circle cx="16" cy="16" r="15" fill="#FF4444" stroke="#CC0000" stroke-width="1"/>
+    <text x="16" y="${fontSize >= 20 ? 22 : 21}" text-anchor="middle" font-family="Arial,sans-serif" font-size="${fontSize}" font-weight="bold" fill="#fff">${n}</text>
+  </svg>`
+}
+
 export const STAMPS = {
   cursor: {
     name: 'Mouse Cursor',
@@ -32,19 +40,12 @@ export const STAMPS = {
     defaultWidth: 40,
     defaultHeight: 40,
   },
-}
-
-// Counter bubbles (1-9)
-for (let i = 1; i <= 9; i++) {
-  STAMPS[`bubble${i}`] = {
-    name: `Counter ${i}`,
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-      <circle cx="16" cy="16" r="15" fill="#FF4444" stroke="#CC0000" stroke-width="1"/>
-      <text x="16" y="22" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="bold" fill="#fff">${i}</text>
-    </svg>`,
+  counter: {
+    name: 'Counter (auto-increment)',
+    svg: generateCounterSvg('N'),
     defaultWidth: 32,
     defaultHeight: 32,
-  }
+  },
 }
 
 export const STAMP_IDS = Object.keys(STAMPS)
