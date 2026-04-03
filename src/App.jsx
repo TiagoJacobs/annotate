@@ -140,6 +140,7 @@ function Annotate() {
       fontSize,
       lineStyle,
       size: brushSize,
+      stampId: selectedStampId,
       ...Object.fromEntries(toolProperties)
     }
 
