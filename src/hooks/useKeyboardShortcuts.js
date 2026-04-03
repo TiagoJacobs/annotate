@@ -101,6 +101,15 @@ export const useKeyboardShortcuts = ({
           shapeIndex: index
         })
       })
+
+      // Add all stamps
+      layer.stamps?.forEach((_, index) => {
+        allShapes.push({
+          layerId: layer.id,
+          shapeType: 'stamp',
+          shapeIndex: index
+        })
+      })
     }
 
     return allShapes
