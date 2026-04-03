@@ -31,6 +31,7 @@ export class FreehandStrokeStrategy extends ShapeCreationStrategy {
       lineStyle: properties.lineStyle,
       points: [startPos],
       groupId: null,
+      rotation: 0,
     }
     layer.strokes.push(stroke)
     return stroke
@@ -154,8 +155,13 @@ export class TextStrategy extends ShapeCreationStrategy {
       y: pos.y,
       fontSize: properties.fontSize,
       fontFamily: 'Arial',
+      fontWeight: properties.fontWeight || 'normal',
+      fontStyle: properties.fontStyle || 'normal',
+      textDecoration: properties.textDecoration || 'none',
+      highlightColor: properties.highlightColor || '',
       color: properties.color,
       groupId: null,
+      rotation: 0,
     })
   }
 }

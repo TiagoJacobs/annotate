@@ -19,8 +19,11 @@ import {
   MousePointer,
   Hand,
   Github,
+  Monitor,
+  Stamp,
 } from 'lucide-react'
 import { toolRegistry } from '../tools/toolRegistry'
+import { ShareButton } from './ShareButton'
 
 const iconMap = {
   pen: <Pen size={20} />,
@@ -31,6 +34,7 @@ const iconMap = {
   cable: <Spline size={20} />,
   pointer: <MousePointer size={20} />,
   hand: <Hand size={20} />,
+  sticker: <Stamp size={20} />,
 }
 
 export const ToolsPanel = ({
@@ -46,7 +50,11 @@ export const ToolsPanel = ({
   downloadImage,
   downloadFormat,
   setDownloadFormat,
-  setSelectedShape
+  setSelectedShape,
+  installApp,
+  layerManagerRef,
+  shapeRendererRef,
+  showSnackbar,
 }) => {
   return (
     <div className="annotate-toolbar">
@@ -106,6 +114,17 @@ export const ToolsPanel = ({
             <option value="svg">SVG</option>
           </select>
         </div>
+        <ShareButton
+          layerManagerRef={layerManagerRef}
+          shapeRendererRef={shapeRendererRef}
+          showSnackbar={showSnackbar}
+        />
+        {installApp && (
+          <button className="action-btn" onClick={installApp} title="Install as app">
+            <Monitor size={18} />
+            <span className="btn-text">Install</span>
+          </button>
+        )}
         <a
           href="https://github.com/TiagoJacobs/annotate"
           target="_blank"

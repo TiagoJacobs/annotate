@@ -5,6 +5,40 @@
 
 import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
 import { LINE_HIT_THRESHOLD, TEXT_WIDTH_FACTOR } from '../config/uiConstants'
+import { rotatePoint, inverseRotatePoint, getRotatedBoundingBox } from '../utils/rotationUtils'
+
+/**
+ * Get the center point of a shape for rotation transforms
+ */
+export function getShapeCenterForType(shape, shapeType) {
+  switch (shapeType) {
+    case 'rect':
+    case 'ellipse':
+    case 'image':
+      return { x: shape.x + (shape.width || 0) / 2, y: shape.y + (shape.height || 0) / 2 }
+    case 'arrow':
+    case 'connector':
+      return { x: (shape.fromX + shape.toX) / 2, y: (shape.fromY + shape.toY) / 2 }
+    case 'stroke':
+      if (!shape.points || shape.points.length === 0) return null
+      {
+        const xs = shape.points.map(p => p.x)
+        const ys = shape.points.map(p => p.y)
+        return {
+          x: (Math.min(...xs) + Math.max(...xs)) / 2,
+          y: (Math.min(...ys) + Math.max(...ys)) / 2,
+        }
+      }
+    case 'text': {
+      const textWidth = shape.content.length * shape.fontSize * TEXT_WIDTH_FACTOR
+      return { x: shape.x + textWidth / 2, y: shape.y - shape.fontSize / 2 }
+    }
+    case 'stamp':
+      return { x: shape.x + (shape.width || 0) / 2, y: shape.y + (shape.height || 0) / 2 }
+    default:
+      return null
+  }
+}
 
 export class ShapeOperations {
   /**
@@ -229,6 +263,11 @@ export class ShapeOperations {
         // So the top of the bounding box is at text.y - fontSize
         return { x: text.x, y: text.y - textHeight, width: textWidth, height: textHeight }
       },
+      stamp: () => {
+        const stamp = layer.stamps?.[shapeIndex]
+        if (!stamp) return { x: 0, y: 0, width: 0, height: 0 }
+        return { x: stamp.x, y: stamp.y, width: stamp.width, height: stamp.height }
+      },
       image: () => {
         // Get actual image dimensions from layer.image
         if (layer.image) {
@@ -272,10 +311,15 @@ export class ShapeOperations {
       if (!layer) continue
 
       const bounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
-      minX = Math.min(minX, bounds.x)
-      minY = Math.min(minY, bounds.y)
-      maxX = Math.max(maxX, bounds.x + bounds.width)
-      maxY = Math.max(maxY, bounds.y + bounds.height)
+      // Expand bounds for rotated shapes
+      const arrayName = SHAPE_ARRAY_MAP[shape.shapeType]
+      const shapeData = arrayName ? layer[arrayName]?.[shape.shapeIndex] : null
+      const rotation = shapeData?.rotation || (shape.shapeType === 'image' ? layer.image?.rotation || 0 : 0)
+      const effectiveBounds = rotation ? getRotatedBoundingBox(bounds, rotation) : bounds
+      minX = Math.min(minX, effectiveBounds.x)
+      minY = Math.min(minY, effectiveBounds.y)
+      maxX = Math.max(maxX, effectiveBounds.x + effectiveBounds.width)
+      maxY = Math.max(maxY, effectiveBounds.y + effectiveBounds.height)
     }
 
     return {
@@ -324,6 +368,11 @@ export class ShapeOperations {
         c.toX += dx
         c.toY += dy
       },
+      stamp: () => {
+        const s = layer.stamps[shapeIndex]
+        s.x += dx
+        s.y += dy
+      },
       image: () => {
         // Images are stored as layer.image (not in an array)
         if (layer.image) {
@@ -343,10 +392,24 @@ export class ShapeOperations {
   }
 
   /**
+   * Move a shape so its center goes from oldCenter to newCenter
+   */
+  static moveShapeToOffset(layer, shapeType, shapeIndex, oldCenter, newCenter) {
+    const dx = newCenter.x - oldCenter.x
+    const dy = newCenter.y - oldCenter.y
+    this.moveShape(layer, shapeType, shapeIndex, dx, dy)
+  }
+
+  /**
    * Recalculate connector endpoints that reference a shape
    */
   static updateConnectorsForShape(layer, shapeType, shapeIndex) {
     if (!layer.connectors) return
+
+    // Get shape rotation for anchor point calculation
+    const arrayName = SHAPE_ARRAY_MAP[shapeType]
+    const shapeData = arrayName ? layer[arrayName]?.[shapeIndex] : null
+    const rotation = shapeData?.rotation || (shapeType === 'image' ? layer.image?.rotation || 0 : 0)
 
     for (const connector of layer.connectors) {
       if (connector.fromRef &&
@@ -355,7 +418,11 @@ export class ShapeOperations {
           connector.fromRef.shapeIndex === shapeIndex) {
         const bounds = this.getShapeBounds(layer, shapeType, shapeIndex)
         if (bounds) {
-          const pt = this.getAnchorPointFromBounds(bounds, connector.fromAnchor)
+          let pt = this.getAnchorPointFromBounds(bounds, connector.fromAnchor)
+          if (rotation) {
+            const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+            pt = rotatePoint(pt.x, pt.y, center.x, center.y, rotation)
+          }
           connector.fromX = pt.x
           connector.fromY = pt.y
         }
@@ -366,7 +433,11 @@ export class ShapeOperations {
           connector.toRef.shapeIndex === shapeIndex) {
         const bounds = this.getShapeBounds(layer, shapeType, shapeIndex)
         if (bounds) {
-          const pt = this.getAnchorPointFromBounds(bounds, connector.toAnchor)
+          let pt = this.getAnchorPointFromBounds(bounds, connector.toAnchor)
+          if (rotation) {
+            const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+            pt = rotatePoint(pt.x, pt.y, center.x, center.y, rotation)
+          }
           connector.toX = pt.x
           connector.toY = pt.y
         }
@@ -496,6 +567,13 @@ export class ShapeOperations {
         arrow.fromY = startBounds.y + (oldFromY - startBounds.y) * scaleY + offsetY
         arrow.toX = startBounds.x + (oldToX - startBounds.x) * scaleX + offsetX
         arrow.toY = startBounds.y + (oldToY - startBounds.y) * scaleY + offsetY
+      },
+      stamp: () => {
+        const stamp = layer.stamps[shapeIndex]
+        stamp.x = newX
+        stamp.y = newY
+        stamp.width = newWidth
+        stamp.height = newHeight
       },
       image: () => {
         // Images are stored as layer.image (not in an array)
@@ -757,7 +835,8 @@ export class ShapeOperations {
         { type: 'rect', array: layer.rects },
         { type: 'ellipse', array: layer.ellipses },
         { type: 'text', array: layer.texts },
-        { type: 'connector', array: layer.connectors || [] }
+        { type: 'connector', array: layer.connectors || [] },
+        { type: 'stamp', array: layer.stamps || [] }
       ]
 
       for (const { type, array } of shapeArrays) {
@@ -779,43 +858,48 @@ export class ShapeOperations {
 
   static checkLayerShapes(pos, layer) {
     const shapeChecks = [
-      { type: 'connector', array: layer.connectors, test: (connector) => {
+      { type: 'connector', array: layer.connectors, test: (connector, p) => {
         if (connector.fromX == null || connector.toX == null) return false
         const threshold = Math.max(LINE_HIT_THRESHOLD, (connector.size || 3) / 2)
-        return this.isPointNearLine(pos.x, pos.y, connector.fromX, connector.fromY, connector.toX, connector.toY, threshold)
+        return this.isPointNearLine(p.x, p.y, connector.fromX, connector.fromY, connector.toX, connector.toY, threshold)
       }},
-      { type: 'text', array: layer.texts, test: (shape) => this.isPointOnText(pos.x, pos.y, shape) },
-      { type: 'ellipse', array: layer.ellipses, test: (shape) => {
-        // Check if point is inside the ellipse (fill) OR near the stroke
-        const isInside = this.isPointInEllipse(pos.x, pos.y, shape)
+      { type: 'stamp', array: layer.stamps || [], test: (shape, p) => this.isPointInRect(p.x, p.y, shape) },
+      { type: 'text', array: layer.texts, test: (shape, p) => this.isPointOnText(p.x, p.y, shape) },
+      { type: 'ellipse', array: layer.ellipses, test: (shape, p) => {
+        const isInside = this.isPointInEllipse(p.x, p.y, shape)
         if (isInside) return true
-        // Also check the stroke if not inside
         const threshold = (shape.size || 3) / 2
-        return this.isPointNearEllipse(pos.x, pos.y, shape, threshold)
+        return this.isPointNearEllipse(p.x, p.y, shape, threshold)
       }},
-      { type: 'rect', array: layer.rects, test: (shape) => {
-        // Check if point is inside the rect (fill) OR near the stroke
-        const isInside = this.isPointInRect(pos.x, pos.y, shape)
+      { type: 'rect', array: layer.rects, test: (shape, p) => {
+        const isInside = this.isPointInRect(p.x, p.y, shape)
         if (isInside) return true
-        // Also check the stroke if not inside
         const threshold = (shape.size || 3) / 2
-        return this.isPointNearRect(pos.x, pos.y, shape, threshold)
+        return this.isPointNearRect(p.x, p.y, shape, threshold)
       }},
-      { type: 'arrow', array: layer.arrows, test: (arrow) => {
-        // Use arrow's size (line weight) for hit detection threshold
+      { type: 'arrow', array: layer.arrows, test: (arrow, p) => {
         const threshold = (arrow.size || 3) / 2
-        return this.isPointNearLine(pos.x, pos.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY, threshold)
+        return this.isPointNearLine(p.x, p.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY, threshold)
       }},
-      { type: 'stroke', array: layer.strokes, test: (shape) => {
-        // Use stroke's size (line weight) for hit detection threshold
+      { type: 'stroke', array: layer.strokes, test: (shape, p) => {
         const threshold = (shape.size || 3) / 2
-        return this.isPointOnStroke(pos.x, pos.y, shape, threshold)
+        return this.isPointOnStroke(p.x, p.y, shape, threshold)
       }},
     ]
 
     for (const { type, array, test } of shapeChecks) {
       for (let j = array.length - 1; j >= 0; j--) {
-        if (test(array[j])) {
+        const shape = array[j]
+        const rotation = shape.rotation || 0
+        let testPos = pos
+        if (rotation !== 0) {
+          const center = getShapeCenterForType(shape, type)
+          if (center) {
+            const local = inverseRotatePoint(pos.x, pos.y, center.x, center.y, rotation)
+            testPos = { x: local.x, y: local.y }
+          }
+        }
+        if (test(shape, testPos)) {
           return { layerId: layer.id, shapeType: type, shapeIndex: j }
         }
       }

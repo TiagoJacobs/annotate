@@ -4,6 +4,8 @@
  */
 
 import { ARROW_RENDER_CONFIG, STROKE_RENDER_CONFIG, TEXT_RENDER_CONFIG } from '../config/renderConfig'
+import { getShapeCenterForType } from '../services/ShapeOperations'
+import { STAMPS, generateCounterSvg } from '../assets/stamps'
 
 /**
  * Base shape renderer interface
@@ -252,10 +254,34 @@ class EllipseRenderer extends BaseShapeRenderer {
 class TextRenderer extends BaseShapeRenderer {
   render(ctx, text, layerColor) {
     const { defaultFontFamily } = TEXT_RENDER_CONFIG
+    const fontFamily = text.fontFamily || defaultFontFamily
+    const weight = text.fontWeight === 'bold' ? 'bold ' : ''
+    const style = text.fontStyle === 'italic' ? 'italic ' : ''
 
+    ctx.font = `${style}${weight}${text.fontSize}px ${fontFamily}`
+
+    // Draw highlight background
+    if (text.highlightColor) {
+      const metrics = ctx.measureText(text.content)
+      const textHeight = text.fontSize
+      ctx.fillStyle = text.highlightColor
+      ctx.fillRect(text.x, text.y - textHeight, metrics.width, textHeight * 1.15)
+    }
+
+    // Draw text
     ctx.fillStyle = this.getShapeColor(text, layerColor)
-    ctx.font = `${text.fontSize}px ${text.fontFamily || defaultFontFamily}`
     ctx.fillText(text.content, text.x, text.y)
+
+    // Draw underline
+    if (text.textDecoration === 'underline') {
+      const metrics = ctx.measureText(text.content)
+      ctx.strokeStyle = this.getShapeColor(text, layerColor)
+      ctx.lineWidth = Math.max(1, text.fontSize / 15)
+      ctx.beginPath()
+      ctx.moveTo(text.x, text.y + text.fontSize * 0.1)
+      ctx.lineTo(text.x + metrics.width, text.y + text.fontSize * 0.1)
+      ctx.stroke()
+    }
   }
 }
 
@@ -305,6 +331,54 @@ class ImageRenderer extends BaseShapeRenderer {
   }
 }
 
+
+/**
+ * Stamp renderer - renders SVG stamps via cached Image
+ */
+class StampRenderer extends BaseShapeRenderer {
+  constructor() {
+    super()
+    this.stampImageCache = new Map()
+  }
+
+  getStampImage(cacheKey, svgString) {
+    if (this.stampImageCache.has(cacheKey)) {
+      return this.stampImageCache.get(cacheKey)
+    }
+
+    const img = new Image()
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(svgBlob)
+    img.src = url
+
+    img.onload = () => {
+      this.stampImageCache.set(cacheKey, img)
+    }
+
+    this.stampImageCache.set(cacheKey, img)
+    return img
+  }
+
+  render(ctx, stamp) {
+    let cacheKey = stamp.stampId
+    let svgString
+
+    if (stamp.stampId === 'counter' && stamp.counterValue != null) {
+      cacheKey = `counter_${stamp.counterValue}`
+      svgString = generateCounterSvg(stamp.counterValue)
+    } else {
+      const stampDef = STAMPS[stamp.stampId]
+      if (!stampDef) return
+      svgString = stampDef.svg
+    }
+
+    const img = this.getStampImage(cacheKey, svgString)
+    if (!img || !img.complete) return
+
+    ctx.drawImage(img, stamp.x, stamp.y, stamp.width, stamp.height)
+  }
+}
+
 /**
  * Shape Renderer Factory
  */
@@ -317,6 +391,7 @@ class ShapeRendererFactory {
       rect: new RectRenderer(),
       ellipse: new EllipseRenderer(),
       text: new TextRenderer(),
+      stamp: new StampRenderer(),
       image: new ImageRenderer(imageCache)
     }
   }
@@ -327,9 +402,22 @@ class ShapeRendererFactory {
 
   renderShape(ctx, shapeType, shape, layerColor) {
     const renderer = this.getRenderer(shapeType)
-    if (renderer) {
-      renderer.render(ctx, shape, layerColor)
+    if (!renderer) return
+
+    const rotation = shape?.rotation || 0
+    if (rotation !== 0) {
+      const center = getShapeCenterForType(shape, shapeType)
+      if (center) {
+        ctx.save()
+        ctx.translate(center.x, center.y)
+        ctx.rotate(rotation)
+        ctx.translate(-center.x, -center.y)
+        renderer.render(ctx, shape, layerColor)
+        ctx.restore()
+        return
+      }
     }
+    renderer.render(ctx, shape, layerColor)
   }
 
   renderShapesInLayer(ctx, layer, shapeTypes) {

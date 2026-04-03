@@ -13,6 +13,11 @@ export const SELECTION_PADDING = 5        // pixels around selected shape
 export const RESIZE_HANDLE_SIZE = 8       // pixels, size of resize handles
 export const HANDLE_HIT_THRESHOLD = 10    // pixels, detection radius for handles
 
+// ==================== Rotation ====================
+export const ROTATION_HANDLE_OFFSET = 25    // pixels above selection box
+export const ROTATION_HANDLE_RADIUS = 5     // pixels, radius of rotation handle circle
+export const ROTATION_SNAP_INCREMENT = Math.PI / 12  // 15 degrees
+
 // ==================== Hit Detection ====================
 export const LINE_HIT_THRESHOLD = 10      // pixels, detection radius for lines
 export const TEXT_WIDTH_FACTOR = 0.6      // approximate width per character relative to font size

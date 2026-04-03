@@ -54,6 +54,22 @@ export const useCanvasEvents = ({
    * Handle canvas click for text tool - start inline editing
    */
   const handleCanvasClick = useCallback((e) => {
+    // Handle stamp tool click
+    if (tool === 'stamp') {
+      const coords = getCanvasCoordinates(e)
+      if (!coords) return
+      const allLayers = layerManagerRef.current?.getAllLayers() || []
+      if (allLayers.length === 0) {
+        showSnackbar('Please create a layer first to add stamps')
+        return
+      }
+      const properties = getToolProperties()
+      toolHandlerRef.current?.placeStamp(coords, getToolConfig(tool), properties)
+      updateLayersState()
+      renderCanvas()
+      return
+    }
+
     if (tool !== 'text') return
 
     const coords = getCanvasCoordinates(e)
@@ -98,7 +114,10 @@ export const useCanvasEvents = ({
       x: screenPos.screenX,
       y: screenPos.screenY - properties.fontSize, // Adjust for text baseline
       content: ' ',
-      fontSize: properties.fontSize
+      fontSize: properties.fontSize,
+      fontWeight: text.fontWeight,
+      fontStyle: text.fontStyle,
+      textDecoration: text.textDecoration,
     })
 
     updateLayersState()
@@ -130,7 +149,10 @@ export const useCanvasEvents = ({
         x: screenPos.screenX,
         y: screenPos.screenY - text.fontSize,
         content: text.content,
-        fontSize: text.fontSize
+        fontSize: text.fontSize,
+        fontWeight: text.fontWeight,
+        fontStyle: text.fontStyle,
+        textDecoration: text.textDecoration,
       })
       return
     }
@@ -174,6 +196,12 @@ export const useCanvasEvents = ({
           : toolHandlerRef.current?.getShapeBounds?.(layer, selectedShape.shapeType, selectedShape.shapeIndex)
 
         if (bounds) {
+          // Check rotation handle first
+          const shapeRotation = toolHandlerRef.current?.getSelectedShapeRotation?.() || 0
+          if (toolHandlerRef.current?.getRotationHandle?.(coords, bounds, shapeRotation)) {
+            canvas.style.cursor = 'grab'
+            return
+          }
           const handle = toolHandlerRef.current?.getResizeHandle(coords, bounds)
           if (handle && RESIZE_CURSOR_MAP[handle]) {
             canvas.style.cursor = RESIZE_CURSOR_MAP[handle]

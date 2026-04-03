@@ -12,8 +12,12 @@ import {
   RESIZE_HANDLE_SIZE,
   HANDLE_HIT_THRESHOLD,
   LINE_HIT_THRESHOLD,
-  TEXT_WIDTH_FACTOR
+  TEXT_WIDTH_FACTOR,
+  ROTATION_HANDLE_OFFSET,
+  ROTATION_HANDLE_RADIUS
 } from '../config/uiConstants'
+import { rotatePoint, inverseRotatePoint, snapAngle, getBoundsCenter } from '../utils/rotationUtils'
+import { STAMPS } from '../assets/stamps'
 
 export class ToolHandler {
   constructor(canvasManager, layerManager) {
@@ -25,6 +29,12 @@ export class ToolHandler {
     this.isMarqueeSelecting = false
     this.marqueeStart = null
     this.marqueeCurrent = null
+    // Rotation state
+    this.isRotating = false
+    this.rotationCenter = null
+    this.rotationStartAngle = 0
+    this.shapeStartRotations = null
+    this.shapeStartPositions = null
   }
 
   /**
@@ -142,6 +152,50 @@ export class ToolHandler {
 
     // Save to history when text is placed
     this.layerManager.updateLayerWithHistory(layer.id, { texts: layer.texts })
+  }
+
+
+  /**
+   * Place stamp at position
+   */
+  placeStamp(pos, toolConfig, properties) {
+    let layer = this.layerManager.getSelectedLayer()
+    if (!layer) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
+
+    const stampId = properties.stampId || 'cursor'
+    const stampDef = STAMPS[stampId]
+    if (!stampDef) return
+
+    if (!layer.stamps) layer.stamps = []
+
+    const stampData = {
+      stampId,
+      x: pos.x - stampDef.defaultWidth / 2,
+      y: pos.y - stampDef.defaultHeight / 2,
+      width: stampDef.defaultWidth,
+      height: stampDef.defaultHeight,
+      groupId: null,
+      rotation: 0,
+    }
+
+    // Auto-increment counter value
+    if (stampId === 'counter') {
+      let maxCounter = 0
+      for (const l of this.layerManager.getAllLayers()) {
+        for (const s of (l.stamps || [])) {
+          if (s.stampId === 'counter' && s.counterValue > maxCounter) {
+            maxCounter = s.counterValue
+          }
+        }
+      }
+      stampData.counterValue = maxCounter + 1
+    }
+
+    layer.stamps.push(stampData)
+    this.layerManager.updateLayerWithHistory(layer.id, { stamps: layer.stamps })
   }
 
   /**
@@ -358,6 +412,150 @@ export class ToolHandler {
   }
 
   /**
+   * Check if point is on the rotation handle
+   */
+  getRotationHandle(pos, bounds, rotation = 0) {
+    const padding = SELECTION_PADDING
+    const center = getBoundsCenter(bounds)
+
+    // Rotation handle is above the top-center of the bounding box
+    let handleX = bounds.x + bounds.width / 2
+    let handleY = bounds.y - padding - ROTATION_HANDLE_OFFSET
+
+    // If shape is rotated, rotate the handle position too
+    if (rotation) {
+      const rotated = rotatePoint(handleX, handleY, center.x, center.y, rotation)
+      handleX = rotated.x
+      handleY = rotated.y
+    }
+
+    const dist = Math.sqrt((pos.x - handleX) ** 2 + (pos.y - handleY) ** 2)
+    return dist < HANDLE_HIT_THRESHOLD + ROTATION_HANDLE_RADIUS
+  }
+
+  /**
+   * Get the rotation of a single selected shape
+   */
+  getSelectedShapeRotation() {
+    if (this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      if (!layer) return 0
+      if (this.selectedShape.shapeType === 'image') {
+        return layer.image?.rotation || 0
+      }
+      const arrayName = SHAPE_ARRAY_MAP[this.selectedShape.shapeType]
+      const shape = arrayName ? layer[arrayName]?.[this.selectedShape.shapeIndex] : null
+      return shape?.rotation || 0
+    }
+    return 0
+  }
+
+  /**
+   * Start rotation interaction
+   */
+  startRotation(pos, bounds) {
+    const center = getBoundsCenter(bounds)
+    this.isRotating = true
+    this.rotationCenter = center
+    this.rotationStartAngle = Math.atan2(pos.y - center.y, pos.x - center.x)
+
+    // Store starting rotations for all shapes being rotated
+    if (this.selectedShapes) {
+      this.shapeStartRotations = []
+      this.shapeStartPositions = []
+      for (const shape of this.selectedShapes) {
+        const layer = this.layerManager.getLayer(shape.layerId)
+        const arrayName = SHAPE_ARRAY_MAP[shape.shapeType]
+        const shapeData = arrayName ? layer?.[arrayName]?.[shape.shapeIndex]
+          : (shape.shapeType === 'image' ? layer?.image : null)
+        this.shapeStartRotations.push(shapeData?.rotation || 0)
+        const shapeBounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+        this.shapeStartPositions.push(shapeBounds ? getBoundsCenter(shapeBounds) : null)
+      }
+    } else if (this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      const arrayName = SHAPE_ARRAY_MAP[this.selectedShape.shapeType]
+      const shapeData = arrayName ? layer?.[arrayName]?.[this.selectedShape.shapeIndex]
+        : (this.selectedShape.shapeType === 'image' ? layer?.image : null)
+      this.shapeStartRotations = [shapeData?.rotation || 0]
+    }
+  }
+
+  /**
+   * Apply rotation during drag
+   */
+  rotateObject(pos, isShiftHeld = false) {
+    if (!this.isRotating || !this.rotationCenter) return
+
+    const currentAngle = Math.atan2(pos.y - this.rotationCenter.y, pos.x - this.rotationCenter.x)
+    let deltaAngle = currentAngle - this.rotationStartAngle
+
+    if (isShiftHeld) {
+      deltaAngle = snapAngle(deltaAngle)
+    }
+
+    if (this.selectedShapes) {
+      // Group rotation: process non-connector shapes first, then update connectors
+      const updatedLayers = new Set()
+      for (let i = 0; i < this.selectedShapes.length; i++) {
+        const shape = this.selectedShapes[i]
+        // Skip connectors — they follow their connected shapes
+        if (shape.shapeType === 'connector') continue
+
+        const layer = this.layerManager.getLayer(shape.layerId)
+        const arrayName = SHAPE_ARRAY_MAP[shape.shapeType]
+        const shapeData = arrayName ? layer?.[arrayName]?.[shape.shapeIndex]
+          : (shape.shapeType === 'image' ? layer?.image : null)
+        if (!shapeData) continue
+
+        shapeData.rotation = (this.shapeStartRotations[i] || 0) + deltaAngle
+
+        // Rotate shape position around group center (absolute, not incremental)
+        if (this.shapeStartPositions[i]) {
+          const startCenter = this.shapeStartPositions[i]
+          const newCenter = rotatePoint(startCenter.x, startCenter.y, this.rotationCenter.x, this.rotationCenter.y, deltaAngle)
+          const currentBounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+          if (currentBounds) {
+            const currentCenter = getBoundsCenter(currentBounds)
+            const dx = newCenter.x - currentCenter.x
+            const dy = newCenter.y - currentCenter.y
+            if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+              ShapeOperations.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
+            }
+          }
+        }
+
+        updatedLayers.add(layer.id)
+      }
+
+      // Now update all connectors based on the new shape positions
+      for (const shape of this.selectedShapes) {
+        if (shape.shapeType === 'connector') continue
+        const layer = this.layerManager.getLayer(shape.layerId)
+        if (layer) {
+          ShapeOperations.updateConnectorsForShape(layer, shape.shapeType, shape.shapeIndex)
+          updatedLayers.add(layer.id)
+        }
+      }
+
+      for (const layerId of updatedLayers) {
+        this.layerManager.updateLayer(layerId, this.layerManager.getLayer(layerId))
+      }
+    } else if (this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      const arrayName = SHAPE_ARRAY_MAP[this.selectedShape.shapeType]
+      const shapeData = arrayName ? layer?.[arrayName]?.[this.selectedShape.shapeIndex]
+        : (this.selectedShape.shapeType === 'image' ? layer?.image : null)
+      if (shapeData) {
+        shapeData.rotation = (this.shapeStartRotations[0] || 0) + deltaAngle
+        // Update connectors after rotation
+        ShapeOperations.updateConnectorsForShape(layer, this.selectedShape.shapeType, this.selectedShape.shapeIndex)
+        this.layerManager.updateLayer(layer.id, layer)
+      }
+    }
+  }
+
+  /**
    * Detect if click is near an arrow endpoint (for endpoint dragging)
    */
   getArrowEndpointHandle(pos, arrow) {
@@ -486,6 +684,12 @@ export class ToolHandler {
         !this.selectedShapes.every(s => { const l = this.layerManager.getLayer(s.layerId); return l && l.locked })) {
       const bounds = this.getMultiShapeBounds(this.selectedShapes)
       if (bounds) {
+        // Check rotation handle for multi-selection
+        if (this.getRotationHandle(pos, bounds, 0)) {
+          this.startRotation(pos, bounds)
+          return this.selectedShapes
+        }
+
         // Check if clicking inside multi-selection bounds or on resize handles
         const handle = this.getResizeHandle(pos, bounds)
         if (handle) {
@@ -546,9 +750,27 @@ export class ToolHandler {
             }
           }
 
+          // Check rotation handle first (skip for arrows, connectors, images)
+          const noRotationTypes = ['arrow', 'connector']
+          if (!noRotationTypes.includes(this.selectedShape.shapeType)) {
+            const shapeRotation = this.getSelectedShapeRotation()
+            if (this.getRotationHandle(pos, bounds, shapeRotation)) {
+              this.startRotation(pos, bounds)
+              return this.selectedShape
+            }
+          }
+
           // Check if clicking on a resize handle (skip for connectors -- they only use endpoint handles)
           if (this.selectedShape.shapeType !== 'connector') {
-            const handle = this.getResizeHandle(pos, bounds)
+            const shapeRotation = this.getSelectedShapeRotation()
+            // Inverse-rotate mouse into local space for handle detection
+            let handleTestPos = pos
+            if (shapeRotation) {
+              const center = getBoundsCenter(bounds)
+              const local = inverseRotatePoint(pos.x, pos.y, center.x, center.y, shapeRotation)
+              handleTestPos = { x: local.x, y: local.y }
+            }
+            const handle = this.getResizeHandle(handleTestPos, bounds)
             if (handle) {
               this.resizeHandle = handle
               this.resizeStartPos = pos
@@ -855,6 +1077,12 @@ export class ToolHandler {
       return
     }
 
+    // If rotating, apply rotation
+    if (this.isRotating) {
+      this.rotateObject(pos, isShiftHeld)
+      return
+    }
+
     // If resizing, call resize instead
     if (this.isResizing) {
       this.resizeShape(pos, isShiftHeld)
@@ -939,7 +1167,7 @@ export class ToolHandler {
       return
     }
 
-    if (this.isDragging || this.isResizing || this.isArrowEndpointDragging) {
+    if (this.isDragging || this.isResizing || this.isRotating || this.isArrowEndpointDragging) {
       if (this.selectedShapes) {
         const updatedLayers = new Set()
         for (const shape of this.selectedShapes) {
@@ -961,6 +1189,7 @@ export class ToolHandler {
 
     this.isDragging = false
     this.isResizing = false
+    this.isRotating = false
     this.isArrowEndpointDragging = false
     this.dragStartPos = null
     this.resizeHandle = null
@@ -968,6 +1197,9 @@ export class ToolHandler {
     this.resizeStartBounds = null
     this.arrowEndpointHandle = null
     this.arrowEndpointStartPos = null
+    this.rotationCenter = null
+    this.shapeStartRotations = null
+    this.shapeStartPositions = null
   }
 
   /**
@@ -1003,6 +1235,12 @@ export class ToolHandler {
     this.isMarqueeSelecting = false
     this.marqueeStart = null
     this.marqueeCurrent = null
+    // Rotation state
+    this.isRotating = false
+    this.rotationCenter = null
+    this.rotationStartAngle = 0
+    this.shapeStartRotations = null
+    this.shapeStartPositions = null
   }
 
   /**

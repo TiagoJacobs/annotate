@@ -173,6 +173,41 @@ export const useShapeProperties = ({
     return updatedLayers
   }, [selectedShape, getShapeArrayName])
 
+  /**
+   * Get a text formatting property from selected shape
+   */
+  const getTextProperty = useCallback((propName, defaultValue) => {
+    if (!selectedShape) return null
+
+    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
+    if (shape.shapeType !== 'text') return null
+
+    const shapeData = getShapeData(shape)
+    return shapeData?.[propName] ?? defaultValue
+  }, [selectedShape, getShapeData])
+
+  const getFontWeight = useCallback(() => getTextProperty('fontWeight', 'normal'), [getTextProperty])
+  const getFontStyle = useCallback(() => getTextProperty('fontStyle', 'normal'), [getTextProperty])
+  const getTextDecoration = useCallback(() => getTextProperty('textDecoration', 'none'), [getTextProperty])
+  const getHighlightColor = useCallback(() => getTextProperty('highlightColor', ''), [getTextProperty])
+
+  /**
+   * Update a text formatting property for selected shape(s)
+   */
+  const updateTextProperty = useCallback((propName, value) => {
+    const updatedLayers = updateProperty((shapeData, shapeType) => {
+      if (shapeType === 'text') {
+        shapeData[propName] = value
+      }
+    })
+    return updatedLayers
+  }, [updateProperty])
+
+  const updateFontWeight = useCallback((v) => updateTextProperty('fontWeight', v), [updateTextProperty])
+  const updateFontStyle = useCallback((v) => updateTextProperty('fontStyle', v), [updateTextProperty])
+  const updateTextDecoration = useCallback((v) => updateTextProperty('textDecoration', v), [updateTextProperty])
+  const updateHighlightColor = useCallback((v) => updateTextProperty('highlightColor', v), [updateTextProperty])
+
   return {
     getColor,
     getSize,
@@ -182,6 +217,14 @@ export const useShapeProperties = ({
     updateSize,
     updateFillColor,
     updateLineStyle,
-    getShapeData
+    getShapeData,
+    getFontWeight,
+    getFontStyle,
+    getTextDecoration,
+    getHighlightColor,
+    updateFontWeight,
+    updateFontStyle,
+    updateTextDecoration,
+    updateHighlightColor,
   }
 }

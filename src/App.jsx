@@ -12,6 +12,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useShapeProperties } from './hooks/useShapeProperties'
 import { getStoredToolProperties, saveToolProperty } from './utils/storageUtils'
 import { createCroppedCanvas } from './utils/canvasExportUtils'
+import { cropImageDataUrl } from './utils/imageCropUtils'
 import { CanvasArea } from './components/CanvasArea'
 import { ToolsPanel } from './components/ToolsPanel'
 import { ShapeOptionsPanel } from './components/ShapeOptionsPanel'
@@ -63,6 +64,10 @@ function Annotate() {
   const [fontSize, setFontSize] = useState(storedProperties.fontSize)
   const [lineStyle, setLineStyle] = useState(storedProperties.lineStyle)
   const [fillColor, setFillColor] = useState('')
+  const [fontWeight, setFontWeight] = useState('normal')
+  const [fontStyle, setFontStyle] = useState('normal')
+  const [textDecoration, setTextDecoration] = useState('none')
+  const [highlightColor, setHighlightColor] = useState('')
   const [zoom, setZoom] = useState(1)
   const [selectedShape, setSelectedShape] = useState(null) // { layerId, shapeType, shapeIndex }
   const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
@@ -74,6 +79,10 @@ function Annotate() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
   const [showMinimap, setShowMinimap] = useState(false)
   const [canvasReady, setCanvasReady] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [selectedStampId, setSelectedStampId] = useState('cursor')
+  const [isCropping, setIsCropping] = useState(false)
+  const [cropRect, setCropRect] = useState(null) // { x, y, width, height } in canvas coords
 
   // ==================== Hooks ====================
 
@@ -112,6 +121,10 @@ function Annotate() {
       color,
       fillColor,
       size: brushSize,
+      fontWeight,
+      fontStyle,
+      textDecoration,
+      highlightColor,
       fontSize,
       lineStyle
     }
@@ -127,6 +140,7 @@ function Annotate() {
       fontSize,
       lineStyle,
       size: brushSize,
+      stampId: selectedStampId,
       ...Object.fromEntries(toolProperties)
     }
 
@@ -225,6 +239,116 @@ function Annotate() {
       renderCanvas()
     }
   }
+
+  // Text formatting getters/setters
+  const getSelectedShapeFontWeight = () => shapePropertiesHook.getFontWeight()
+  const getSelectedShapeFontStyle = () => shapePropertiesHook.getFontStyle()
+  const getSelectedShapeTextDecoration = () => shapePropertiesHook.getTextDecoration()
+  const getSelectedShapeHighlightColor = () => shapePropertiesHook.getHighlightColor()
+
+  const updateSelectedShapeTextFormat = (propName, value) => {
+    const updaterMap = {
+      fontWeight: shapePropertiesHook.updateFontWeight,
+      fontStyle: shapePropertiesHook.updateFontStyle,
+      textDecoration: shapePropertiesHook.updateTextDecoration,
+      highlightColor: shapePropertiesHook.updateHighlightColor,
+    }
+    const updatedLayers = updaterMap[propName]?.(value)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
+    }
+  }
+
+  // ==================== Crop Functions ====================
+
+  const startCrop = () => {
+    // Only start crop if an image is selected
+    if (!selectedShape || selectedShape.shapeType !== 'image') return
+    const layer = layerManagerRef.current?.getLayer(selectedShape.layerId)
+    if (!layer?.image) return
+    setIsCropping(true)
+    setCropRect(null)
+  }
+
+  const confirmCrop = async () => {
+    const currentSelectedShape = selectedShapeRef.current || selectedShape
+    if (!cropRect || !currentSelectedShape) {
+      setIsCropping(false)
+      setCropRect(null)
+      return
+    }
+
+    const layer = layerManagerRef.current?.getLayer(currentSelectedShape.layerId)
+    if (!layer?.image) {
+      setIsCropping(false)
+      setCropRect(null)
+      return
+    }
+
+    const image = layer.image
+    // Convert crop rect from canvas coords to image-relative coords
+    const relX = cropRect.x - (image.x || 0)
+    const relY = cropRect.y - (image.y || 0)
+
+    // Clamp to image bounds
+    const srcX = Math.max(0, relX)
+    const srcY = Math.max(0, relY)
+    const srcW = Math.min(cropRect.width, image.width - srcX)
+    const srcH = Math.min(cropRect.height, image.height - srcY)
+
+    if (srcW <= 0 || srcH <= 0) {
+      showSnackbar('Invalid crop area')
+      setIsCropping(false)
+      setCropRect(null)
+      return
+    }
+
+    try {
+      const croppedDataUrl = await cropImageDataUrl(image.data, { x: srcX, y: srcY, width: srcW, height: srcH })
+      layer.image = {
+        data: croppedDataUrl,
+        x: (image.x || 0) + srcX,
+        y: (image.y || 0) + srcY,
+        width: srcW,
+        height: srcH,
+      }
+      // Clear image cache for this layer so it re-renders
+      imageCache.current.delete(image.data)
+      layerManagerRef.current.updateLayerWithHistory(layer.id, { image: layer.image })
+      updateLayersState()
+      renderCanvas()
+      showSnackbar('Image cropped')
+    } catch (_err) {
+      showSnackbar('Failed to crop image')
+    }
+
+    setIsCropping(false)
+    setCropRect(null)
+  }
+
+  const cancelCrop = () => {
+    setIsCropping(false)
+    setCropRect(null)
+  }
+
+  // Global keyboard handler for crop mode
+  const confirmCropRef = useRef(confirmCrop)
+  confirmCropRef.current = confirmCrop
+  useEffect(() => {
+    if (!isCropping) return
+    const handler = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        confirmCropRef.current()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        cancelCrop()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isCropping])
 
   /**
    * Select a layer
@@ -622,6 +746,25 @@ function Annotate() {
   })
 
   // ==================== Effects ====================
+
+  // PWA install prompt
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault()
+      setInstallPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const installApp = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const result = await installPrompt.userChoice
+    if (result.outcome === 'accepted') {
+      setInstallPrompt(null)
+    }
+  }
 
   // Prevent browser zoom on Ctrl+scroll anywhere in the app
   useEffect(() => {
@@ -1135,6 +1278,10 @@ function Annotate() {
           downloadFormat={downloadFormat}
           setDownloadFormat={setDownloadFormat}
           setSelectedShape={setSelectedShape}
+          installApp={installPrompt ? installApp : null}
+          layerManagerRef={layerManagerRef}
+          shapeRendererRef={shapeRendererRef}
+          showSnackbar={showSnackbar}
         />
 
         {/* Options Toolbar - always visible but empty when no tool/shape is active */}
@@ -1168,6 +1315,22 @@ function Annotate() {
           colorPickerRef={colorPickerRef}
           sizeSliderRef={sizeSliderRef}
           lineStyleSelectRef={lineStyleSelectRef}
+          fontWeight={fontWeight}
+          fontStyle={fontStyle}
+          textDecoration={textDecoration}
+          highlightColor={highlightColor}
+          setFontWeight={setFontWeight}
+          setFontStyle={setFontStyle}
+          setTextDecoration={setTextDecoration}
+          setHighlightColor={setHighlightColor}
+          getSelectedShapeFontWeight={getSelectedShapeFontWeight}
+          getSelectedShapeFontStyle={getSelectedShapeFontStyle}
+          getSelectedShapeTextDecoration={getSelectedShapeTextDecoration}
+          getSelectedShapeHighlightColor={getSelectedShapeHighlightColor}
+          updateSelectedShapeTextFormat={updateSelectedShapeTextFormat}
+          onStartCrop={startCrop}
+          selectedStampId={selectedStampId}
+          setSelectedStampId={setSelectedStampId}
         />
 
         <div className="annotate-content">
@@ -1212,6 +1375,14 @@ function Annotate() {
             saveInlineTextEdit={saveInlineTextEdit}
             zoom={zoom}
             layers={layers}
+            isCropping={isCropping}
+            cropRect={cropRect}
+            setCropRect={setCropRect}
+            confirmCrop={confirmCrop}
+            cancelCrop={cancelCrop}
+            canvasManagerRef={canvasManagerRef}
+            selectedShape={selectedShape}
+            layerManagerRef={layerManagerRef}
           />
 
           {/* Layers Panel */}

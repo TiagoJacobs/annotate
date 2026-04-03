@@ -29,6 +29,7 @@ export class LayerManager {
       strokes: [],
       texts: [],
       connectors: [],
+      stamps: [],
       ...data,
     }
 

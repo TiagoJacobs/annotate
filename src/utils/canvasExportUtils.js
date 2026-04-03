@@ -3,14 +3,32 @@
  * Handles smart cropping and content bounds calculation for exports
  */
 
+import { getRotatedBoundingBox } from './rotationUtils'
+
+/**
+ * Expand min/max bounds with a shape's bounding box, accounting for rotation
+ */
+function expandBounds(bounds, shapeBounds, rotation) {
+  const effectiveBounds = rotation ? getRotatedBoundingBox(shapeBounds, rotation) : shapeBounds
+  bounds.minX = Math.min(bounds.minX, effectiveBounds.x)
+  bounds.minY = Math.min(bounds.minY, effectiveBounds.y)
+  bounds.maxX = Math.max(bounds.maxX, effectiveBounds.x + effectiveBounds.width)
+  bounds.maxY = Math.max(bounds.maxY, effectiveBounds.y + effectiveBounds.height)
+  bounds.hasContent = true
+}
+
 /**
  * Get the bounding box of all visible content on the canvas
  * @param {Object} layerManager - The layer manager instance
  * @returns {Object|null} Bounds object {x, y, width, height} or null if no content
  */
 export const getContentBounds = (layerManager) => {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  let hasContent = false
+  const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, hasContent: false }
+
+  const addRect = (x, y, w, h, rotation) => {
+    const shapeBounds = { x, y, width: w, height: h }
+    expandBounds(b, shapeBounds, rotation)
+  }
 
   const allLayers = layerManager.getAllLayers()
 
@@ -19,90 +37,77 @@ export const getContentBounds = (layerManager) => {
 
     // Check image bounds
     if (layer.image) {
-      hasContent = true
-      minX = Math.min(minX, layer.image.x)
-      minY = Math.min(minY, layer.image.y)
-      maxX = Math.max(maxX, layer.image.x + layer.image.width)
-      maxY = Math.max(maxY, layer.image.y + layer.image.height)
+      addRect(layer.image.x, layer.image.y, layer.image.width, layer.image.height)
     }
 
     // Check shape bounds
     layer.strokes?.forEach(stroke => {
       if (stroke.points && stroke.points.length > 0) {
-        hasContent = true
+        // For strokes with rotation, get bounding box of points then apply rotation
         const padding = (stroke.size || 3) / 2
-        stroke.points.forEach(point => {
-          minX = Math.min(minX, point.x - padding)
-          minY = Math.min(minY, point.y - padding)
-          maxX = Math.max(maxX, point.x + padding)
-          maxY = Math.max(maxY, point.y + padding)
-        })
+        const xs = stroke.points.map(p => p.x)
+        const ys = stroke.points.map(p => p.y)
+        addRect(
+          Math.min(...xs) - padding, Math.min(...ys) - padding,
+          Math.max(...xs) - Math.min(...xs) + padding * 2,
+          Math.max(...ys) - Math.min(...ys) + padding * 2,
+          stroke.rotation
+        )
       }
     })
 
     layer.arrows?.forEach(arrow => {
       if (arrow.x1 !== undefined && arrow.x2 !== undefined) {
-        hasContent = true
         const padding = (arrow.size || 2) / 2
-        minX = Math.min(minX, Math.min(arrow.x1, arrow.x2) - padding)
-        minY = Math.min(minY, Math.min(arrow.y1, arrow.y2) - padding)
-        maxX = Math.max(maxX, Math.max(arrow.x1, arrow.x2) + padding)
-        maxY = Math.max(maxY, Math.max(arrow.y1, arrow.y2) + padding)
+        addRect(
+          Math.min(arrow.x1, arrow.x2) - padding, Math.min(arrow.y1, arrow.y2) - padding,
+          Math.abs(arrow.x2 - arrow.x1) + padding * 2, Math.abs(arrow.y2 - arrow.y1) + padding * 2,
+          arrow.rotation
+        )
       }
     })
 
     layer.rects?.forEach(rect => {
       if (rect.width && rect.height) {
-        hasContent = true
-        const padding = (rect.size || 2) / 2
-        minX = Math.min(minX, rect.x - padding)
-        minY = Math.min(minY, rect.y - padding)
-        maxX = Math.max(maxX, rect.x + rect.width + padding)
-        maxY = Math.max(maxY, rect.y + rect.height + padding)
+        const p = (rect.size || 2) / 2
+        addRect(rect.x - p, rect.y - p, rect.width + p * 2, rect.height + p * 2, rect.rotation)
       }
     })
 
     layer.ellipses?.forEach(ellipse => {
       if (ellipse.width && ellipse.height) {
-        hasContent = true
-        const padding = (ellipse.size || 2) / 2
-        minX = Math.min(minX, ellipse.x - padding)
-        minY = Math.min(minY, ellipse.y - padding)
-        maxX = Math.max(maxX, ellipse.x + ellipse.width + padding)
-        maxY = Math.max(maxY, ellipse.y + ellipse.height + padding)
+        const p = (ellipse.size || 2) / 2
+        addRect(ellipse.x - p, ellipse.y - p, ellipse.width + p * 2, ellipse.height + p * 2, ellipse.rotation)
       }
     })
 
     layer.texts?.forEach(text => {
-      hasContent = true
       const textWidth = text.content.length * text.fontSize * 0.6
-      minX = Math.min(minX, text.x)
-      minY = Math.min(minY, text.y)
-      maxX = Math.max(maxX, text.x + textWidth)
-      maxY = Math.max(maxY, text.y + text.fontSize)
+      addRect(text.x, text.y - text.fontSize, textWidth, text.fontSize, text.rotation)
     })
 
     layer.connectors?.forEach(c => {
       if (c.fromX == null) return
-      hasContent = true
-      minX = Math.min(minX, c.fromX, c.toX)
-      minY = Math.min(minY, c.fromY, c.toY)
-      maxX = Math.max(maxX, c.fromX, c.toX)
-      maxY = Math.max(maxY, c.fromY, c.toY)
+      addRect(Math.min(c.fromX, c.toX), Math.min(c.fromY, c.toY),
+        Math.abs(c.toX - c.fromX), Math.abs(c.toY - c.fromY))
+    })
+
+    layer.stamps?.forEach(stamp => {
+      addRect(stamp.x, stamp.y, stamp.width, stamp.height, stamp.rotation)
     })
   })
 
-  if (!hasContent) {
+  if (!b.hasContent) {
     return null
   }
 
   // Add padding around content (allow negative coordinates)
   const padding = 20
   return {
-    x: minX - padding,
-    y: minY - padding,
-    width: maxX - minX + padding * 2,
-    height: maxY - minY + padding * 2
+    x: b.minX - padding,
+    y: b.minY - padding,
+    width: b.maxX - b.minX + padding * 2,
+    height: b.maxY - b.minY + padding * 2
   }
 }
 
@@ -154,6 +159,7 @@ export const createCroppedCanvas = (layerManager, shapeRenderer) => {
       layer.ellipses?.forEach(ellipse => shapeRenderer.renderShape(tempCtx, 'ellipse', ellipse, ellipse.color || '#000000'))
       layer.texts?.forEach(text => shapeRenderer.renderShape(tempCtx, 'text', text, text.color || '#000000'))
       layer.connectors?.forEach(c => shapeRenderer.renderShape(tempCtx, 'connector', c, c.color || '#000000'))
+      layer.stamps?.forEach(stamp => shapeRenderer.renderShape(tempCtx, 'stamp', stamp))
     }
 
     tempCtx.globalAlpha = 1

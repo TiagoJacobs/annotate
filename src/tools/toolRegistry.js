@@ -139,6 +139,17 @@ export const toolRegistry = {
     },
   },
 
+  stamp: {
+    id: 'stamp',
+    name: 'Stamp',
+    icon: 'sticker',
+    cursor: 'crosshair',
+    properties: {},
+    handlers: {
+      onClick: 'placeStamp',
+    },
+  },
+
   pan: {
     id: 'pan',
     name: 'Pan',
