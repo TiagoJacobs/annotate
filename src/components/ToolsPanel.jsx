@@ -23,6 +23,7 @@ import {
   Stamp,
 } from 'lucide-react'
 import { toolRegistry } from '../tools/toolRegistry'
+import { ShareButton } from './ShareButton'
 
 const iconMap = {
   pen: <Pen size={20} />,
@@ -51,6 +52,9 @@ export const ToolsPanel = ({
   setDownloadFormat,
   setSelectedShape,
   installApp,
+  layerManagerRef,
+  shapeRendererRef,
+  showSnackbar,
 }) => {
   return (
     <div className="annotate-toolbar">
@@ -110,6 +114,11 @@ export const ToolsPanel = ({
             <option value="svg">SVG</option>
           </select>
         </div>
+        <ShareButton
+          layerManagerRef={layerManagerRef}
+          shapeRendererRef={shapeRendererRef}
+          showSnackbar={showSnackbar}
+        />
         {installApp && (
           <button className="action-btn" onClick={installApp} title="Install as app">
             <Monitor size={18} />

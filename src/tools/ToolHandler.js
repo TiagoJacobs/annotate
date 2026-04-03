@@ -490,8 +490,6 @@ export class ToolHandler {
         if (this.shapeStartPositions[i]) {
           const startCenter = this.shapeStartPositions[i]
           const newCenter = rotatePoint(startCenter.x, startCenter.y, this.rotationCenter.x, this.rotationCenter.y, deltaAngle)
-          const dx = newCenter.x - startCenter.x
-          const dy = newCenter.y - startCenter.y
           ShapeOperations.moveShapeToOffset(layer, shape.shapeType, shape.shapeIndex, startCenter, newCenter)
         }
 

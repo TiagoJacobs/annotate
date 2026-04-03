@@ -364,11 +364,6 @@ export class ShapeOperations {
         c.toY += dy
       },
       stamp: () => {
-        const stamp = layer.stamps?.[shapeIndex]
-        if (!stamp) return { x: 0, y: 0, width: 0, height: 0 }
-        return { x: stamp.x, y: stamp.y, width: stamp.width, height: stamp.height }
-      },
-      stamp: () => {
         const s = layer.stamps[shapeIndex]
         s.x += dx
         s.y += dy
@@ -556,14 +551,11 @@ export class ShapeOperations {
         arrow.toY = startBounds.y + (oldToY - startBounds.y) * scaleY + offsetY
       },
       stamp: () => {
-        const stamp = layer.stamps?.[shapeIndex]
-        if (!stamp) return { x: 0, y: 0, width: 0, height: 0 }
-        return { x: stamp.x, y: stamp.y, width: stamp.width, height: stamp.height }
-      },
-      stamp: () => {
-        const s = layer.stamps[shapeIndex]
-        s.x += dx
-        s.y += dy
+        const stamp = layer.stamps[shapeIndex]
+        stamp.x = newX
+        stamp.y = newY
+        stamp.width = newWidth
+        stamp.height = newHeight
       },
       image: () => {
         // Images are stored as layer.image (not in an array)

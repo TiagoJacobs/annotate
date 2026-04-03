@@ -1259,6 +1259,9 @@ function Annotate() {
           setDownloadFormat={setDownloadFormat}
           setSelectedShape={setSelectedShape}
           installApp={installPrompt ? installApp : null}
+          layerManagerRef={layerManagerRef}
+          shapeRendererRef={shapeRendererRef}
+          showSnackbar={showSnackbar}
         />
 
         {/* Options Toolbar - always visible but empty when no tool/shape is active */}
