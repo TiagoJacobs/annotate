@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo } from 'react'
-import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup } from 'lucide-react'
+import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup, Bold, Italic, Underline, Highlighter } from 'lucide-react'
 import { ShapeOperations } from '../services/ShapeOperations'
 
 export const ShapeOptionsPanel = React.forwardRef(({
@@ -36,7 +36,20 @@ export const ShapeOptionsPanel = React.forwardRef(({
   saveToolProperty,
   colorPickerRef,
   sizeSliderRef,
-  lineStyleSelectRef
+  lineStyleSelectRef,
+  fontWeight,
+  fontStyle,
+  textDecoration,
+  highlightColor,
+  setFontWeight,
+  setFontStyle,
+  setTextDecoration,
+  setHighlightColor,
+  getSelectedShapeFontWeight,
+  getSelectedShapeFontStyle,
+  getSelectedShapeTextDecoration,
+  getSelectedShapeHighlightColor,
+  updateSelectedShapeTextFormat,
 }, ref) => {
   const showFontSize = tool === 'text'
   const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
@@ -48,6 +61,9 @@ export const ShapeOptionsPanel = React.forwardRef(({
       : fillableTools.includes(selectedShape.shapeType)
   )
   const showFill = fillableTools.includes(tool) || isFillableShape
+  const isTextTool = tool === 'text'
+  const isTextShapeSelected = selectedShape && !Array.isArray(selectedShape) && selectedShape.shapeType === 'text'
+  const showTextFormatting = isTextTool || isTextShapeSelected
   const isMultiSelect = Array.isArray(selectedShape) && selectedShape.length >= 2
   const showAlignment = useMemo(() => {
     if (!isMultiSelect || !layerManagerRef?.current) return false
@@ -159,6 +175,110 @@ export const ShapeOptionsPanel = React.forwardRef(({
               }px
             </span>
           </div>
+
+
+          {/* Text Formatting Controls */}
+          {showTextFormatting && (
+            <div className="tool-group">
+              <label>Format:</label>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                <button
+                  className="layer-btn"
+                  onClick={() => {
+                    const current = isTextShapeSelected ? getSelectedShapeFontWeight() : fontWeight
+                    const newValue = current === 'bold' ? 'normal' : 'bold'
+                    if (isTextShapeSelected) {
+                      updateSelectedShapeTextFormat('fontWeight', newValue)
+                    }
+                    setFontWeight(newValue)
+                  }}
+                  title="Bold"
+                  style={{
+                    padding: '2px 6px',
+                    background: (isTextShapeSelected ? getSelectedShapeFontWeight() === 'bold' : fontWeight === 'bold') ? '#667eea' : undefined,
+                    color: (isTextShapeSelected ? getSelectedShapeFontWeight() === 'bold' : fontWeight === 'bold') ? '#fff' : undefined,
+                  }}
+                >
+                  <Bold size={14} />
+                </button>
+                <button
+                  className="layer-btn"
+                  onClick={() => {
+                    const current = isTextShapeSelected ? getSelectedShapeFontStyle() : fontStyle
+                    const newValue = current === 'italic' ? 'normal' : 'italic'
+                    if (isTextShapeSelected) {
+                      updateSelectedShapeTextFormat('fontStyle', newValue)
+                    }
+                    setFontStyle(newValue)
+                  }}
+                  title="Italic"
+                  style={{
+                    padding: '2px 6px',
+                    background: (isTextShapeSelected ? getSelectedShapeFontStyle() === 'italic' : fontStyle === 'italic') ? '#667eea' : undefined,
+                    color: (isTextShapeSelected ? getSelectedShapeFontStyle() === 'italic' : fontStyle === 'italic') ? '#fff' : undefined,
+                  }}
+                >
+                  <Italic size={14} />
+                </button>
+                <button
+                  className="layer-btn"
+                  onClick={() => {
+                    const current = isTextShapeSelected ? getSelectedShapeTextDecoration() : textDecoration
+                    const newValue = current === 'underline' ? 'none' : 'underline'
+                    if (isTextShapeSelected) {
+                      updateSelectedShapeTextFormat('textDecoration', newValue)
+                    }
+                    setTextDecoration(newValue)
+                  }}
+                  title="Underline"
+                  style={{
+                    padding: '2px 6px',
+                    background: (isTextShapeSelected ? getSelectedShapeTextDecoration() === 'underline' : textDecoration === 'underline') ? '#667eea' : undefined,
+                    color: (isTextShapeSelected ? getSelectedShapeTextDecoration() === 'underline' : textDecoration === 'underline') ? '#fff' : undefined,
+                  }}
+                >
+                  <Underline size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Highlight Color */}
+          {showTextFormatting && (
+            <div className="tool-group">
+              <label>Highlight:</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  type="color"
+                  value={(isTextShapeSelected ? getSelectedShapeHighlightColor() : highlightColor) || '#ffff00'}
+                  onChange={(e) => {
+                    if (isTextShapeSelected) {
+                      updateSelectedShapeTextFormat('highlightColor', e.target.value)
+                    }
+                    setHighlightColor(e.target.value)
+                  }}
+                  className="color-picker"
+                />
+                <button
+                  className="layer-btn"
+                  onClick={() => {
+                    if (isTextShapeSelected) {
+                      updateSelectedShapeTextFormat('highlightColor', '')
+                    }
+                    setHighlightColor('')
+                  }}
+                  title="No highlight"
+                  style={{
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    opacity: (isTextShapeSelected ? !getSelectedShapeHighlightColor() : !highlightColor) ? 0.5 : 1,
+                  }}
+                >
+                  None
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Line Style Control */}
           {(selectedShape ? getSelectedShapeLineStyle() !== null : true) && (

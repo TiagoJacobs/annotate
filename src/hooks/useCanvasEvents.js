@@ -98,7 +98,10 @@ export const useCanvasEvents = ({
       x: screenPos.screenX,
       y: screenPos.screenY - properties.fontSize, // Adjust for text baseline
       content: ' ',
-      fontSize: properties.fontSize
+      fontSize: properties.fontSize,
+      fontWeight: text.fontWeight,
+      fontStyle: text.fontStyle,
+      textDecoration: text.textDecoration,
     })
 
     updateLayersState()
@@ -130,7 +133,10 @@ export const useCanvasEvents = ({
         x: screenPos.screenX,
         y: screenPos.screenY - text.fontSize,
         content: text.content,
-        fontSize: text.fontSize
+        fontSize: text.fontSize,
+        fontWeight: text.fontWeight,
+        fontStyle: text.fontStyle,
+        textDecoration: text.textDecoration,
       })
       return
     }

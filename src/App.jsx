@@ -63,6 +63,10 @@ function Annotate() {
   const [fontSize, setFontSize] = useState(storedProperties.fontSize)
   const [lineStyle, setLineStyle] = useState(storedProperties.lineStyle)
   const [fillColor, setFillColor] = useState('')
+  const [fontWeight, setFontWeight] = useState('normal')
+  const [fontStyle, setFontStyle] = useState('normal')
+  const [textDecoration, setTextDecoration] = useState('none')
+  const [highlightColor, setHighlightColor] = useState('')
   const [zoom, setZoom] = useState(1)
   const [selectedShape, setSelectedShape] = useState(null) // { layerId, shapeType, shapeIndex }
   const [inlineEditingText, setInlineEditingText] = useState(null) // { layerId, textIndex, x, y, content }
@@ -112,6 +116,10 @@ function Annotate() {
       color,
       fillColor,
       size: brushSize,
+      fontWeight,
+      fontStyle,
+      textDecoration,
+      highlightColor,
       fontSize,
       lineStyle
     }
@@ -220,6 +228,26 @@ function Annotate() {
 
   const updateSelectedShapeFillColor = (newFillColor) => {
     const updatedLayers = shapePropertiesHook.updateFillColor(newFillColor)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
+    }
+  }
+
+  // Text formatting getters/setters
+  const getSelectedShapeFontWeight = () => shapePropertiesHook.getFontWeight()
+  const getSelectedShapeFontStyle = () => shapePropertiesHook.getFontStyle()
+  const getSelectedShapeTextDecoration = () => shapePropertiesHook.getTextDecoration()
+  const getSelectedShapeHighlightColor = () => shapePropertiesHook.getHighlightColor()
+
+  const updateSelectedShapeTextFormat = (propName, value) => {
+    const updaterMap = {
+      fontWeight: shapePropertiesHook.updateFontWeight,
+      fontStyle: shapePropertiesHook.updateFontStyle,
+      textDecoration: shapePropertiesHook.updateTextDecoration,
+      highlightColor: shapePropertiesHook.updateHighlightColor,
+    }
+    const updatedLayers = updaterMap[propName]?.(value)
     if (updatedLayers && updatedLayers.size > 0) {
       updateLayersState()
       renderCanvas()
@@ -1168,6 +1196,19 @@ function Annotate() {
           colorPickerRef={colorPickerRef}
           sizeSliderRef={sizeSliderRef}
           lineStyleSelectRef={lineStyleSelectRef}
+          fontWeight={fontWeight}
+          fontStyle={fontStyle}
+          textDecoration={textDecoration}
+          highlightColor={highlightColor}
+          setFontWeight={setFontWeight}
+          setFontStyle={setFontStyle}
+          setTextDecoration={setTextDecoration}
+          setHighlightColor={setHighlightColor}
+          getSelectedShapeFontWeight={getSelectedShapeFontWeight}
+          getSelectedShapeFontStyle={getSelectedShapeFontStyle}
+          getSelectedShapeTextDecoration={getSelectedShapeTextDecoration}
+          getSelectedShapeHighlightColor={getSelectedShapeHighlightColor}
+          updateSelectedShapeTextFormat={updateSelectedShapeTextFormat}
         />
 
         <div className="annotate-content">

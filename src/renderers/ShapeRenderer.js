@@ -252,10 +252,34 @@ class EllipseRenderer extends BaseShapeRenderer {
 class TextRenderer extends BaseShapeRenderer {
   render(ctx, text, layerColor) {
     const { defaultFontFamily } = TEXT_RENDER_CONFIG
+    const fontFamily = text.fontFamily || defaultFontFamily
+    const weight = text.fontWeight === 'bold' ? 'bold ' : ''
+    const style = text.fontStyle === 'italic' ? 'italic ' : ''
 
+    ctx.font = `${style}${weight}${text.fontSize}px ${fontFamily}`
+
+    // Draw highlight background
+    if (text.highlightColor) {
+      const metrics = ctx.measureText(text.content)
+      const textHeight = text.fontSize
+      ctx.fillStyle = text.highlightColor
+      ctx.fillRect(text.x, text.y - textHeight, metrics.width, textHeight * 1.15)
+    }
+
+    // Draw text
     ctx.fillStyle = this.getShapeColor(text, layerColor)
-    ctx.font = `${text.fontSize}px ${text.fontFamily || defaultFontFamily}`
     ctx.fillText(text.content, text.x, text.y)
+
+    // Draw underline
+    if (text.textDecoration === 'underline') {
+      const metrics = ctx.measureText(text.content)
+      ctx.strokeStyle = this.getShapeColor(text, layerColor)
+      ctx.lineWidth = Math.max(1, text.fontSize / 15)
+      ctx.beginPath()
+      ctx.moveTo(text.x, text.y + text.fontSize * 0.1)
+      ctx.lineTo(text.x + metrics.width, text.y + text.fontSize * 0.1)
+      ctx.stroke()
+    }
   }
 }
 

@@ -154,6 +154,10 @@ export class TextStrategy extends ShapeCreationStrategy {
       y: pos.y,
       fontSize: properties.fontSize,
       fontFamily: 'Arial',
+      fontWeight: properties.fontWeight || 'normal',
+      fontStyle: properties.fontStyle || 'normal',
+      textDecoration: properties.textDecoration || 'none',
+      highlightColor: properties.highlightColor || '',
       color: properties.color,
       groupId: null,
     })
