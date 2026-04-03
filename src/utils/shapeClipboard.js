@@ -185,7 +185,7 @@ export const pasteShapesIntoLayer = (layer, shapes, offsetX = 20, offsetY = 20, 
         // Offset position
         newShape.x = (newShape.x || 0) + offsetX
         newShape.y = (newShape.y || 0) + offsetY
-      } else if (shapeType === 'text') {
+      } else if (shapeType === 'text' || shapeType === 'stamp') {
         // Offset position
         newShape.x = (newShape.x || 0) + offsetX
         newShape.y = (newShape.y || 0) + offsetY
