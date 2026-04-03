@@ -501,11 +501,20 @@ export class ToolHandler {
         // Update individual rotation
         shapeData.rotation = (this.shapeStartRotations[i] || 0) + deltaAngle
 
-        // Rotate shape position around group center
+        // Rotate shape position around group center (absolute, not incremental)
         if (this.shapeStartPositions[i]) {
           const startCenter = this.shapeStartPositions[i]
           const newCenter = rotatePoint(startCenter.x, startCenter.y, this.rotationCenter.x, this.rotationCenter.y, deltaAngle)
-          ShapeOperations.moveShapeToOffset(layer, shape.shapeType, shape.shapeIndex, startCenter, newCenter)
+          // Get current center to compute the needed delta
+          const currentBounds = this.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
+          if (currentBounds) {
+            const currentCenter = getBoundsCenter(currentBounds)
+            const dx = newCenter.x - currentCenter.x
+            const dy = newCenter.y - currentCenter.y
+            if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+              ShapeOperations.moveShape(layer, shape.shapeType, shape.shapeIndex, dx, dy)
+            }
+          }
         }
 
         this.layerManager.updateLayer(layer.id, layer)
