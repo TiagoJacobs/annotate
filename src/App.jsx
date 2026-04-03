@@ -80,6 +80,7 @@ function Annotate() {
   const [showMinimap, setShowMinimap] = useState(false)
   const [canvasReady, setCanvasReady] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
+  const [selectedStampId, setSelectedStampId] = useState('cursor')
   const [isCropping, setIsCropping] = useState(false)
   const [cropRect, setCropRect] = useState(null) // { x, y, width, height } in canvas coords
 
@@ -1305,6 +1306,8 @@ function Annotate() {
           getSelectedShapeHighlightColor={getSelectedShapeHighlightColor}
           updateSelectedShapeTextFormat={updateSelectedShapeTextFormat}
           onStartCrop={startCrop}
+          selectedStampId={selectedStampId}
+          setSelectedStampId={setSelectedStampId}
         />
 
         <div className="annotate-content">

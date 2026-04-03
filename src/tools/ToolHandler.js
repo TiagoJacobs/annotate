@@ -17,6 +17,7 @@ import {
   ROTATION_HANDLE_RADIUS
 } from '../config/uiConstants'
 import { rotatePoint, inverseRotatePoint, snapAngle, getBoundsCenter } from '../utils/rotationUtils'
+import { STAMPS } from '../assets/stamps'
 
 export class ToolHandler {
   constructor(canvasManager, layerManager) {
@@ -151,6 +152,35 @@ export class ToolHandler {
 
     // Save to history when text is placed
     this.layerManager.updateLayerWithHistory(layer.id, { texts: layer.texts })
+  }
+
+
+  /**
+   * Place stamp at position
+   */
+  placeStamp(pos, toolConfig, properties) {
+    let layer = this.layerManager.getSelectedLayer()
+    if (!layer) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
+
+    const stampId = properties.stampId || 'cursor'
+    const stampDef = STAMPS[stampId]
+    if (!stampDef) return
+
+    if (!layer.stamps) layer.stamps = []
+    layer.stamps.push({
+      stampId,
+      x: pos.x - stampDef.defaultWidth / 2,
+      y: pos.y - stampDef.defaultHeight / 2,
+      width: stampDef.defaultWidth,
+      height: stampDef.defaultHeight,
+      groupId: null,
+      rotation: 0,
+    })
+
+    this.layerManager.updateLayerWithHistory(layer.id, { stamps: layer.stamps })
   }
 
   /**

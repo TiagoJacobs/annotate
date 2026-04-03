@@ -5,6 +5,7 @@
 
 import { ARROW_RENDER_CONFIG, STROKE_RENDER_CONFIG, TEXT_RENDER_CONFIG } from '../config/renderConfig'
 import { getShapeCenterForType } from '../services/ShapeOperations'
+import { STAMPS } from '../assets/stamps'
 
 /**
  * Base shape renderer interface
@@ -330,6 +331,46 @@ class ImageRenderer extends BaseShapeRenderer {
   }
 }
 
+
+/**
+ * Stamp renderer - renders SVG stamps via cached Image
+ */
+class StampRenderer extends BaseShapeRenderer {
+  constructor() {
+    super()
+    this.stampImageCache = new Map()
+  }
+
+  getStampImage(stampId) {
+    if (this.stampImageCache.has(stampId)) {
+      return this.stampImageCache.get(stampId)
+    }
+
+    const stampDef = STAMPS[stampId]
+    if (!stampDef) return null
+
+    const img = new Image()
+    const svgBlob = new Blob([stampDef.svg], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(svgBlob)
+    img.src = url
+
+    img.onload = () => {
+      this.stampImageCache.set(stampId, img)
+    }
+
+    // Store as pending
+    this.stampImageCache.set(stampId, img)
+    return img
+  }
+
+  render(ctx, stamp) {
+    const img = this.getStampImage(stamp.stampId)
+    if (!img || !img.complete) return
+
+    ctx.drawImage(img, stamp.x, stamp.y, stamp.width, stamp.height)
+  }
+}
+
 /**
  * Shape Renderer Factory
  */
@@ -342,6 +383,7 @@ class ShapeRendererFactory {
       rect: new RectRenderer(),
       ellipse: new EllipseRenderer(),
       text: new TextRenderer(),
+      stamp: new StampRenderer(),
       image: new ImageRenderer(imageCache)
     }
   }

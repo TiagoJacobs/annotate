@@ -20,6 +20,7 @@ import {
   Hand,
   Github,
   Monitor,
+  Stamp,
 } from 'lucide-react'
 import { toolRegistry } from '../tools/toolRegistry'
 
@@ -32,6 +33,7 @@ const iconMap = {
   cable: <Spline size={20} />,
   pointer: <MousePointer size={20} />,
   hand: <Hand size={20} />,
+  sticker: <Stamp size={20} />,
 }
 
 export const ToolsPanel = ({

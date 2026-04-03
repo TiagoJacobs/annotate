@@ -50,6 +50,7 @@ export const useCanvasRenderer = (
         layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
         layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))
         layer.connectors?.forEach(connector => shapeRendererRef.current.renderShape(ctx, 'connector', connector, '#000000'))
+        layer.stamps?.forEach(stamp => shapeRendererRef.current.renderShape(ctx, 'stamp', stamp))
       }
 
       ctx.globalAlpha = 1
@@ -351,6 +352,7 @@ export const useCanvasRenderer = (
         layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, '#000000'))
         layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
         layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))
+        layer.stamps?.forEach(stamp => shapeRendererRef.current.renderShape(ctx, 'stamp', stamp))
       }
 
       ctx.globalAlpha = 1

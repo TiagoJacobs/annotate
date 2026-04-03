@@ -33,6 +33,8 @@ export function getShapeCenterForType(shape, shapeType) {
       const textWidth = shape.content.length * shape.fontSize * TEXT_WIDTH_FACTOR
       return { x: shape.x + textWidth / 2, y: shape.y - shape.fontSize / 2 }
     }
+    case 'stamp':
+      return { x: shape.x + (shape.width || 0) / 2, y: shape.y + (shape.height || 0) / 2 }
     default:
       return null
   }
@@ -261,6 +263,11 @@ export class ShapeOperations {
         // So the top of the bounding box is at text.y - fontSize
         return { x: text.x, y: text.y - textHeight, width: textWidth, height: textHeight }
       },
+      stamp: () => {
+        const stamp = layer.stamps?.[shapeIndex]
+        if (!stamp) return { x: 0, y: 0, width: 0, height: 0 }
+        return { x: stamp.x, y: stamp.y, width: stamp.width, height: stamp.height }
+      },
       image: () => {
         // Get actual image dimensions from layer.image
         if (layer.image) {
@@ -355,6 +362,16 @@ export class ShapeOperations {
         c.fromY += dy
         c.toX += dx
         c.toY += dy
+      },
+      stamp: () => {
+        const stamp = layer.stamps?.[shapeIndex]
+        if (!stamp) return { x: 0, y: 0, width: 0, height: 0 }
+        return { x: stamp.x, y: stamp.y, width: stamp.width, height: stamp.height }
+      },
+      stamp: () => {
+        const s = layer.stamps[shapeIndex]
+        s.x += dx
+        s.y += dy
       },
       image: () => {
         // Images are stored as layer.image (not in an array)
@@ -537,6 +554,16 @@ export class ShapeOperations {
         arrow.fromY = startBounds.y + (oldFromY - startBounds.y) * scaleY + offsetY
         arrow.toX = startBounds.x + (oldToX - startBounds.x) * scaleX + offsetX
         arrow.toY = startBounds.y + (oldToY - startBounds.y) * scaleY + offsetY
+      },
+      stamp: () => {
+        const stamp = layer.stamps?.[shapeIndex]
+        if (!stamp) return { x: 0, y: 0, width: 0, height: 0 }
+        return { x: stamp.x, y: stamp.y, width: stamp.width, height: stamp.height }
+      },
+      stamp: () => {
+        const s = layer.stamps[shapeIndex]
+        s.x += dx
+        s.y += dy
       },
       image: () => {
         // Images are stored as layer.image (not in an array)
@@ -825,6 +852,7 @@ export class ShapeOperations {
         const threshold = Math.max(LINE_HIT_THRESHOLD, (connector.size || 3) / 2)
         return this.isPointNearLine(p.x, p.y, connector.fromX, connector.fromY, connector.toX, connector.toY, threshold)
       }},
+      { type: 'stamp', array: layer.stamps || [], test: (shape, p) => this.isPointInRect(p.x, p.y, shape) },
       { type: 'text', array: layer.texts, test: (shape, p) => this.isPointOnText(p.x, p.y, shape) },
       { type: 'ellipse', array: layer.ellipses, test: (shape, p) => {
         const isInside = this.isPointInEllipse(p.x, p.y, shape)

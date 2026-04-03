@@ -54,6 +54,22 @@ export const useCanvasEvents = ({
    * Handle canvas click for text tool - start inline editing
    */
   const handleCanvasClick = useCallback((e) => {
+    // Handle stamp tool click
+    if (tool === 'stamp') {
+      const coords = getCanvasCoordinates(e)
+      if (!coords) return
+      const allLayers = layerManagerRef.current?.getAllLayers() || []
+      if (allLayers.length === 0) {
+        showSnackbar('Please create a layer first to add stamps')
+        return
+      }
+      const properties = getToolProperties()
+      toolHandlerRef.current?.placeStamp(coords, getToolConfig(tool), properties)
+      updateLayersState()
+      renderCanvas()
+      return
+    }
+
     if (tool !== 'text') return
 
     const coords = getCanvasCoordinates(e)

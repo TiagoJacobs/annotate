@@ -6,6 +6,7 @@
 import React, { useMemo } from 'react'
 import { AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup, Bold, Italic, Underline, Highlighter, Crop } from 'lucide-react'
 import { ShapeOperations } from '../services/ShapeOperations'
+import { StampPicker } from './StampPicker'
 
 export const ShapeOptionsPanel = React.forwardRef(({
   tool,
@@ -51,6 +52,8 @@ export const ShapeOptionsPanel = React.forwardRef(({
   getSelectedShapeHighlightColor,
   updateSelectedShapeTextFormat,
   onStartCrop,
+  selectedStampId,
+  setSelectedStampId,
 }, ref) => {
   const showFontSize = tool === 'text'
   const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
@@ -96,6 +99,14 @@ export const ShapeOptionsPanel = React.forwardRef(({
 
   return (
     <div className="shape-toolbar">
+      {/* Stamp Picker - shown when stamp tool is active */}
+      {tool === 'stamp' && (
+        <div className="tool-group">
+          <label>Stamp:</label>
+          <StampPicker selectedStampId={selectedStampId} onSelect={setSelectedStampId} />
+        </div>
+      )}
+
       {showOptions ? (
         <>
           {/* Color Picker */}
