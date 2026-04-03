@@ -495,16 +495,19 @@ export class ToolHandler {
     }
 
     if (this.selectedShapes) {
-      // Group rotation: rotate each shape's position around group center + add delta to rotation
+      // Group rotation: process non-connector shapes first, then update connectors
+      const updatedLayers = new Set()
       for (let i = 0; i < this.selectedShapes.length; i++) {
         const shape = this.selectedShapes[i]
+        // Skip connectors — they follow their connected shapes
+        if (shape.shapeType === 'connector') continue
+
         const layer = this.layerManager.getLayer(shape.layerId)
         const arrayName = SHAPE_ARRAY_MAP[shape.shapeType]
         const shapeData = arrayName ? layer?.[arrayName]?.[shape.shapeIndex]
           : (shape.shapeType === 'image' ? layer?.image : null)
         if (!shapeData) continue
 
-        // Update individual rotation
         shapeData.rotation = (this.shapeStartRotations[i] || 0) + deltaAngle
 
         // Rotate shape position around group center (absolute, not incremental)
@@ -522,9 +525,21 @@ export class ToolHandler {
           }
         }
 
-        // Update connectors after rotation
-        ShapeOperations.updateConnectorsForShape(layer, shape.shapeType, shape.shapeIndex)
-        this.layerManager.updateLayer(layer.id, layer)
+        updatedLayers.add(layer.id)
+      }
+
+      // Now update all connectors based on the new shape positions
+      for (const shape of this.selectedShapes) {
+        if (shape.shapeType === 'connector') continue
+        const layer = this.layerManager.getLayer(shape.layerId)
+        if (layer) {
+          ShapeOperations.updateConnectorsForShape(layer, shape.shapeType, shape.shapeIndex)
+          updatedLayers.add(layer.id)
+        }
+      }
+
+      for (const layerId of updatedLayers) {
+        this.layerManager.updateLayer(layerId, this.layerManager.getLayer(layerId))
       }
     } else if (this.selectedShape) {
       const layer = this.layerManager.getLayer(this.selectedShape.layerId)
