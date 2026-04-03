@@ -98,6 +98,7 @@ function Annotate() {
    */
   const updateLayersState = () => {
     setLayers([...layerManagerRef.current.getAllLayers()])
+    setSelectedLayerId(layerManagerRef.current.selectedId)
   }
 
   /**

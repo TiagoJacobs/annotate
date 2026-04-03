@@ -31,10 +31,11 @@ export class ToolHandler {
    * Start freehand stroke (pen, hand) - Using Strategy Pattern
    */
   startFreehandStroke(pos, toolConfig, properties) {
-    // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
-    if (layer.locked) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
 
     this.isDrawing = true
     this.startPos = pos
@@ -75,10 +76,11 @@ export class ToolHandler {
    * Start shape (arrow, rect, ellipse) - Using Strategy Pattern
    */
   startShape(pos, toolConfig, properties) {
-    // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
-    if (layer.locked) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
 
     this.isDrawing = true
     this.startPos = pos
@@ -128,10 +130,11 @@ export class ToolHandler {
   placeText(pos, toolConfig, properties, textContent) {
     if (!textContent) return
 
-    // Require a selected layer - don't auto-create
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
-    if (layer.locked) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
 
     // Use strategy to place text
     const strategy = ShapeStrategyFactory.getStrategy('text')
@@ -214,7 +217,10 @@ export class ToolHandler {
    */
   startConnector(pos, toolConfig, properties) {
     const layer = this.layerManager.getSelectedLayer()
-    if (!layer || layer.locked) return
+    if (!layer) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
 
     const anchorResult = this.findNearestAnchor(pos)
     this.connectorStart = anchorResult
