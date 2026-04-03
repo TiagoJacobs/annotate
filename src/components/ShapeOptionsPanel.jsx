@@ -54,7 +54,7 @@ export const ShapeOptionsPanel = React.forwardRef(({
   onStartCrop,
   selectedStampId,
   setSelectedStampId,
-}, ref) => {
+}, _ref) => {
   const showFontSize = tool === 'text'
   const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
   const showOptions = (tool !== 'select' && tool !== 'pan' && tool !== 'stamp') || selectedShape

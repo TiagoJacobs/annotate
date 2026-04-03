@@ -3,7 +3,7 @@
  * Handles all canvas rendering logic
  */
 
-import { useRef, useCallback } from 'react'
+import { useCallback } from 'react'
 import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE, HANDLE_HIT_THRESHOLD, ROTATION_HANDLE_OFFSET, ROTATION_HANDLE_RADIUS } from '../config/uiConstants'
 import { ShapeOperations } from '../services/ShapeOperations'
 import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
@@ -237,7 +237,7 @@ export const useCanvasRenderer = (
 
     canvasManager.resetTransform()
     canvasManager.restore()
-  }, [canvasManagerRef, layerManagerRef, toolHandlerRef, selectedShapeRef])
+  }, [layerManagerRef, toolHandlerRef, selectedShapeRef])
 
   /**
    * Render connector hover feedback: anchor dots on hovered shapes, highlight on target during drawing

@@ -253,7 +253,7 @@ export const Minimap = ({
   /**
    * Handle mouse down on minimap - start dragging
    */
-  const handleMouseDown = (e) => {
+  const handleMouseDown = () => {
     const minimap = minimapCanvasRef.current
     const bounds = lastContentBoundsRef.current
     const canvasManager = canvasManagerRef.current

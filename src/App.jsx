@@ -148,33 +148,6 @@ function Annotate() {
   }
 
   /**
-   * Check if current tool uses fontSize property
-   */
-  const showFontSize = () => {
-    const toolConfig = getToolConfig(tool)
-    return toolConfig?.properties?.fontSize !== undefined
-  }
-
-  /**
-   * Get color from a layer
-   */
-  const getLayerColor = (layer) => {
-    return layer?.color || DEFAULT_COLOR
-  }
-
-  /**
-   * Update color for a layer
-   */
-  const updateLayerColor = (layerId, newColor) => {
-    const layer = layerManagerRef.current.getLayer(layerId)
-    if (!layer) return
-
-    layer.color = newColor
-    layerManagerRef.current.updateLayerWithHistory(layerId, { color: newColor })
-    updateLayersState()
-  }
-
-  /**
    * Get color from selected shape - uses hook
    */
   const getSelectedShapeColor = () => {
@@ -319,7 +292,7 @@ function Annotate() {
       updateLayersState()
       renderCanvas()
       showSnackbar('Image cropped')
-    } catch (_err) {
+    } catch {
       showSnackbar('Failed to crop image')
     }
 
@@ -551,18 +524,6 @@ function Annotate() {
     setSelectedLayerId(newLayer.id)
   }
 
-  const deleteSelectedLayer = () => {
-    if (selectedLayerId) {
-      // Don't allow deleting the last layer
-      if (layerManagerRef.current.getAllLayers().length <= 1) {
-        return
-      }
-      layerManagerRef.current.deleteLayer(selectedLayerId)
-      updateLayersState()
-      setSelectedLayerId(layerManagerRef.current.selectedId)
-    }
-  }
-
   const toggleLayerVisibility = (layerId) => {
     layerManagerRef.current.toggleVisibility(layerId)
     updateLayersState()
@@ -687,7 +648,7 @@ function Annotate() {
   // ==================== Custom Hooks (called after all functions are defined) ====================
 
   // Use canvas renderer hook
-  const { renderCanvas, renderCanvasForExport } = useCanvasRenderer(
+  const { renderCanvas } = useCanvasRenderer(
     canvasManagerRef,
     layerManagerRef,
     toolHandlerRef,
@@ -1157,9 +1118,6 @@ function Annotate() {
       document.removeEventListener('paste', handleDocumentPaste, true)
     }
   }, [])
-
-  // Track last clipboard content to detect when user copies something external
-  const lastClipboardContentRef = useRef(null)
 
   // Handle paste via Ctrl+V using Clipboard API
   useEffect(() => {

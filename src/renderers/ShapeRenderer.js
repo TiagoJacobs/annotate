@@ -11,7 +11,7 @@ import { STAMPS, generateCounterSvg } from '../assets/stamps'
  * Base shape renderer interface
  */
 class BaseShapeRenderer {
-  render(ctx, shape, layerColor) {
+  render(_ctx, _shape, _layerColor) {
     throw new Error('render() must be implemented by subclass')
   }
 

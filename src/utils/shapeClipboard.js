@@ -100,7 +100,7 @@ export const serializeShapesToClipboard = (selectedShapes, layerManager) => {
 export const deserializeShapesFromClipboard = (clipboardData) => {
   try {
     return JSON.parse(clipboardData)
-  } catch (e) {
+  } catch {
     return null
   }
 }

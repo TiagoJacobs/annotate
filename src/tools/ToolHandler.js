@@ -60,7 +60,7 @@ export class ToolHandler {
   /**
    * Continue freehand stroke - Using Strategy Pattern
    */
-  continueFreehandStroke(pos, toolConfig, properties) {
+  continueFreehandStroke(pos) {
     if (!this.isDrawing || !this.currentStroke || !this.currentStrategy) return
 
     this.currentStrategy.continue(this.currentStroke, pos)
@@ -85,7 +85,7 @@ export class ToolHandler {
   /**
    * Start shape (arrow, rect, ellipse) - Using Strategy Pattern
    */
-  startShape(pos, toolConfig, properties) {
+  startShape(pos, toolConfig) {
     let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
     if (layer.locked) {
@@ -270,8 +270,8 @@ export class ToolHandler {
   /**
    * Start connector - find anchor on shape at mouse position
    */
-  startConnector(pos, toolConfig, properties) {
-    const layer = this.layerManager.getSelectedLayer()
+  startConnector(pos) {
+    let layer = this.layerManager.getSelectedLayer()
     if (!layer) return
     if (layer.locked) {
       layer = this.layerManager.createLayer()
