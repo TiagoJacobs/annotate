@@ -231,6 +231,7 @@ export class ToolHandler {
         { type: 'arrow', array: layer.arrows },
         { type: 'stroke', array: layer.strokes },
         { type: 'text', array: layer.texts },
+        { type: 'stamp', array: layer.stamps || [] },
       ]
 
       for (const { type, array } of shapeArrays) {
