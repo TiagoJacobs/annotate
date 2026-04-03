@@ -817,7 +817,8 @@ export class ShapeOperations {
         { type: 'rect', array: layer.rects },
         { type: 'ellipse', array: layer.ellipses },
         { type: 'text', array: layer.texts },
-        { type: 'connector', array: layer.connectors || [] }
+        { type: 'connector', array: layer.connectors || [] },
+        { type: 'stamp', array: layer.stamps || [] }
       ]
 
       for (const { type, array } of shapeArrays) {
