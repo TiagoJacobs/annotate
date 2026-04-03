@@ -9,7 +9,8 @@
  */
 const createStroke = (position, properties) => ({
   size: properties.size || 3,
-  points: [position]
+  points: [position],
+  rotation: 0,
 })
 
 /**
@@ -20,7 +21,8 @@ const createArrow = (from, to, properties) => ({
   fromY: from.y,
   toX: to.x,
   toY: to.y,
-  size: properties.size || 2
+  size: properties.size || 2,
+  rotation: 0,
 })
 
 /**
@@ -35,7 +37,8 @@ const createRectangle = (start, end, properties) => {
     y: height < 0 ? end.y : start.y,
     width: Math.abs(width),
     height: Math.abs(height),
-    size: properties.size || 2
+    size: properties.size || 2,
+    rotation: 0,
   }
 }
 
@@ -51,7 +54,8 @@ const createEllipse = (start, end, properties) => {
     y: height < 0 ? end.y : start.y,
     width: Math.abs(width),
     height: Math.abs(height),
-    size: properties.size || 2
+    size: properties.size || 2,
+    rotation: 0,
   }
 }
 
@@ -63,7 +67,8 @@ const createText = (position, content, properties) => ({
   x: position.x,
   y: position.y,
   fontSize: properties.fontSize || 20,
-  fontFamily: properties.fontFamily || 'Arial'
+  fontFamily: properties.fontFamily || 'Arial',
+  rotation: 0,
 })
 
 /**

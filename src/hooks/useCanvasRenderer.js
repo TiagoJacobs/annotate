@@ -4,8 +4,9 @@
  */
 
 import { useRef, useCallback } from 'react'
-import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE, HANDLE_HIT_THRESHOLD } from '../config/uiConstants'
+import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE, HANDLE_HIT_THRESHOLD, ROTATION_HANDLE_OFFSET, ROTATION_HANDLE_RADIUS } from '../config/uiConstants'
 import { ShapeOperations } from '../services/ShapeOperations'
+import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
 
 export const useCanvasRenderer = (
   canvasManagerRef,
@@ -122,6 +123,24 @@ export const useCanvasRenderer = (
     const shapeType = isSingle ? effectiveShape.shapeType : null
     const isEndpointShape = shapeType === 'arrow' || shapeType === 'connector'
 
+    // Get rotation for single selected shape
+    let shapeRotation = 0
+    if (isSingle && !isEndpointShape && shapeType !== 'image') {
+      const layer = layerManagerRef.current.getLayer(effectiveShape.layerId)
+      const arrayName = SHAPE_ARRAY_MAP[effectiveShape.shapeType]
+      const shapeData = arrayName ? layer?.[arrayName]?.[effectiveShape.shapeIndex] : null
+      shapeRotation = shapeData?.rotation || 0
+    }
+
+    // Apply rotation transform for selection box
+    const centerX = bounds.x + bounds.width / 2
+    const centerY = bounds.y + bounds.height / 2
+    if (shapeRotation) {
+      ctx.translate(centerX, centerY)
+      ctx.rotate(shapeRotation)
+      ctx.translate(-centerX, -centerY)
+    }
+
     // Draw dashed bounding box (skip for arrows/connectors -- they use endpoint handles)
     if (!isEndpointShape) {
       ctx.strokeStyle = '#667eea'
@@ -188,6 +207,31 @@ export const useCanvasRenderer = (
         handleSize
       )
     })
+
+
+    // Draw rotation handle (skip for arrows/connectors/images)
+    if (!isEndpointShape && shapeType !== 'image') {
+      const rotHandleX = bounds.x + bounds.width / 2
+      const rotHandleY = bounds.y - padding - ROTATION_HANDLE_OFFSET
+      const rotRadius = ROTATION_HANDLE_RADIUS / canvasManager.zoom
+
+      // Draw line from top-center to rotation handle
+      ctx.strokeStyle = '#667eea'
+      ctx.lineWidth = 1.5 / canvasManager.zoom
+      ctx.beginPath()
+      ctx.moveTo(rotHandleX, bounds.y - padding)
+      ctx.lineTo(rotHandleX, rotHandleY)
+      ctx.stroke()
+
+      // Draw rotation handle circle
+      ctx.fillStyle = '#667eea'
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 1.5 / canvasManager.zoom
+      ctx.beginPath()
+      ctx.arc(rotHandleX, rotHandleY, rotRadius, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+    }
 
     canvasManager.resetTransform()
     canvasManager.restore()

@@ -4,6 +4,7 @@
  */
 
 import { ARROW_RENDER_CONFIG, STROKE_RENDER_CONFIG, TEXT_RENDER_CONFIG } from '../config/renderConfig'
+import { getShapeCenterForType } from '../services/ShapeOperations'
 
 /**
  * Base shape renderer interface
@@ -351,9 +352,22 @@ class ShapeRendererFactory {
 
   renderShape(ctx, shapeType, shape, layerColor) {
     const renderer = this.getRenderer(shapeType)
-    if (renderer) {
-      renderer.render(ctx, shape, layerColor)
+    if (!renderer) return
+
+    const rotation = shape?.rotation || 0
+    if (rotation !== 0) {
+      const center = getShapeCenterForType(shape, shapeType)
+      if (center) {
+        ctx.save()
+        ctx.translate(center.x, center.y)
+        ctx.rotate(rotation)
+        ctx.translate(-center.x, -center.y)
+        renderer.render(ctx, shape, layerColor)
+        ctx.restore()
+        return
+      }
     }
+    renderer.render(ctx, shape, layerColor)
   }
 
   renderShapesInLayer(ctx, layer, shapeTypes) {

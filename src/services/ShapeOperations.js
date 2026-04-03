@@ -5,6 +5,38 @@
 
 import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
 import { LINE_HIT_THRESHOLD, TEXT_WIDTH_FACTOR } from '../config/uiConstants'
+import { inverseRotatePoint } from '../utils/rotationUtils'
+
+/**
+ * Get the center point of a shape for rotation transforms
+ */
+export function getShapeCenterForType(shape, shapeType) {
+  switch (shapeType) {
+    case 'rect':
+    case 'ellipse':
+    case 'image':
+      return { x: shape.x + (shape.width || 0) / 2, y: shape.y + (shape.height || 0) / 2 }
+    case 'arrow':
+    case 'connector':
+      return { x: (shape.fromX + shape.toX) / 2, y: (shape.fromY + shape.toY) / 2 }
+    case 'stroke':
+      if (!shape.points || shape.points.length === 0) return null
+      {
+        const xs = shape.points.map(p => p.x)
+        const ys = shape.points.map(p => p.y)
+        return {
+          x: (Math.min(...xs) + Math.max(...xs)) / 2,
+          y: (Math.min(...ys) + Math.max(...ys)) / 2,
+        }
+      }
+    case 'text': {
+      const textWidth = shape.content.length * shape.fontSize * TEXT_WIDTH_FACTOR
+      return { x: shape.x + textWidth / 2, y: shape.y - shape.fontSize / 2 }
+    }
+    default:
+      return null
+  }
+}
 
 export class ShapeOperations {
   /**
@@ -340,6 +372,15 @@ export class ShapeOperations {
 
     // Update any connectors referencing this shape
     this.updateConnectorsForShape(layer, shapeType, shapeIndex)
+  }
+
+  /**
+   * Move a shape so its center goes from oldCenter to newCenter
+   */
+  static moveShapeToOffset(layer, shapeType, shapeIndex, oldCenter, newCenter) {
+    const dx = newCenter.x - oldCenter.x
+    const dy = newCenter.y - oldCenter.y
+    this.moveShape(layer, shapeType, shapeIndex, dx, dy)
   }
 
   /**
@@ -779,43 +820,47 @@ export class ShapeOperations {
 
   static checkLayerShapes(pos, layer) {
     const shapeChecks = [
-      { type: 'connector', array: layer.connectors, test: (connector) => {
+      { type: 'connector', array: layer.connectors, test: (connector, p) => {
         if (connector.fromX == null || connector.toX == null) return false
         const threshold = Math.max(LINE_HIT_THRESHOLD, (connector.size || 3) / 2)
-        return this.isPointNearLine(pos.x, pos.y, connector.fromX, connector.fromY, connector.toX, connector.toY, threshold)
+        return this.isPointNearLine(p.x, p.y, connector.fromX, connector.fromY, connector.toX, connector.toY, threshold)
       }},
-      { type: 'text', array: layer.texts, test: (shape) => this.isPointOnText(pos.x, pos.y, shape) },
-      { type: 'ellipse', array: layer.ellipses, test: (shape) => {
-        // Check if point is inside the ellipse (fill) OR near the stroke
-        const isInside = this.isPointInEllipse(pos.x, pos.y, shape)
+      { type: 'text', array: layer.texts, test: (shape, p) => this.isPointOnText(p.x, p.y, shape) },
+      { type: 'ellipse', array: layer.ellipses, test: (shape, p) => {
+        const isInside = this.isPointInEllipse(p.x, p.y, shape)
         if (isInside) return true
-        // Also check the stroke if not inside
         const threshold = (shape.size || 3) / 2
-        return this.isPointNearEllipse(pos.x, pos.y, shape, threshold)
+        return this.isPointNearEllipse(p.x, p.y, shape, threshold)
       }},
-      { type: 'rect', array: layer.rects, test: (shape) => {
-        // Check if point is inside the rect (fill) OR near the stroke
-        const isInside = this.isPointInRect(pos.x, pos.y, shape)
+      { type: 'rect', array: layer.rects, test: (shape, p) => {
+        const isInside = this.isPointInRect(p.x, p.y, shape)
         if (isInside) return true
-        // Also check the stroke if not inside
         const threshold = (shape.size || 3) / 2
-        return this.isPointNearRect(pos.x, pos.y, shape, threshold)
+        return this.isPointNearRect(p.x, p.y, shape, threshold)
       }},
-      { type: 'arrow', array: layer.arrows, test: (arrow) => {
-        // Use arrow's size (line weight) for hit detection threshold
+      { type: 'arrow', array: layer.arrows, test: (arrow, p) => {
         const threshold = (arrow.size || 3) / 2
-        return this.isPointNearLine(pos.x, pos.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY, threshold)
+        return this.isPointNearLine(p.x, p.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY, threshold)
       }},
-      { type: 'stroke', array: layer.strokes, test: (shape) => {
-        // Use stroke's size (line weight) for hit detection threshold
+      { type: 'stroke', array: layer.strokes, test: (shape, p) => {
         const threshold = (shape.size || 3) / 2
-        return this.isPointOnStroke(pos.x, pos.y, shape, threshold)
+        return this.isPointOnStroke(p.x, p.y, shape, threshold)
       }},
     ]
 
     for (const { type, array, test } of shapeChecks) {
       for (let j = array.length - 1; j >= 0; j--) {
-        if (test(array[j])) {
+        const shape = array[j]
+        const rotation = shape.rotation || 0
+        let testPos = pos
+        if (rotation !== 0) {
+          const center = getShapeCenterForType(shape, type)
+          if (center) {
+            const local = inverseRotatePoint(pos.x, pos.y, center.x, center.y, rotation)
+            testPos = { x: local.x, y: local.y }
+          }
+        }
+        if (test(shape, testPos)) {
           return { layerId: layer.id, shapeType: type, shapeIndex: j }
         }
       }

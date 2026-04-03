@@ -180,6 +180,12 @@ export const useCanvasEvents = ({
           : toolHandlerRef.current?.getShapeBounds?.(layer, selectedShape.shapeType, selectedShape.shapeIndex)
 
         if (bounds) {
+          // Check rotation handle first
+          const shapeRotation = toolHandlerRef.current?.getSelectedShapeRotation?.() || 0
+          if (toolHandlerRef.current?.getRotationHandle?.(coords, bounds, shapeRotation)) {
+            canvas.style.cursor = 'grab'
+            return
+          }
           const handle = toolHandlerRef.current?.getResizeHandle(coords, bounds)
           if (handle && RESIZE_CURSOR_MAP[handle]) {
             canvas.style.cursor = RESIZE_CURSOR_MAP[handle]
