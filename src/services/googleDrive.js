@@ -7,21 +7,22 @@ const DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files?uploa
 const DRIVE_API_URL = 'https://www.googleapis.com/drive/v3/files'
 
 /**
- * Upload a PNG blob to Google Drive
+ * Upload a file blob to Google Drive
  * @param {string} accessToken - OAuth access token
- * @param {Blob} pngBlob - PNG image blob
+ * @param {Blob} blob - File blob
  * @param {string} fileName - File name for the upload
+ * @param {string} mimeType - MIME type of the file
  * @returns {Promise<string>} File ID
  */
-export async function uploadPngToDrive(accessToken, pngBlob, fileName = 'annotate-export.png') {
+export async function uploadFileToDrive(accessToken, blob, fileName, mimeType) {
   const metadata = {
     name: fileName,
-    mimeType: 'image/png',
+    mimeType,
   }
 
   const form = new FormData()
   form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }))
-  form.append('file', pngBlob)
+  form.append('file', blob)
 
   const response = await fetch(DRIVE_UPLOAD_URL, {
     method: 'POST',
