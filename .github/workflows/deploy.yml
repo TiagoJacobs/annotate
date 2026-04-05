@@ -37,6 +37,7 @@ jobs:
         run: npm run build
         env:
           VITE_BASE_PATH: ${{ steps.target.outputs.base_path }}
+          VITE_GOOGLE_CLIENT_ID: 343805148019-6g9b8di5if0v2hlllqikgkq8cse8smvv.apps.googleusercontent.com
 
       - name: Create root redirect
         if: steps.target.outputs.branch == 'main'
