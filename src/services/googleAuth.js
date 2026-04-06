@@ -5,9 +5,10 @@
 
 const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
 const SCOPES = 'https://www.googleapis.com/auth/drive.file'
+const TOKEN_KEY = 'annotate_google_token'
+const EXPIRY_KEY = 'annotate_google_token_expiry'
 
 let tokenClient = null
-let accessToken = null
 let scriptLoaded = false
 
 /**
@@ -21,7 +22,6 @@ function loadGisScript() {
     }
 
     if (document.querySelector(`script[src="${GIS_SCRIPT_URL}"]`)) {
-      // Script tag exists but may still be loading
       const check = setInterval(() => {
         if (window.google?.accounts?.oauth2) {
           scriptLoaded = true
@@ -45,61 +45,78 @@ function loadGisScript() {
   })
 }
 
-/**
- * Initialize the Google OAuth token client
- */
-export async function initGoogleAuth(clientId) {
-  if (!clientId) {
-    throw new Error('Google Client ID is required. Set VITE_GOOGLE_CLIENT_ID environment variable.')
+function saveToken(token, expiresIn) {
+  localStorage.setItem(TOKEN_KEY, token)
+  localStorage.setItem(EXPIRY_KEY, String(Date.now() + expiresIn * 1000))
+}
+
+function getSavedToken() {
+  const token = localStorage.getItem(TOKEN_KEY)
+  const expiry = Number(localStorage.getItem(EXPIRY_KEY))
+  if (token && expiry && Date.now() < expiry - 60000) {
+    return token
   }
+  return null
+}
 
-  await loadGisScript()
+function clearToken() {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(EXPIRY_KEY)
+}
 
+/**
+ * Request a new access token via Google consent popup
+ */
+function requestToken(clientId) {
   return new Promise((resolve, reject) => {
-    try {
+    const callback = (response) => {
+      if (response.error) {
+        reject(new Error(response.error_description || response.error))
+        return
+      }
+      saveToken(response.access_token, response.expires_in)
+      resolve(response.access_token)
+    }
+
+    if (!tokenClient) {
       tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: SCOPES,
-        callback: (response) => {
-          if (response.error) {
-            reject(new Error(response.error_description || response.error))
-            return
-          }
-          accessToken = response.access_token
-          resolve(accessToken)
-        },
+        callback,
       })
-      // Trigger the consent flow
-      tokenClient.requestAccessToken()
-    } catch (err) {
-      reject(err)
+    } else {
+      tokenClient.callback = callback
     }
+
+    tokenClient.requestAccessToken()
   })
 }
 
 /**
- * Get a valid access token, prompting sign-in if needed
+ * Get a valid access token, prompting sign-in only if needed
  */
 export async function getAccessToken(clientId) {
-  if (accessToken) {
-    // Check if token is still valid
-    try {
-      const response = await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' + accessToken)
-      if (response.ok) return accessToken
-    } catch {
-      // Token is invalid, fall through to re-auth
-    }
-  }
+  const saved = getSavedToken()
+  if (saved) return saved
 
-  return initGoogleAuth(clientId)
+  await loadGisScript()
+  return requestToken(clientId)
+}
+
+/**
+ * Check if user has a valid saved token
+ */
+export function isLoggedIn() {
+  return getSavedToken() !== null
 }
 
 /**
  * Sign out / revoke token
  */
 export function signOut() {
-  if (accessToken) {
-    window.google?.accounts?.oauth2?.revoke(accessToken)
-    accessToken = null
+  const token = getSavedToken()
+  if (token) {
+    window.google?.accounts?.oauth2?.revoke(token)
   }
+  clearToken()
 }
