@@ -37,7 +37,7 @@
 
 .share-popup {
   position: absolute;
-  bottom: calc(100% + 10px);
+  top: calc(100% + 10px);
   right: 0;
   background: #1e1e2e;
   border: 1px solid rgba(255, 255, 255, 0.12);

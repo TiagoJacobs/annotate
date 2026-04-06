@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Share2, Loader, ExternalLink, Copy, X } from 'lucide-react'
 import { getAccessToken, isLoggedIn, signOut } from '../services/googleAuth'
-import { uploadFileToDrive, makeFileShareable, getShareableLink } from '../services/googleDrive'
+import { uploadFileToDrive, makeFileShareable, getDownloadLink, getDriveLink } from '../services/googleDrive'
 import { createCroppedCanvas } from '../utils/canvasExportUtils'
 import '../styles/SharePopup.css'
 
@@ -40,22 +40,22 @@ function createSvgBlob(canvas) {
 export const ShareButton = ({ layerManagerRef, shapeRendererRef, showSnackbar }) => {
   const [isSharing, setIsSharing] = useState(false)
   const [shareFormat, setShareFormat] = useState('png')
-  const [shareLink, setShareLink] = useState(null)
+  const [fileId, setFileId] = useState(null)
   const [copied, setCopied] = useState(false)
   const [loggedIn, setLoggedIn] = useState(() => isLoggedIn())
   const popupRef = useRef(null)
 
   useEffect(() => {
-    if (!shareLink) return
+    if (!fileId) return
     const handleClickOutside = (e) => {
       if (popupRef.current && !popupRef.current.contains(e.target)) {
-        setShareLink(null)
+        setFileId(null)
         setCopied(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [shareLink])
+  }, [fileId])
 
   const handleShare = async () => {
     if (!GOOGLE_CLIENT_ID) {
@@ -86,11 +86,10 @@ export const ShareButton = ({ layerManagerRef, shapeRendererRef, showSnackbar })
         return
       }
 
-      const fileId = await uploadFileToDrive(token, blob, fileName, mimeType)
-      await makeFileShareable(token, fileId)
+      const id = await uploadFileToDrive(token, blob, fileName, mimeType)
+      await makeFileShareable(token, id)
 
-      const link = getShareableLink(fileId)
-      setShareLink(link)
+      setFileId(id)
       setCopied(false)
     } catch (err) {
       if (err.message?.includes('popup_closed') || err.message?.includes('access_denied')) {
@@ -107,23 +106,23 @@ export const ShareButton = ({ layerManagerRef, shapeRendererRef, showSnackbar })
     if (window.confirm('Sign out from Google? You will need to sign in again to share.')) {
       signOut()
       setLoggedIn(false)
-      setShareLink(null)
+      setFileId(null)
       showSnackbar('Signed out from Google')
     }
   }
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(shareLink)
+    await navigator.clipboard.writeText(getDownloadLink(fileId))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleOpen = () => {
-    window.open(shareLink, '_blank')
+  const handleOpenDrive = () => {
+    window.open(getDriveLink(fileId), '_blank')
   }
 
   const handleClose = () => {
-    setShareLink(null)
+    setFileId(null)
     setCopied(false)
   }
 
@@ -151,23 +150,23 @@ export const ShareButton = ({ layerManagerRef, shapeRendererRef, showSnackbar })
         </select>
       </div>
 
-      {shareLink && (
+      {fileId && (
         <div className="share-popup" ref={popupRef}>
           <div className="share-popup-header">
-            <span>Share link</span>
+            <span>Shared to Google Drive</span>
             <button className="share-popup-close" onClick={handleClose}>
               <X size={14} />
             </button>
           </div>
-          <div className="share-popup-link">{shareLink}</div>
+          <div className="share-popup-link">{getDownloadLink(fileId)}</div>
           <div className="share-popup-actions">
-            <button className="share-popup-btn" onClick={handleOpen}>
-              <ExternalLink size={14} />
-              <span>Open</span>
-            </button>
             <button className="share-popup-btn" onClick={handleCopy}>
               <Copy size={14} />
-              <span>{copied ? 'Copied!' : 'Copy'}</span>
+              <span>{copied ? 'Copied!' : 'Copy link'}</span>
+            </button>
+            <button className="share-popup-btn" onClick={handleOpenDrive}>
+              <ExternalLink size={14} />
+              <span>View in Drive</span>
             </button>
           </div>
           {loggedIn && (

@@ -66,10 +66,19 @@ export async function makeFileShareable(accessToken, fileId) {
 }
 
 /**
- * Get shareable link for a file
+ * Get direct download link for a file
  * @param {string} fileId - Drive file ID
- * @returns {string} Shareable URL
+ * @returns {string} Direct download URL
  */
-export function getShareableLink(fileId) {
+export function getDownloadLink(fileId) {
   return `https://drive.google.com/uc?export=download&id=${fileId}`
+}
+
+/**
+ * Get Drive viewer link for a file
+ * @param {string} fileId - Drive file ID
+ * @returns {string} Drive viewer URL
+ */
+export function getDriveLink(fileId) {
+  return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`
 }
