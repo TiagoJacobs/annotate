@@ -9,10 +9,15 @@ export const UpdatePrompt = () => {
 
   if (!needRefresh) return null
 
+  const handleUpdate = async () => {
+    await updateServiceWorker(true)
+    window.location.reload()
+  }
+
   return (
     <div className="update-prompt">
       <span>A new version is available</span>
-      <button className="update-prompt-btn" onClick={() => updateServiceWorker(true)}>
+      <button className="update-prompt-btn" onClick={handleUpdate}>
         Update
       </button>
     </div>
