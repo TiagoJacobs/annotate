@@ -4,6 +4,7 @@
  */
 
 import { getRotatedBoundingBox } from './rotationUtils'
+import { collectLayerShapes, sortByZOrder } from './shapeOrderUtils'
 
 /**
  * Expand min/max bounds with a shape's bounding box, accounting for rotation
@@ -113,8 +114,10 @@ export const getContentBounds = (layerManager) => {
 
     layer.connectors?.forEach(c => {
       if (c.fromX == null) return
-      addRect(Math.min(c.fromX, c.toX), Math.min(c.fromY, c.toY),
-        Math.abs(c.toX - c.fromX), Math.abs(c.toY - c.fromY))
+      const allX = [c.fromX, c.toX, ...(c.waypoints || []).map(wp => wp.x)]
+      const allY = [c.fromY, c.toY, ...(c.waypoints || []).map(wp => wp.y)]
+      addRect(Math.min(...allX), Math.min(...allY),
+        Math.max(...allX) - Math.min(...allX), Math.max(...allY) - Math.min(...allY))
     })
 
     layer.stamps?.forEach(stamp => {
@@ -173,20 +176,15 @@ export const createCroppedCanvas = (layerManager, shapeRenderer) => {
 
     tempCtx.globalAlpha = layer.opacity
 
-    // Draw all shapes using ShapeRenderer
+    // Draw all shapes using ShapeRenderer, sorted by z-order
     if (shapeRenderer) {
       if (layer.image) {
         shapeRenderer.renderShape(tempCtx, 'image', layer.image)
       }
-      layer.highlighterStrokes?.forEach(stroke => shapeRenderer.renderShape(tempCtx, 'highlighterStroke', stroke, stroke.color || '#ffff00'))
-      layer.strokes?.forEach(stroke => shapeRenderer.renderShape(tempCtx, 'stroke', stroke, stroke.color || '#000000'))
-      layer.arrows?.forEach(arrow => shapeRenderer.renderShape(tempCtx, 'arrow', arrow, arrow.color || '#000000'))
-      layer.lines?.forEach(line => shapeRenderer.renderShape(tempCtx, 'line', line, line.color || '#000000'))
-      layer.rects?.forEach(rect => shapeRenderer.renderShape(tempCtx, 'rect', rect, rect.color || '#000000'))
-      layer.ellipses?.forEach(ellipse => shapeRenderer.renderShape(tempCtx, 'ellipse', ellipse, ellipse.color || '#000000'))
-      layer.texts?.forEach(text => shapeRenderer.renderShape(tempCtx, 'text', text, text.color || '#000000'))
-      layer.connectors?.forEach(c => shapeRenderer.renderShape(tempCtx, 'connector', c, c.color || '#000000'))
-      layer.stamps?.forEach(stamp => shapeRenderer.renderShape(tempCtx, 'stamp', stamp))
+      const allShapes = sortByZOrder(collectLayerShapes(layer))
+      for (const entry of allShapes) {
+        shapeRenderer.renderShape(tempCtx, entry.type, entry.shape, entry.color)
+      }
     }
 
     tempCtx.globalAlpha = 1

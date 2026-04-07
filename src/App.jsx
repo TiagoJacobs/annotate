@@ -462,8 +462,9 @@ function Annotate() {
     }
   }
 
-  const downloadImage = () => {
-    if (downloadFormat === 'svg') {
+  const downloadImage = (format) => {
+    const fmt = format || downloadFormat
+    if (fmt === 'svg') {
       downloadSVG()
     } else {
       downloadPNG()
@@ -897,10 +898,12 @@ function Annotate() {
         layer.connectors?.forEach(c => {
           if (c.fromX != null && c.toX != null) {
             hasContent = true
-            minX = Math.min(minX, Math.min(c.fromX, c.toX))
-            minY = Math.min(minY, Math.min(c.fromY, c.toY))
-            maxX = Math.max(maxX, Math.max(c.fromX, c.toX))
-            maxY = Math.max(maxY, Math.max(c.fromY, c.toY))
+            const allX = [c.fromX, c.toX, ...(c.waypoints || []).map(wp => wp.x)]
+            const allY = [c.fromY, c.toY, ...(c.waypoints || []).map(wp => wp.y)]
+            minX = Math.min(minX, ...allX)
+            minY = Math.min(minY, ...allY)
+            maxX = Math.max(maxX, ...allX)
+            maxY = Math.max(maxY, ...allY)
           }
         })
 
@@ -1190,9 +1193,9 @@ function Annotate() {
   // Determine status bar message based on current state
   const getStatusMessage = () => {
     if (selectedShape) {
-      return 'Shape selected · Delete: Del · Undo: Ctrl+Z · Paste image to add as layer'
+      return 'Shape selected · Delete: Del · Paste image to add as layer'
     }
-    return 'Undo: Ctrl+Z · Redo: Ctrl+Shift+Z · Paste image to add as layer'
+    return 'Paste image to add as layer'
   }
 
   return (
@@ -1207,7 +1210,6 @@ function Annotate() {
           zoomIn={zoomIn}
           zoomOut={zoomOut}
           resetView={resetView}
-          copyToClipboard={copyToClipboard}
           downloadImage={downloadImage}
           downloadFormat={downloadFormat}
           setDownloadFormat={setDownloadFormat}

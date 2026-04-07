@@ -10,6 +10,14 @@ export class LayerManager {
     this.history = []
     this.historyIndex = -1
     this.layerCounter = 0
+    this._globalZOrder = 0
+  }
+
+  /**
+   * Get the next z-order value for shape creation ordering
+   */
+  getNextZOrder() {
+    return this._globalZOrder++
   }
 
   /**

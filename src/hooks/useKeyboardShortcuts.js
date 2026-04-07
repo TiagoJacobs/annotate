@@ -333,6 +333,18 @@ export const useKeyboardShortcuts = ({
             }
           }
         }
+        // Cut with Ctrl+X (copy + delete)
+        else if (e.key === 'x') {
+          e.preventDefault()
+          if (selectedShape) {
+            const clipboard = serializeShapesToClipboard(selectedShape, layerManagerRef.current)
+            if (clipboard) {
+              localStorage.setItem(CLIPBOARD_KEY, clipboard)
+              clipboardStateManager.reset()
+              deleteSelectedShape()
+            }
+          }
+        }
         // Paste with Ctrl+V
         else if (e.key === 'v') {
           e.preventDefault()

@@ -156,11 +156,11 @@ export const useCanvasEvents = ({
       return
     }
 
-    // Handle double-click on rect/ellipse/connector for label editing
-    if (selectedShape.shapeType === 'rect' || selectedShape.shapeType === 'ellipse' || selectedShape.shapeType === 'connector') {
+    // Handle double-click on rect/ellipse/connector/stamp for label editing
+    if (selectedShape.shapeType === 'rect' || selectedShape.shapeType === 'ellipse' || selectedShape.shapeType === 'connector' || selectedShape.shapeType === 'stamp') {
       const layer = toolHandlerRef.current?.layerManager.getLayer(selectedShape.layerId)
       if (!layer) return
-      const arrayMap = { rect: 'rects', ellipse: 'ellipses', connector: 'connectors' }
+      const arrayMap = { rect: 'rects', ellipse: 'ellipses', connector: 'connectors', stamp: 'stamps' }
       const shape = layer[arrayMap[selectedShape.shapeType]]?.[selectedShape.shapeIndex]
       if (!shape) return
 

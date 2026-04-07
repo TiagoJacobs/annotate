@@ -75,6 +75,10 @@ export class ToolHandler {
     if (this.currentStrategy) {
       this.currentStrategy.finish(this.currentLayer)
     }
+    // Assign z-order to the completed stroke
+    if (this.currentStroke) {
+      this.currentStroke.zOrder = this.layerManager.getNextZOrder()
+    }
     // Save to history when stroke is complete
     this.layerManager.updateLayerWithHistory(this.currentLayer.id, this.currentLayer)
     this.isDrawing = false
@@ -117,6 +121,9 @@ export class ToolHandler {
   finishHighlighterStroke() {
     if (this.currentStrategy) {
       this.currentStrategy.finish(this.currentLayer)
+    }
+    if (this.currentStroke) {
+      this.currentStroke.zOrder = this.layerManager.getNextZOrder()
     }
     this.layerManager.updateLayerWithHistory(this.currentLayer.id, this.currentLayer)
     this.isDrawing = false
@@ -169,6 +176,18 @@ export class ToolHandler {
       this.currentStrategy.finish(this.currentLayer)
     }
 
+    // Assign z-order to the completed shape
+    if (this.currentShapeType) {
+      const arrayMap = { arrow: 'arrows', line: 'lines', rect: 'rects', ellipse: 'ellipses' }
+      const arr = this.currentLayer[arrayMap[this.currentShapeType]]
+      if (arr && arr.length > 0) {
+        const lastShape = arr[arr.length - 1]
+        if (!lastShape.isPreview) {
+          lastShape.zOrder = this.layerManager.getNextZOrder()
+        }
+      }
+    }
+
     // Save to history when shape is complete
     this.layerManager.updateLayerWithHistory(this.currentLayer.id, this.currentLayer)
     this.isDrawing = false
@@ -191,6 +210,11 @@ export class ToolHandler {
     // Use strategy to place text
     const strategy = ShapeStrategyFactory.getStrategy('text')
     strategy.place(layer, pos, properties, textContent)
+
+    // Assign z-order to the placed text
+    if (layer.texts.length > 0) {
+      layer.texts[layer.texts.length - 1].zOrder = this.layerManager.getNextZOrder()
+    }
 
     // Save to history when text is placed
     this.layerManager.updateLayerWithHistory(layer.id, { texts: layer.texts })
@@ -236,6 +260,7 @@ export class ToolHandler {
       stampData.counterValue = maxCounter + 1
     }
 
+    stampData.zOrder = this.layerManager.getNextZOrder()
     layer.stamps.push(stampData)
     this.layerManager.updateLayerWithHistory(layer.id, { stamps: layer.stamps })
   }
@@ -399,6 +424,7 @@ export class ToolHandler {
       color: this.connectorProperties?.color || '#000000',
       lineStyle: this.connectorProperties?.lineStyle || 'solid',
       groupId: null,
+      zOrder: this.layerManager.getNextZOrder(),
     })
 
     this.layerManager.updateLayerWithHistory(layer.id, layer)
@@ -638,13 +664,56 @@ export class ToolHandler {
 
     const size = connector.size || 2
     const headLength = Math.max(6, 8 + Math.log(size) * 6)
-    const angle = Math.atan2(connector.toY - connector.fromY, connector.toX - connector.fromX)
+    const waypoints = connector.waypoints || []
+    const lastPt = waypoints.length > 0 ? waypoints[waypoints.length - 1] : { x: connector.fromX, y: connector.fromY }
+    const angle = Math.atan2(connector.toY - lastPt.y, connector.toX - lastPt.x)
     const headTipX = connector.toX + headLength * Math.cos(angle)
     const headTipY = connector.toY + headLength * Math.sin(angle)
 
     const distFromEnd = Math.sqrt((pos.x - headTipX) ** 2 + (pos.y - headTipY) ** 2)
     if (distFromEnd < threshold + 2) return 'to'
 
+    // Check existing waypoints
+    if (waypoints.length > 0) {
+      for (let i = 0; i < waypoints.length; i++) {
+        const dist = Math.sqrt((pos.x - waypoints[i].x) ** 2 + (pos.y - waypoints[i].y) ** 2)
+        if (dist < threshold + 2) return { type: 'waypoint', index: i }
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Detect if click is near the midpoint of a connector segment (for adding waypoints)
+   * Returns the segment index where the waypoint should be inserted, or null.
+   */
+  getConnectorSegmentMidpoint(pos, connector) {
+    const threshold = LINE_HIT_THRESHOLD + 5
+    const waypoints = connector.waypoints || []
+    const points = [
+      { x: connector.fromX, y: connector.fromY },
+      ...waypoints,
+      { x: connector.toX, y: connector.toY }
+    ]
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i]
+      const b = points[i + 1]
+      // Point-to-segment distance
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const lenSq = dx * dx + dy * dy
+      if (lenSq === 0) continue
+      let t = ((pos.x - a.x) * dx + (pos.y - a.y) * dy) / lenSq
+      t = Math.max(0, Math.min(1, t))
+      const projX = a.x + t * dx
+      const projY = a.y + t * dy
+      const dist = Math.sqrt((pos.x - projX) ** 2 + (pos.y - projY) ** 2)
+      if (dist < threshold) {
+        return { segmentIndex: i }
+      }
+    }
     return null
   }
 
@@ -783,13 +852,37 @@ export class ToolHandler {
             }
           }
 
-          // Check if this is a connector and clicking on an endpoint
+          // Check if this is a connector and clicking on an endpoint or waypoint
           if (this.selectedShape.shapeType === 'connector' && layer.connectors?.[this.selectedShape.shapeIndex]) {
             const connector = layer.connectors[this.selectedShape.shapeIndex]
             const endpointHandle = this.getConnectorEndpointHandle(pos, connector)
             if (endpointHandle) {
+              if (typeof endpointHandle === 'object' && endpointHandle.type === 'waypoint') {
+                // Dragging an existing waypoint
+                this.isConnectorWaypointDragging = true
+                this.connectorWaypointIndex = endpointHandle.index
+                return this.selectedShape
+              }
+              // Save original position for snap-back (task 6)
+              this.connectorEndpointOriginal = {
+                fromX: connector.fromX, fromY: connector.fromY,
+                toX: connector.toX, toY: connector.toY,
+                fromRef: connector.fromRef, toRef: connector.toRef,
+                fromAnchor: connector.fromAnchor, toAnchor: connector.toAnchor,
+              }
               this.isConnectorEndpointDragging = true
               this.connectorEndpointHandle = endpointHandle
+              return this.selectedShape
+            }
+
+            // Check if clicking on a segment midpoint to add a waypoint
+            const segHit = this.getConnectorSegmentMidpoint(pos, connector)
+            if (segHit) {
+              if (!connector.waypoints) connector.waypoints = []
+              connector.waypoints.splice(segHit.segmentIndex, 0, { x: pos.x, y: pos.y })
+              this.isConnectorWaypointDragging = true
+              this.connectorWaypointIndex = segHit.segmentIndex
+              this.layerManager.updateLayer(layer.id, layer)
               return this.selectedShape
             }
           }
@@ -1087,6 +1180,17 @@ export class ToolHandler {
       return
     }
 
+    // Handle connector waypoint dragging
+    if (this.isConnectorWaypointDragging && this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      const connector = layer?.connectors?.[this.selectedShape.shapeIndex]
+      if (connector && connector.waypoints?.[this.connectorWaypointIndex]) {
+        connector.waypoints[this.connectorWaypointIndex] = { x: pos.x, y: pos.y }
+        this.layerManager.updateLayer(layer.id, layer)
+      }
+      return
+    }
+
     // Handle connector endpoint dragging
     if (this.isConnectorEndpointDragging && this.selectedShape) {
       const layer = this.layerManager.getLayer(this.selectedShape.layerId)
@@ -1178,7 +1282,18 @@ export class ToolHandler {
    */
   releaseObject() {
     // Save to history when drag/resize/endpoint-drag is complete
-    // Handle connector endpoint release -- snap to anchor
+    // Handle connector waypoint release
+    if (this.isConnectorWaypointDragging && this.selectedShape) {
+      const layer = this.layerManager.getLayer(this.selectedShape.layerId)
+      if (layer) {
+        this.layerManager.updateLayerWithHistory(layer.id, layer)
+      }
+      this.isConnectorWaypointDragging = false
+      this.connectorWaypointIndex = null
+      return
+    }
+
+    // Handle connector endpoint release -- snap to anchor or snap back
     if (this.isConnectorEndpointDragging && this.selectedShape) {
       const layer = this.layerManager.getLayer(this.selectedShape.layerId)
       const connector = layer?.connectors?.[this.selectedShape.shapeIndex]
@@ -1198,16 +1313,32 @@ export class ToolHandler {
             connector.toRef = { layerId: anchor.layerId, shapeType: anchor.shapeType, shapeIndex: anchor.shapeIndex }
             connector.toAnchor = anchor.anchor
           }
-        } else {
-          // No snap -- clear the ref for this endpoint
-          if (handle === 'from') { connector.fromRef = null }
-          else { connector.toRef = null }
+        } else if (this.connectorEndpointOriginal) {
+          // No snap target - ask to detach or snap back
+          const wantRemove = window.confirm('Remove this connector? (It must be attached to a shape)')
+          if (wantRemove) {
+            // Remove the connector
+            layer.connectors.splice(this.selectedShape.shapeIndex, 1)
+            this.clearSelection()
+          } else {
+            // Snap back to original position
+            const orig = this.connectorEndpointOriginal
+            connector.fromX = orig.fromX
+            connector.fromY = orig.fromY
+            connector.toX = orig.toX
+            connector.toY = orig.toY
+            connector.fromRef = orig.fromRef
+            connector.toRef = orig.toRef
+            connector.fromAnchor = orig.fromAnchor
+            connector.toAnchor = orig.toAnchor
+          }
         }
         this.layerManager.updateLayerWithHistory(layer.id, layer)
       }
       this.isConnectorEndpointDragging = false
       this.connectorEndpointHandle = null
       this.connectorHoverTarget = null
+      this.connectorEndpointOriginal = null
       return
     }
 

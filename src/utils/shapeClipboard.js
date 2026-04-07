@@ -196,6 +196,9 @@ export const pasteShapesIntoLayer = (layer, shapes, offsetX = 20, offsetY = 20, 
         newShape.fromY = (newShape.fromY || 0) + offsetY
         newShape.toX = (newShape.toX || 0) + offsetX
         newShape.toY = (newShape.toY || 0) + offsetY
+        if (newShape.waypoints) {
+          newShape.waypoints = newShape.waypoints.map(wp => ({ x: wp.x + offsetX, y: wp.y + offsetY }))
+        }
       } else if (shapeType === 'text' || shapeType === 'stamp') {
         // Offset position
         newShape.x = (newShape.x || 0) + offsetX

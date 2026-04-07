@@ -49,7 +49,7 @@ export const toolRegistry = {
     shortcutKey: 'H',
     properties: {
       color: { type: 'color', default: '#ffff00' },
-      size: { type: 'number', min: 5, max: 80, default: 20 },
+      size: { type: 'number', min: 5, max: 80, default: 30 },
     },
     dataModel: {
       type: 'highlighter',

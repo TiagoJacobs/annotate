@@ -528,37 +528,123 @@ body {
   cursor: not-allowed;
 }
 
-.download-btn {
-  border-radius: 6px 0 0 6px;
-}
-
-.download-group {
+/* Export Dropdown */
+.export-dropdown-wrapper {
   display: flex;
   align-items: center;
-  gap: 0;
+  position: relative;
 }
 
-.download-format-select {
-  padding: 0.6rem 0.6rem;
+.export-dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
   border: 1px solid #ddd;
   border-left: none;
   border-radius: 0 6px 6px 0;
-  background-color: white;
+  padding: 0.5rem 0.35rem;
   cursor: pointer;
-  font-size: 0.9rem;
-  color: #333;
+  color: #555;
   transition: all 0.2s ease;
 }
 
-.download-format-select:hover {
-  border-color: #667eea;
+.export-dropdown-toggle:hover {
   background-color: #f0f4ff;
+  border-color: #667eea;
+  color: #667eea;
 }
 
-.download-format-select:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.export-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 100;
+  min-width: 160px;
+  padding: 4px;
+}
+
+.export-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #333;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.export-dropdown-item:hover {
+  background-color: #f0f4ff;
+  color: #667eea;
+}
+
+/* App Menu */
+.app-menu-wrapper {
+  position: relative;
+}
+
+.app-menu-btn {
+  border-radius: 6px;
+}
+
+.app-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 100;
+  min-width: 200px;
+  padding: 4px;
+}
+
+.app-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #333;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  text-decoration: none;
+}
+
+.app-menu-item:hover {
+  background-color: #f0f4ff;
+  color: #667eea;
+}
+
+.app-menu-about {
+  cursor: default;
+  color: #888;
+  font-size: 0.8rem;
+  border-top: 1px solid #eee;
+  margin-top: 2px;
+  padding-top: 10px;
+}
+
+.app-menu-about:hover {
+  background: none;
+  color: #888;
 }
 
 .clear-btn {
@@ -571,25 +657,6 @@ body {
   background-color: #da190b;
   border-color: #da190b;
   box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
-}
-
-.github-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
-  color: #333;
-  transition: all 0.2s ease;
-  text-decoration: none;
-  margin-left: auto;
-}
-
-.github-link:hover {
-  background-color: #f0f0f0;
-  color: #000;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Format buttons (Bold, Italic, Underline) */
@@ -901,8 +968,8 @@ body {
     height: 20px;
   }
 
-  .download-group {
-    gap: 0;
+  .btn-text {
+    display: none;
   }
 
   .download-format-select {

@@ -192,9 +192,13 @@ export class ShapeOperations {
       connector: () => {
         const c = layer.connectors[shapeIndex]
         if (!c || c.fromX == null) return null
-        const minX = Math.min(c.fromX, c.toX)
-        const minY = Math.min(c.fromY, c.toY)
-        return { x: minX, y: minY, width: Math.abs(c.toX - c.fromX), height: Math.abs(c.toY - c.fromY) }
+        const allX = [c.fromX, c.toX, ...(c.waypoints || []).map(wp => wp.x)]
+        const allY = [c.fromY, c.toY, ...(c.waypoints || []).map(wp => wp.y)]
+        const minX = Math.min(...allX)
+        const minY = Math.min(...allY)
+        const maxX = Math.max(...allX)
+        const maxY = Math.max(...allY)
+        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
       },
       stroke: () => this.getBoundsFromPoints(layer.strokes[shapeIndex].points),
       highlighterStroke: () => this.getBoundsFromPoints(layer.highlighterStrokes[shapeIndex].points),
@@ -395,6 +399,9 @@ export class ShapeOperations {
         c.fromY += dy
         c.toX += dx
         c.toY += dy
+        if (c.waypoints) {
+          c.waypoints = c.waypoints.map(wp => ({ x: wp.x + dx, y: wp.y + dy }))
+        }
       },
       stamp: () => {
         const s = layer.stamps[shapeIndex]

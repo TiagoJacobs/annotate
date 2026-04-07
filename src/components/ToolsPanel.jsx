@@ -3,9 +3,8 @@
  * Renders toolbar with drawing tools, zoom controls, and export actions
  */
 
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
-  Copy,
   Pen,
   Download,
   Square,
@@ -24,6 +23,10 @@ import {
   Shapes,
   Undo2,
   Redo2,
+  Share2,
+  ChevronDown,
+  Menu,
+  Info,
 } from 'lucide-react'
 import { toolRegistry } from '../tools/toolRegistry'
 import { ShareButton } from './ShareButton'
@@ -55,6 +58,109 @@ const toolGroups = [
   ['diagram', 'connector'],
 ]
 
+const ExportDropdown = ({ downloadImage, setDownloadFormat, layerManagerRef, shapeRendererRef, showSnackbar }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  const handleDownload = (format) => {
+    setDownloadFormat(format)
+    downloadImage(format)
+    setIsOpen(false)
+  }
+
+  return (
+    <div className="export-dropdown-wrapper" ref={dropdownRef}>
+      <ShareButton
+        layerManagerRef={layerManagerRef}
+        shapeRendererRef={shapeRendererRef}
+        showSnackbar={showSnackbar}
+      />
+      <button
+        className="export-dropdown-toggle"
+        onClick={() => setIsOpen(!isOpen)}
+        title="More export options"
+      >
+        <ChevronDown size={14} />
+      </button>
+      {isOpen && (
+        <div className="export-dropdown-menu">
+          <button className="export-dropdown-item" onClick={() => handleDownload('png')}>
+            <Download size={14} />
+            <span>Download PNG</span>
+          </button>
+          <button className="export-dropdown-item" onClick={() => handleDownload('svg')}>
+            <Download size={14} />
+            <span>Download SVG</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const AppMenu = ({ installApp }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  return (
+    <div className="app-menu-wrapper" ref={menuRef}>
+      <button
+        className="action-btn app-menu-btn"
+        onClick={() => setIsOpen(!isOpen)}
+        title="Menu"
+      >
+        <Menu size={18} />
+      </button>
+      {isOpen && (
+        <div className="app-menu-dropdown">
+          {installApp && (
+            <button className="app-menu-item" onClick={() => { installApp(); setIsOpen(false) }}>
+              <Monitor size={14} />
+              <span>Install App</span>
+            </button>
+          )}
+          <a
+            href="https://github.com/TiagoJacobs/annotate"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="app-menu-item"
+            onClick={() => setIsOpen(false)}
+          >
+            <Github size={14} />
+            <span>GitHub</span>
+          </a>
+          <div className="app-menu-item app-menu-about">
+            <Info size={14} />
+            <span>Annotate — Canvas annotation tool</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export const ToolsPanel = ({
   tool,
   setTool,
@@ -64,9 +170,7 @@ export const ToolsPanel = ({
   zoomIn,
   zoomOut,
   resetView,
-  copyToClipboard,
   downloadImage,
-  downloadFormat,
   setDownloadFormat,
   setSelectedShape,
   installApp,
@@ -131,47 +235,16 @@ export const ToolsPanel = ({
         <span className="zoom-display">{Math.round(zoom * 100)}%</span>
       </div>
 
-      {/* Export & Canvas Actions */}
+      {/* Export (Share + Download dropdown) & App Menu */}
       <div className="tool-group">
-        <button className="action-btn" onClick={copyToClipboard} title="Copy to clipboard">
-          <Copy size={18} />
-          <span className="btn-text">Copy</span>
-        </button>
-        <div className="download-group">
-          <button className="action-btn download-btn" onClick={downloadImage} title="Download image">
-            <Download size={18} />
-            <span className="btn-text">Download</span>
-          </button>
-          <select
-            className="download-format-select"
-            value={downloadFormat}
-            onChange={(e) => setDownloadFormat(e.target.value)}
-            title="Select download format"
-          >
-            <option value="png">PNG</option>
-            <option value="svg">SVG</option>
-          </select>
-        </div>
-        <ShareButton
+        <ExportDropdown
+          downloadImage={downloadImage}
+          setDownloadFormat={setDownloadFormat}
           layerManagerRef={layerManagerRef}
           shapeRendererRef={shapeRendererRef}
           showSnackbar={showSnackbar}
         />
-        {installApp && (
-          <button className="action-btn" onClick={installApp} title="Install as app">
-            <Monitor size={18} />
-            <span className="btn-text">Install</span>
-          </button>
-        )}
-        <a
-          href="https://github.com/TiagoJacobs/annotate"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="github-link"
-          title="View on GitHub"
-        >
-          <Github size={18} />
-        </a>
+        <AppMenu installApp={installApp} />
       </div>
     </div>
   )

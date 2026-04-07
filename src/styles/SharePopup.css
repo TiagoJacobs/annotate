@@ -2,37 +2,8 @@
   position: relative;
 }
 
-.share-group {
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
-
 .share-btn {
   border-radius: 6px 0 0 6px;
-}
-
-.share-format-select {
-  padding: 0.6rem 0.6rem;
-  border: 1px solid #ddd;
-  border-left: none;
-  border-radius: 0 6px 6px 0;
-  background-color: white;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: #333;
-  transition: all 0.2s ease;
-}
-
-.share-format-select:hover {
-  border-color: #667eea;
-  background-color: #f0f0ff;
-}
-
-.share-format-select:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .share-popup {
@@ -149,15 +120,5 @@
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@media (max-width: 600px) {
-  .share-format-select {
-    display: none;
-  }
-
-  .share-btn {
-    border-radius: 6px;
   }
 }

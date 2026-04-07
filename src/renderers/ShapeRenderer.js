@@ -174,8 +174,11 @@ class ConnectorRenderer extends BaseShapeRenderer {
     if (fromX == null || toX == null) return
 
     const { headAngle } = ARROW_RENDER_CONFIG
-    const angle = Math.atan2(toY - fromY, toX - fromX)
     const color = this.getShapeColor(connector, layerColor)
+    const waypoints = connector.waypoints || []
+
+    // Build the full path of points
+    const points = [{ x: fromX, y: fromY }, ...waypoints, { x: toX, y: toY }]
 
     ctx.strokeStyle = color
     ctx.fillStyle = color
@@ -183,20 +186,26 @@ class ConnectorRenderer extends BaseShapeRenderer {
 
     this.applyLineStyle(ctx, connector.lineStyle)
 
+    // Draw polyline through all points
     ctx.beginPath()
-    ctx.moveTo(fromX, fromY)
-    ctx.lineTo(toX, toY)
+    ctx.moveTo(points[0].x, points[0].y)
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y)
+    }
     ctx.stroke()
 
-    // Arrowhead at the 'to' end
+    // Arrowhead at the 'to' end (based on last segment direction)
+    const lastPt = points[points.length - 1]
+    const prevPt = points[points.length - 2]
+    const angle = Math.atan2(lastPt.y - prevPt.y, lastPt.x - prevPt.x)
     const headLength = Math.max(6, 8 + Math.log(size) * 6)
-    const leftX = toX - headLength * Math.cos(angle - headAngle)
-    const leftY = toY - headLength * Math.sin(angle - headAngle)
-    const rightX = toX - headLength * Math.cos(angle + headAngle)
-    const rightY = toY - headLength * Math.sin(angle + headAngle)
+    const leftX = lastPt.x - headLength * Math.cos(angle - headAngle)
+    const leftY = lastPt.y - headLength * Math.sin(angle - headAngle)
+    const rightX = lastPt.x - headLength * Math.cos(angle + headAngle)
+    const rightY = lastPt.y - headLength * Math.sin(angle + headAngle)
 
     ctx.beginPath()
-    ctx.moveTo(toX, toY)
+    ctx.moveTo(lastPt.x, lastPt.y)
     ctx.lineTo(leftX, leftY)
     ctx.lineTo(rightX, rightY)
     ctx.closePath()
@@ -205,10 +214,11 @@ class ConnectorRenderer extends BaseShapeRenderer {
 
     this.resetLineStyle(ctx)
 
-    // Render label at midpoint
+    // Render label at midpoint of the full path
     if (connector.label) {
-      const midX = (fromX + toX) / 2
-      const midY = (fromY + toY) / 2
+      const midIdx = Math.floor(points.length / 2)
+      const midX = (points[midIdx - 1].x + points[midIdx].x) / 2
+      const midY = (points[midIdx - 1].y + points[midIdx].y) / 2
       const labelFontSize = Math.max(12, size * 3)
       ctx.save()
       ctx.font = `${labelFontSize}px Arial`
@@ -425,6 +435,24 @@ class StampRenderer extends BaseShapeRenderer {
     if (!img || !img.complete) return
 
     ctx.drawImage(img, stamp.x, stamp.y, stamp.width, stamp.height)
+
+    // Render label below the stamp
+    if (stamp.label) {
+      const fontSize = Math.min(stamp.height * 0.25, 16)
+      ctx.save()
+      ctx.font = `${fontSize}px Arial`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'top'
+      const centerX = stamp.x + stamp.width / 2
+      const labelY = stamp.y + stamp.height + 4
+      const metrics = ctx.measureText(stamp.label)
+      const pad = 3
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'
+      ctx.fillRect(centerX - metrics.width / 2 - pad, labelY - pad, metrics.width + pad * 2, fontSize + pad * 2)
+      ctx.fillStyle = '#000000'
+      ctx.fillText(stamp.label, centerX, labelY)
+      ctx.restore()
+    }
   }
 }
 

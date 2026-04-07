@@ -34,9 +34,8 @@ export const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
     { key: '0', description: 'Connector tool' },
 
     // Editing
-    { key: 'Ctrl+Z', description: 'Undo' },
-    { key: 'Ctrl+Shift+Z', description: 'Redo' },
     { key: 'Ctrl+C', description: 'Copy selected shapes' },
+    { key: 'Ctrl+X', description: 'Cut selected shapes' },
     { key: 'Ctrl+V', description: 'Paste shapes (incremental offset)' },
     { key: 'Ctrl+A', description: 'Select all shapes' },
     { key: 'Ctrl+G', description: 'Group selected shapes' },

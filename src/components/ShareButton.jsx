@@ -1,6 +1,6 @@
 /**
  * Share Button Component
- * Handles Google Drive sharing flow with format selection and link popup
+ * Handles Google Drive sharing flow with link popup
  */
 
 import React, { useState, useRef, useEffect } from 'react'
@@ -12,34 +12,8 @@ import '../styles/SharePopup.css'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
-function createSvgBlob(canvas) {
-  const width = canvas.width
-  const height = canvas.height
-
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-  svg.setAttribute('width', width)
-  svg.setAttribute('height', height)
-  svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
-
-  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-  rect.setAttribute('width', width)
-  rect.setAttribute('height', height)
-  rect.setAttribute('fill', 'white')
-  svg.appendChild(rect)
-
-  const image = document.createElementNS('http://www.w3.org/2000/svg', 'image')
-  image.setAttribute('width', width)
-  image.setAttribute('height', height)
-  image.setAttribute('href', canvas.toDataURL('image/png'))
-  svg.appendChild(image)
-
-  const svgString = new XMLSerializer().serializeToString(svg)
-  return new Blob([svgString], { type: 'image/svg+xml' })
-}
-
 export const ShareButton = ({ layerManagerRef, shapeRendererRef, showSnackbar }) => {
   const [isSharing, setIsSharing] = useState(false)
-  const [shareFormat, setShareFormat] = useState('png')
   const [fileId, setFileId] = useState(null)
   const [copied, setCopied] = useState(false)
   const [loggedIn, setLoggedIn] = useState(() => isLoggedIn())
@@ -70,16 +44,9 @@ export const ShareButton = ({ layerManagerRef, shapeRendererRef, showSnackbar })
 
       const canvas = createCroppedCanvas(layerManagerRef.current, shapeRendererRef.current)
 
-      let blob, fileName, mimeType
-      if (shareFormat === 'svg') {
-        blob = createSvgBlob(canvas)
-        fileName = `annotate-${new Date().toISOString().slice(0, 10)}.svg`
-        mimeType = 'image/svg+xml'
-      } else {
-        blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
-        fileName = `annotate-${new Date().toISOString().slice(0, 10)}.png`
-        mimeType = 'image/png'
-      }
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+      const fileName = `annotate-${new Date().toISOString().slice(0, 10)}.png`
+      const mimeType = 'image/png'
 
       if (!blob) {
         showSnackbar('Nothing to share - canvas is empty')
@@ -128,27 +95,16 @@ export const ShareButton = ({ layerManagerRef, shapeRendererRef, showSnackbar })
 
   return (
     <div className="share-wrapper">
-      <div className="share-group">
-        <button
-          className="action-btn share-btn"
-          onClick={handleShare}
-          disabled={isSharing}
-          title={GOOGLE_CLIENT_ID ? 'Share to Google Drive' : 'Share (requires VITE_GOOGLE_CLIENT_ID)'}
-          style={{ opacity: GOOGLE_CLIENT_ID ? 1 : 0.5 }}
-        >
-          {isSharing ? <Loader size={18} className="spinning" /> : <Share2 size={18} />}
-          <span className="btn-text">{isSharing ? 'Sharing...' : 'Share'}</span>
-        </button>
-        <select
-          className="share-format-select"
-          value={shareFormat}
-          onChange={(e) => setShareFormat(e.target.value)}
-          title="Select share format"
-        >
-          <option value="png">PNG</option>
-          <option value="svg">SVG</option>
-        </select>
-      </div>
+      <button
+        className="action-btn share-btn"
+        onClick={handleShare}
+        disabled={isSharing}
+        title={GOOGLE_CLIENT_ID ? 'Share to Google Drive' : 'Share (requires VITE_GOOGLE_CLIENT_ID)'}
+        style={{ opacity: GOOGLE_CLIENT_ID ? 1 : 0.5 }}
+      >
+        {isSharing ? <Loader size={18} className="spinning" /> : <Share2 size={18} />}
+        <span className="btn-text">{isSharing ? 'Sharing...' : 'Share'}</span>
+      </button>
 
       {fileId && (
         <div className="share-popup" ref={popupRef}>

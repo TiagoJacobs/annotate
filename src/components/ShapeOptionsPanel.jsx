@@ -59,7 +59,8 @@ export const ShapeOptionsPanel = React.forwardRef(({
   setSelectedDiagramId,
 }, _ref) => {
   const showFontSize = tool === 'text'
-  const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
+  const isImageSelected = selectedShape && !Array.isArray(selectedShape) && selectedShape.shapeType === 'image'
+  const isStampSelected = selectedShape && !Array.isArray(selectedShape) && selectedShape.shapeType === 'stamp'
   const showOptions = (tool !== 'select' && tool !== 'pan' && tool !== 'stamp' && tool !== 'diagram') || selectedShape
   const fillableTools = ['rect', 'ellipse']
   const isFillableShape = selectedShape && (
@@ -82,6 +83,11 @@ export const ShapeOptionsPanel = React.forwardRef(({
   const showLineStyle = selectedShape
     ? getSelectedShapeLineStyle() !== null
     : !!toolConfig?.properties?.lineStyle
+
+  // Show nothing for selected stamp/diagram shapes (no applicable properties)
+  if (isStampSelected) {
+    return null
+  }
 
   // Show crop button for images
   if (isImageSelected) {

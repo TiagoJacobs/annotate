@@ -8,6 +8,8 @@ import { GRID_SIZE, SELECTION_PADDING, RESIZE_HANDLE_SIZE, HANDLE_HIT_THRESHOLD,
 import { ShapeOperations } from '../services/ShapeOperations'
 import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
 
+import { collectLayerShapes, sortByZOrder } from '../utils/shapeOrderUtils'
+
 export const useCanvasRenderer = (
   canvasManagerRef,
   layerManagerRef,
@@ -43,18 +45,13 @@ export const useCanvasRenderer = (
           shapeRendererRef.current.renderShape(ctx, 'image', layer.image)
         }
 
-        // Render highlights first (underneath other shapes)
-        layer.highlighterStrokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'highlighterStroke', stroke, '#ffff00'))
+        // Collect and sort all shapes by z-order
+        const allShapes = sortByZOrder(collectLayerShapes(layer))
 
-        // Render shapes ON TOP of image
-        layer.strokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'stroke', stroke, '#000000'))
-        layer.arrows?.forEach(arrow => shapeRendererRef.current.renderShape(ctx, 'arrow', arrow, '#000000'))
-        layer.lines?.forEach(line => shapeRendererRef.current.renderShape(ctx, 'line', line, '#000000'))
-        layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, '#000000'))
-        layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
-        layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))
-        layer.connectors?.forEach(connector => shapeRendererRef.current.renderShape(ctx, 'connector', connector, '#000000'))
-        layer.stamps?.forEach(stamp => shapeRendererRef.current.renderShape(ctx, 'stamp', stamp))
+        // Render in z-order
+        for (const entry of allShapes) {
+          shapeRendererRef.current.renderShape(ctx, entry.type, entry.shape, entry.color)
+        }
       }
 
       ctx.globalAlpha = 1
@@ -176,7 +173,9 @@ export const useCanvasRenderer = (
       if (shape) {
         const size = shape.size || 2
         const headLength = Math.max(6, 8 + Math.log(size) * 6)
-        const angle = Math.atan2(shape.toY - shape.fromY, shape.toX - shape.fromX)
+        const waypoints = shape.waypoints || []
+        const lastPt = waypoints.length > 0 ? waypoints[waypoints.length - 1] : { x: shape.fromX, y: shape.fromY }
+        const angle = Math.atan2(shape.toY - lastPt.y, shape.toX - lastPt.x)
         const headTipX = shape.toX + headLength * Math.cos(angle)
         const headTipY = shape.toY + headLength * Math.sin(angle)
 
@@ -184,6 +183,13 @@ export const useCanvasRenderer = (
           { x: shape.fromX, y: shape.fromY, cursor: 'crosshair' },
           { x: headTipX, y: headTipY, cursor: 'crosshair' },
         ]
+
+        // Add waypoint handles for connectors
+        if (shapeType === 'connector' && waypoints.length > 0) {
+          for (const wp of waypoints) {
+            handles.push({ x: wp.x, y: wp.y, cursor: 'move', isWaypoint: true })
+          }
+        }
       }
     } else {
       // Standard corner/edge handles for other shapes
@@ -200,18 +206,26 @@ export const useCanvasRenderer = (
     }
 
     handles.forEach(handle => {
-      ctx.fillRect(
-        handle.x - handleSize / 2,
-        handle.y - handleSize / 2,
-        handleSize,
-        handleSize
-      )
-      ctx.strokeRect(
-        handle.x - handleSize / 2,
-        handle.y - handleSize / 2,
-        handleSize,
-        handleSize
-      )
+      if (handle.isWaypoint) {
+        // Draw waypoint as circle
+        ctx.beginPath()
+        ctx.arc(handle.x, handle.y, handleSize / 2, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+      } else {
+        ctx.fillRect(
+          handle.x - handleSize / 2,
+          handle.y - handleSize / 2,
+          handleSize,
+          handleSize
+        )
+        ctx.strokeRect(
+          handle.x - handleSize / 2,
+          handle.y - handleSize / 2,
+          handleSize,
+          handleSize
+        )
+      }
     })
 
 
@@ -351,15 +365,18 @@ export const useCanvasRenderer = (
           shapeRendererRef.current.renderShape(ctx, 'image', layer.image)
         }
 
-        layer.highlighterStrokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'highlighterStroke', stroke, '#ffff00'))
+        // Collect and sort shapes by z-order
+        const allShapes = collectLayerShapes(layer)
+        allShapes.sort((a, b) => {
+          const za = a.shape.zOrder ?? -1
+          const zb = b.shape.zOrder ?? -1
+          if (za === zb) return a.legacyOrder - b.legacyOrder
+          return za - zb
+        })
 
-        layer.strokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'stroke', stroke, '#000000'))
-        layer.arrows?.forEach(arrow => shapeRendererRef.current.renderShape(ctx, 'arrow', arrow, '#000000'))
-        layer.lines?.forEach(line => shapeRendererRef.current.renderShape(ctx, 'line', line, '#000000'))
-        layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, '#000000'))
-        layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
-        layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))
-        layer.stamps?.forEach(stamp => shapeRendererRef.current.renderShape(ctx, 'stamp', stamp))
+        for (const entry of allShapes) {
+          shapeRendererRef.current.renderShape(ctx, entry.type, entry.shape, entry.color)
+        }
       }
 
       ctx.globalAlpha = 1
