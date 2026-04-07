@@ -11,6 +11,12 @@ export function generateCounterSvg(n) {
 }
 
 export const STAMPS = {
+  counter: {
+    name: 'Counter (auto-increment)',
+    svg: generateCounterSvg('N'),
+    defaultWidth: 32,
+    defaultHeight: 32,
+  },
   cursor: {
     name: 'Mouse Cursor',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
@@ -39,12 +45,6 @@ export const STAMPS = {
     </svg>`,
     defaultWidth: 40,
     defaultHeight: 40,
-  },
-  counter: {
-    name: 'Counter (auto-increment)',
-    svg: generateCounterSvg('N'),
-    defaultWidth: 32,
-    defaultHeight: 32,
   },
 }
 
