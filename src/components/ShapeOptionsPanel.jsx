@@ -9,6 +9,38 @@ import { ShapeOperations } from '../services/ShapeOperations'
 import { StampPicker } from './StampPicker'
 import { getToolConfig } from '../tools/toolRegistry'
 
+// Define which properties each shape type supports
+const SHAPE_CAPABILITIES = {
+  stroke:           { color: true, size: true, lineStyle: true },
+  highlighterStroke: { color: true, size: true },
+  arrow:            { color: true, size: true, lineStyle: true },
+  line:             { color: true, size: true, lineStyle: true },
+  rect:             { color: true, size: true, fillColor: true, lineStyle: true, label: true },
+  ellipse:          { color: true, size: true, fillColor: true, lineStyle: true, label: true },
+  text:             { color: true, fontSize: true, textFormat: true },
+  connector:        { color: true, size: true, lineStyle: true, label: true },
+  stamp:            { label: true },
+  image:            {},
+}
+
+/**
+ * Check if any shape in the selection has a given capability
+ */
+function selectionHas(selectedShape, capability) {
+  if (!selectedShape) return false
+  const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
+  return shapes.some(s => SHAPE_CAPABILITIES[s.shapeType]?.[capability])
+}
+
+/**
+ * Check if ALL shapes in the selection have a given capability
+ */
+function selectionAll(selectedShape, capability) {
+  if (!selectedShape) return false
+  const shapes = Array.isArray(selectedShape) ? selectedShape : [selectedShape]
+  return shapes.every(s => SHAPE_CAPABILITIES[s.shapeType]?.[capability])
+}
+
 export const ShapeOptionsPanel = React.forwardRef(({
   tool,
   selectedShape,
@@ -63,63 +95,39 @@ export const ShapeOptionsPanel = React.forwardRef(({
   selectedDiagramId,
   setSelectedDiagramId,
 }, _ref) => {
-  const showFontSize = tool === 'text'
   const isImageSelected = selectedShape && !Array.isArray(selectedShape) && selectedShape.shapeType === 'image'
-  const isStampSelected = selectedShape && !Array.isArray(selectedShape) && selectedShape.shapeType === 'stamp'
-  const showOptions = (tool !== 'select' && tool !== 'pan' && tool !== 'stamp' && tool !== 'diagram') || selectedShape
-  const fillableTools = ['rect', 'ellipse']
-  const isFillableShape = selectedShape && (
-    Array.isArray(selectedShape)
-      ? selectedShape.every(s => fillableTools.includes(s.shapeType))
-      : fillableTools.includes(selectedShape.shapeType)
-  )
-  const showFill = fillableTools.includes(tool) || isFillableShape
+  const isMultiSelect = Array.isArray(selectedShape) && selectedShape.length >= 2
   const isTextTool = tool === 'text'
   const isTextShapeSelected = selectedShape && !Array.isArray(selectedShape) && selectedShape.shapeType === 'text'
+  const toolConfig = getToolConfig(tool)
+
+  // Capability-based visibility for selected shapes
+  const showColor = selectedShape
+    ? selectionHas(selectedShape, 'color')
+    : !!(toolConfig?.properties?.color)
+  const showSize = selectedShape
+    ? selectionHas(selectedShape, 'size') || selectionHas(selectedShape, 'fontSize')
+    : !!(toolConfig?.properties?.size || toolConfig?.properties?.fontSize)
+  const showFontSize = selectedShape
+    ? selectionHas(selectedShape, 'fontSize') && !selectionHas(selectedShape, 'size')
+    : tool === 'text'
+  const showFill = selectedShape
+    ? selectionAll(selectedShape, 'fillColor')
+    : ['rect', 'ellipse'].includes(tool)
+  const showLineStyle = selectedShape
+    ? selectionHas(selectedShape, 'lineStyle')
+    : !!toolConfig?.properties?.lineStyle
   const showTextFormatting = isTextTool || isTextShapeSelected
-  const isMultiSelect = Array.isArray(selectedShape) && selectedShape.length >= 2
+  const showLabelControls = hasSelectedShapeLabel?.() || false
+
   const showAlignment = useMemo(() => {
     if (!isMultiSelect || !layerManagerRef?.current) return false
     return ShapeOperations.getAlignmentUnitCount(selectedShape, layerManagerRef.current) >= 2
   }, [isMultiSelect, selectedShape, layerManagerRef])
 
-  // Determine if line style should be shown
-  const toolConfig = getToolConfig(tool)
-  const showLineStyle = selectedShape
-    ? getSelectedShapeLineStyle() !== null
-    : !!toolConfig?.properties?.lineStyle
-
-  const showLabelControls = hasSelectedShapeLabel?.() || false
-
-  // For selected stamp/diagram shapes, only show label controls if they have a label
-  if (isStampSelected) {
-    if (!showLabelControls) return null
-    return (
-      <div className="shape-toolbar">
-        <div className="tool-group">
-          <label>Label Color:</label>
-          <input
-            type="color"
-            value={getSelectedShapeLabelColor?.() || '#000000'}
-            onChange={(e) => updateSelectedShapeLabelColor?.(e.target.value)}
-            className="color-picker"
-          />
-        </div>
-        <div className="tool-group">
-          <label>Label Size:</label>
-          <input
-            type="range"
-            min="8"
-            max="60"
-            value={getSelectedShapeLabelFontSize?.() || 16}
-            onChange={(e) => updateSelectedShapeLabelFontSize?.(parseInt(e.target.value))}
-            className="size-slider"
-          />
-          <span className="size-display">{getSelectedShapeLabelFontSize?.() || 16}px</span>
-        </div>
-      </div>
-    )
-  }
+  const showOptions = selectedShape
+    ? (showColor || showSize || showFill || showLineStyle || showTextFormatting || showLabelControls || showAlignment || isMultiSelect)
+    : (tool !== 'select' && tool !== 'pan' && tool !== 'stamp' && tool !== 'diagram')
 
   // Show crop button for images
   if (isImageSelected) {
@@ -171,22 +179,24 @@ export const ShapeOptionsPanel = React.forwardRef(({
   return (
     <div className="shape-toolbar">
       {/* Color Picker */}
-      <div className="tool-group">
-        <label>Color:</label>
-        <input
-          ref={colorPickerRef}
-          type="color"
-          value={selectedShape ? (getSelectedShapeColor() || color) : color}
-          onChange={(e) => {
-            if (selectedShape) {
-              updateSelectedShapeColor(e.target.value)
-            } else {
-              setColor(e.target.value)
-            }
-          }}
-          className="color-picker"
-        />
-      </div>
+      {showColor && (
+        <div className="tool-group">
+          <label>Color:</label>
+          <input
+            ref={colorPickerRef}
+            type="color"
+            value={selectedShape ? (getSelectedShapeColor() || color) : color}
+            onChange={(e) => {
+              if (selectedShape) {
+                updateSelectedShapeColor(e.target.value)
+              } else {
+                setColor(e.target.value)
+              }
+            }}
+            className="color-picker"
+          />
+        </div>
+      )}
 
       {/* Fill Color Picker */}
       {showFill && (
@@ -223,40 +233,42 @@ export const ShapeOptionsPanel = React.forwardRef(({
       )}
 
       {/* Size Control */}
-      <div className="tool-group">
-        <label>
-          {selectedShape
-            ? (getSelectedShapeSize()?.type === 'fontSize' ? 'Font Size:' : 'Line Weight:')
-            : (showFontSize ? 'Font Size:' : 'Line Weight:')
-          }
-        </label>
-        <input
-          ref={sizeSliderRef}
-          type="range"
-          min={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '10' : '1') : (showFontSize ? '10' : '1')}
-          max={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '100' : '50') : (showFontSize ? '100' : '50')}
-          value={selectedShape ? (getSelectedShapeSize()?.value || 3) : (showFontSize ? fontSize : brushSize)}
-          onChange={(e) => {
-            const newValue = parseInt(e.target.value)
-            if (selectedShape) {
-              updateSelectedShapeSize(newValue)
-            } else {
-              if (showFontSize) {
-                setFontSize(newValue)
-              } else {
-                setBrushSize(newValue)
-              }
+      {showSize && (
+        <div className="tool-group">
+          <label>
+            {selectedShape
+              ? (getSelectedShapeSize()?.type === 'fontSize' ? 'Font Size:' : 'Line Weight:')
+              : (showFontSize ? 'Font Size:' : 'Line Weight:')
             }
-          }}
-          className="size-slider"
-        />
-        <span className="size-display">
-          {selectedShape
-            ? (getSelectedShapeSize()?.value || 3)
-            : (showFontSize ? fontSize : brushSize)
-          }px
-        </span>
-      </div>
+          </label>
+          <input
+            ref={sizeSliderRef}
+            type="range"
+            min={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '10' : '1') : (showFontSize ? '10' : '1')}
+            max={selectedShape ? (getSelectedShapeSize()?.type === 'fontSize' ? '100' : '50') : (showFontSize ? '100' : '50')}
+            value={selectedShape ? (getSelectedShapeSize()?.value || 3) : (showFontSize ? fontSize : brushSize)}
+            onChange={(e) => {
+              const newValue = parseInt(e.target.value)
+              if (selectedShape) {
+                updateSelectedShapeSize(newValue)
+              } else {
+                if (showFontSize) {
+                  setFontSize(newValue)
+                } else {
+                  setBrushSize(newValue)
+                }
+              }
+            }}
+            className="size-slider"
+          />
+          <span className="size-display">
+            {selectedShape
+              ? (getSelectedShapeSize()?.value || 3)
+              : (showFontSize ? fontSize : brushSize)
+            }px
+          </span>
+        </div>
+      )}
 
       {/* Text Formatting Controls */}
       {showTextFormatting && (
