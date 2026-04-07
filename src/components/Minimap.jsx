@@ -65,6 +65,18 @@ export const Minimap = ({
         }
       })
 
+      layer.highlighterStrokes?.forEach(stroke => {
+        if (stroke.points && stroke.points.length > 0) {
+          hasContent = true
+          stroke.points.forEach(point => {
+            minX = Math.min(minX, point.x)
+            minY = Math.min(minY, point.y)
+            maxX = Math.max(maxX, point.x)
+            maxY = Math.max(maxY, point.y)
+          })
+        }
+      })
+
       layer.arrows?.forEach(arrow => {
         if (arrow.fromX !== undefined && arrow.toX !== undefined) {
           hasContent = true
@@ -72,6 +84,16 @@ export const Minimap = ({
           minY = Math.min(minY, Math.min(arrow.fromY, arrow.toY))
           maxX = Math.max(maxX, Math.max(arrow.fromX, arrow.toX))
           maxY = Math.max(maxY, Math.max(arrow.fromY, arrow.toY))
+        }
+      })
+
+      layer.lines?.forEach(line => {
+        if (line.fromX !== undefined && line.toX !== undefined) {
+          hasContent = true
+          minX = Math.min(minX, Math.min(line.fromX, line.toX))
+          minY = Math.min(minY, Math.min(line.fromY, line.toY))
+          maxX = Math.max(maxX, Math.max(line.fromX, line.toX))
+          maxY = Math.max(maxY, Math.max(line.fromY, line.toY))
         }
       })
 
@@ -188,8 +210,10 @@ export const Minimap = ({
         if (layer.image) {
           shapeRenderer.renderShape(ctx, 'image', layer.image)
         }
+        layer.highlighterStrokes?.forEach(stroke => shapeRenderer.renderShape(ctx, 'highlighterStroke', stroke, stroke.color || '#ffff00'))
         layer.strokes?.forEach(stroke => shapeRenderer.renderShape(ctx, 'stroke', stroke, stroke.color || '#000000'))
         layer.arrows?.forEach(arrow => shapeRenderer.renderShape(ctx, 'arrow', arrow, arrow.color || '#000000'))
+        layer.lines?.forEach(line => shapeRenderer.renderShape(ctx, 'line', line, line.color || '#000000'))
         layer.rects?.forEach(rect => shapeRenderer.renderShape(ctx, 'rect', rect, rect.color || '#000000'))
         layer.ellipses?.forEach(ellipse => shapeRenderer.renderShape(ctx, 'ellipse', ellipse, ellipse.color || '#000000'))
         layer.texts?.forEach(text => shapeRenderer.renderShape(ctx, 'text', text, text.color || '#000000'))

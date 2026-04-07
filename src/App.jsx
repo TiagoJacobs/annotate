@@ -78,6 +78,7 @@ function Annotate() {
   const [snackbarMessage, setSnackbarMessage] = useState('')
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
   const [showMinimap, setShowMinimap] = useState(false)
+  const [layersPanelOpen, setLayersPanelOpen] = useState(false)
   const [canvasReady, setCanvasReady] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [selectedStampId, setSelectedStampId] = useState('cursor')
@@ -830,6 +831,18 @@ function Annotate() {
           }
         })
 
+        layer.highlighterStrokes?.forEach(stroke => {
+          if (stroke.points && stroke.points.length > 0) {
+            hasContent = true
+            stroke.points.forEach(point => {
+              minX = Math.min(minX, point.x)
+              minY = Math.min(minY, point.y)
+              maxX = Math.max(maxX, point.x)
+              maxY = Math.max(maxY, point.y)
+            })
+          }
+        })
+
         layer.arrows?.forEach(arrow => {
           if (arrow.fromX !== undefined && arrow.toX !== undefined) {
             hasContent = true
@@ -837,6 +850,16 @@ function Annotate() {
             minY = Math.min(minY, Math.min(arrow.fromY, arrow.toY))
             maxX = Math.max(maxX, Math.max(arrow.fromX, arrow.toX))
             maxY = Math.max(maxY, Math.max(arrow.fromY, arrow.toY))
+          }
+        })
+
+        layer.lines?.forEach(line => {
+          if (line.fromX !== undefined && line.toX !== undefined) {
+            hasContent = true
+            minX = Math.min(minX, Math.min(line.fromX, line.toX))
+            minY = Math.min(minY, Math.min(line.fromY, line.toY))
+            maxX = Math.max(maxX, Math.max(line.fromX, line.toX))
+            maxY = Math.max(maxY, Math.max(line.fromY, line.toY))
           }
         })
 
@@ -962,66 +985,37 @@ function Annotate() {
 
   // Define handlePaste
   const handlePaste = (e) => {
-    console.log('=== PASTE EVENT FIRED ===')
-    console.log('Active element:', document.activeElement)
-    console.log('Paste div:', pasteInputRef.current)
-    console.log('Are they same?', document.activeElement === pasteInputRef.current)
-    console.log('Event:', e)
-    console.log('ClipboardData:', e.clipboardData)
-
-    if (!e.clipboardData) {
-      console.log('No clipboardData')
-      return
-    }
+    if (!e.clipboardData) return
 
     const items = e.clipboardData.items
-    console.log('Items:', items)
-    console.log('Items length:', items?.length)
-
-    if (!items || items.length === 0) {
-      console.log('No items in clipboard')
-      return
-    }
+    if (!items || items.length === 0) return
 
     let foundImage = false
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
-      console.log(`Item ${i}:`, item.type, item.kind)
 
       if (item.kind === 'file' && item.type.startsWith('image/')) {
         foundImage = true
-        console.log('Found image file!')
         e.preventDefault()
 
         const file = item.getAsFile()
-        console.log('File:', file)
-
-        if (!file) {
-          console.log('Failed to get file from item')
-          continue
-        }
+        if (!file) continue
 
         const reader = new FileReader()
 
         reader.onload = (event) => {
-          console.log('FileReader loaded, result length:', event.target.result.length)
           const img = new Image()
 
           img.onload = () => {
-            console.log('Image loaded:', img.width, 'x', img.height)
-
             const tempCanvas = document.createElement('canvas')
             tempCanvas.width = img.width
             tempCanvas.height = img.height
             const tempCtx = tempCanvas.getContext('2d')
             tempCtx.drawImage(img, 0, 0)
 
-            console.log('Canvas created, converting to dataURL...')
             const dataUrl = tempCanvas.toDataURL()
-            console.log('DataURL length:', dataUrl.length)
 
-            console.log('Creating image layer...')
             const imageLayer = layerManagerRef.current.createLayer('Image', {
               image: {
                 data: dataUrl,
@@ -1032,26 +1026,14 @@ function Annotate() {
               },
             })
 
-            console.log('Image layer created:', imageLayer.id)
             setSelectedLayerId(imageLayer.id)
             setTool('select')
             updateLayersState()
-            console.log('✅ Image paste completed successfully!')
           }
 
-          img.onerror = (err) => {
-            console.error('❌ Image load error:', err)
-          }
-
-          console.log('Setting image src...')
           img.src = event.target.result
         }
 
-        reader.onerror = (err) => {
-          console.error('❌ FileReader error:', err)
-        }
-
-        console.log('Starting FileReader...')
         reader.readAsDataURL(file)
       }
     }
@@ -1067,24 +1049,9 @@ function Annotate() {
   // Attach paste listener using callback ref
   const setPasteInputRef = useCallback((element) => {
     if (element) {
-      console.log('Setting paste input ref, attaching listener')
       pasteInputRef.current = element
-
-      // Log before attaching
-      console.log('handlePasteRef.current:', handlePasteRef.current)
-
       element.addEventListener('paste', handlePasteRef.current)
-      console.log('✅ Paste listener attached to element')
-
-      // Also add a debug listener to see if paste events reach this element at all
-      element.addEventListener('paste', (e) => {
-        console.log('🎯 DEBUG: Paste event reached contenteditable element!')
-        console.log('Event:', e)
-        console.log('ClipboardData:', e.clipboardData)
-      })
-
       element.focus()
-      console.log('✅ Paste div focused')
     }
   }, [])
 
@@ -1093,7 +1060,6 @@ function Annotate() {
     return () => {
       if (pasteInputRef.current && handlePasteRef.current) {
         pasteInputRef.current.removeEventListener('paste', handlePasteRef.current)
-        console.log('✅ Paste listener removed')
       }
     }
   }, [])
@@ -1101,18 +1067,12 @@ function Annotate() {
   // Also attach paste listener to document as fallback
   useEffect(() => {
     const handleDocumentPaste = (e) => {
-      console.log('🔥 Document-level paste event triggered')
-      console.log('Active element when document paste fires:', document.activeElement)
-      console.log('Event target:', e.target)
-      // Call the same handler
       if (handlePasteRef.current) {
         handlePasteRef.current(e)
       }
     }
 
-    // Try both capture and bubble phases
-    document.addEventListener('paste', handleDocumentPaste, true) // capture phase
-    console.log('✅ Document paste listener attached (capture phase)')
+    document.addEventListener('paste', handleDocumentPaste, true)
 
     return () => {
       document.removeEventListener('paste', handleDocumentPaste, true)
@@ -1125,9 +1085,6 @@ function Annotate() {
       const isPasteKey = (e.ctrlKey || e.metaKey) && e.key === 'v'
 
       if (isPasteKey) {
-        console.log('🔐 Paste key detected (Ctrl+V), checking clipboard...')
-
-        // Check what's currently in the system clipboard
         navigator.clipboard.read()
           .then(clipboardItems => {
             // Check if there's an image in the system clipboard
@@ -1140,21 +1097,14 @@ function Annotate() {
             const shapeClipboard = localStorage.getItem(CLIPBOARD_KEY)
 
             if (hasImage) {
-              console.log('🖼️ Image detected in system clipboard, clearing old shape data')
-              // Clear the old shape clipboard when user copies an image
               localStorage.removeItem(CLIPBOARD_KEY)
             }
 
-            // Handle shape paste from localStorage (takes priority if exists and no image)
             if (shapeClipboard && !hasImage) {
-              console.log('📝 Found shapes in clipboard, letting keyboard shortcuts handler paste shapes')
-              // Don't prevent default - let the keyboard shortcuts handler deal with it
               return
             }
 
-            // Handle image paste (only if no shapes in localStorage)
             if (hasImage && !shapeClipboard) {
-              console.log('🔐 Pasting image from clipboard...')
               e.preventDefault()
 
               for (let item of clipboardItems) {
@@ -1190,37 +1140,27 @@ function Annotate() {
                             },
                           })
 
-                          console.log('✅ Image layer created:', imageLayer.id)
                           setSelectedLayerId(imageLayer.id)
                           setTool('select')
                           updateLayersState()
-                          console.log('✅ Image paste completed successfully!')
                         }
 
-                        img.onerror = () => console.error('Image load error')
                         img.src = event.target.result
                       }
 
-                      reader.onerror = (err) => console.error('FileReader error:', err)
                       reader.readAsDataURL(blob)
                     })
-                    .catch(err => console.error('Failed to get blob:', err))
 
                   return // Stop after first image
                 }
               }
-            } else if (!shapeClipboard && !hasImage) {
-              console.log('🔐 No image or shape data found in clipboard')
             }
           })
-          .catch(err => {
-            console.error('Clipboard read failed:', err)
-          })
+          .catch(() => {})
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    console.log('✅ Clipboard API paste handler attached')
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
@@ -1229,14 +1169,28 @@ function Annotate() {
 
 
 
+  // ==================== Undo/Redo ====================
+
+  const handleUndo = () => {
+    layerManagerRef.current?.undo()
+    updateLayersState()
+    renderCanvas()
+  }
+
+  const handleRedo = () => {
+    layerManagerRef.current?.redo()
+    updateLayersState()
+    renderCanvas()
+  }
+
   // ==================== Render ====================
 
   // Determine status bar message based on current state
   const getStatusMessage = () => {
     if (selectedShape) {
-      return '🎯 Shape selected | Delete: Del/Backspace | Undo: Ctrl+Z | Paste image to add as layer'
+      return 'Shape selected · Delete: Del · Undo: Ctrl+Z · Paste image to add as layer'
     }
-    return '🎨 Undo: Ctrl+Z | Redo: Ctrl+Shift+Z | Paste image to add as layer'
+    return 'Undo: Ctrl+Z · Redo: Ctrl+Shift+Z · Paste image to add as layer'
   }
 
   return (
@@ -1260,6 +1214,8 @@ function Annotate() {
           layerManagerRef={layerManagerRef}
           shapeRendererRef={shapeRendererRef}
           showSnackbar={showSnackbar}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
         />
 
         {/* Options Toolbar - always visible but empty when no tool/shape is active */}
@@ -1339,6 +1295,7 @@ function Annotate() {
           {/* Canvas */}
           <CanvasArea
             canvasRef={canvasRef}
+            tool={tool}
             inlineEditingText={inlineEditingText}
             setInlineEditingText={setInlineEditingText}
             handleCanvasClick={handleCanvasClick}
@@ -1369,6 +1326,8 @@ function Annotate() {
             selectedLayerId={selectedLayerId}
             renamingLayerId={renamingLayerId}
             renamingLayerName={renamingLayerName}
+            isOpen={layersPanelOpen}
+            onToggle={() => setLayersPanelOpen(prev => !prev)}
             selectLayer={selectLayer}
             toggleLayerVisibility={toggleLayerVisibility}
             toggleLayerLock={toggleLayerLock}
@@ -1391,7 +1350,7 @@ function Annotate() {
         </div>
       </div>
       <div className="status-bar">
-        <p>{getStatusMessage()} <span className="status-hint">· K for keyboard shortcuts</span></p>
+        <p>{getStatusMessage()} <button className="status-shortcut-link" onClick={() => setShowKeyboardShortcuts(true)}>Keyboard shortcuts (K)</button></p>
       </div>
       <Snackbar
         message={snackbarMessage}

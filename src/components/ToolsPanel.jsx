@@ -11,31 +11,43 @@ import {
   Square,
   Circle,
   ArrowRight,
+  Minus,
   Spline,
   Type,
   ZoomIn,
   ZoomOut,
   Home,
   MousePointer,
-  Hand,
   Github,
   Monitor,
   Stamp,
+  Highlighter,
+  Undo2,
+  Redo2,
 } from 'lucide-react'
 import { toolRegistry } from '../tools/toolRegistry'
 import { ShareButton } from './ShareButton'
 
 const iconMap = {
   pen: <Pen size={20} />,
+  highlighter: <Highlighter size={20} />,
   'arrow-right': <ArrowRight size={20} />,
+  minus: <Minus size={20} />,
   square: <Square size={20} />,
   circle: <Circle size={20} />,
   type: <Type size={20} />,
   cable: <Spline size={20} />,
   pointer: <MousePointer size={20} />,
-  hand: <Hand size={20} />,
   sticker: <Stamp size={20} />,
 }
+
+const toolGroups = [
+  ['select'],
+  ['pen', 'highlighter'],
+  ['arrow', 'line', 'rect', 'ellipse'],
+  ['text', 'stamp'],
+  ['connector'],
+]
 
 export const ToolsPanel = ({
   tool,
@@ -55,28 +67,46 @@ export const ToolsPanel = ({
   layerManagerRef,
   shapeRendererRef,
   showSnackbar,
+  onUndo,
+  onRedo,
 }) => {
   return (
     <div className="annotate-toolbar">
-      {/* Tools */}
+      {/* Drawing Tools - grouped by intent */}
+      {toolGroups.map((group, groupIndex) => (
+        <div className="tool-group" key={groupIndex}>
+          {group.map((toolId) => {
+            const toolConfig = toolRegistry[toolId]
+            if (!toolConfig) return null
+            return (
+              <button
+                key={toolConfig.id}
+                className={`tool-btn ${tool === toolConfig.id ? 'active' : ''}`}
+                onClick={() => {
+                  setTool(toolConfig.id)
+                  setSelectedShape(null)
+                  selectedShapeRef.current = null
+                  if (toolHandlerRef.current) {
+                    toolHandlerRef.current.clearSelection()
+                  }
+                }}
+                title={`${toolConfig.name}${toolConfig.shortcutKey ? ` (${toolConfig.shortcutKey})` : ''}`}
+              >
+                {iconMap[toolConfig.icon]}
+              </button>
+            )
+          })}
+        </div>
+      ))}
+
+      {/* Undo/Redo */}
       <div className="tool-group">
-        {Object.values(toolRegistry).map((toolConfig) => (
-          <button
-            key={toolConfig.id}
-            className={`tool-btn ${tool === toolConfig.id ? 'active' : ''}`}
-            onClick={() => {
-              setTool(toolConfig.id)
-              setSelectedShape(null)
-              selectedShapeRef.current = null
-              if (toolHandlerRef.current) {
-                toolHandlerRef.current.clearSelection()
-              }
-            }}
-            title={toolConfig.name}
-          >
-            {iconMap[toolConfig.icon]}
-          </button>
-        ))}
+        <button className="action-btn" onClick={onUndo} title="Undo (Ctrl+Z)">
+          <Undo2 size={18} />
+        </button>
+        <button className="action-btn" onClick={onRedo} title="Redo (Ctrl+Shift+Z)">
+          <Redo2 size={18} />
+        </button>
       </div>
 
       {/* Zoom Controls */}
@@ -95,7 +125,7 @@ export const ToolsPanel = ({
 
       {/* Export & Canvas Actions */}
       <div className="tool-group">
-        <button className="action-btn copy-btn" onClick={copyToClipboard} title="Copy to clipboard">
+        <button className="action-btn" onClick={copyToClipboard} title="Copy to clipboard">
           <Copy size={18} />
           <span className="btn-text">Copy</span>
         </button>

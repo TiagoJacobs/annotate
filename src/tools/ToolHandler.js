@@ -83,7 +83,49 @@ export class ToolHandler {
   }
 
   /**
-   * Start shape (arrow, rect, ellipse) - Using Strategy Pattern
+   * Start highlighter stroke - Using Strategy Pattern
+   */
+  startHighlighterStroke(pos, _toolConfig, properties) {
+    let layer = this.layerManager.getSelectedLayer()
+    if (!layer) return
+    if (layer.locked) {
+      layer = this.layerManager.createLayer()
+    }
+
+    this.isDrawing = true
+    this.startPos = pos
+    this.currentLayer = layer
+
+    const strategy = ShapeStrategyFactory.getStrategy('highlighter')
+    this.currentStroke = strategy.start(layer, pos, properties)
+    this.currentStrategy = strategy
+  }
+
+  /**
+   * Continue highlighter stroke - Using Strategy Pattern
+   */
+  continueHighlighterStroke(pos) {
+    if (!this.isDrawing || !this.currentStroke || !this.currentStrategy) return
+
+    this.currentStrategy.continue(this.currentStroke, pos)
+    this.layerManager.updateLayer(this.currentLayer.id, { highlighterStrokes: this.currentLayer.highlighterStrokes })
+  }
+
+  /**
+   * Finish highlighter stroke - Using Strategy Pattern
+   */
+  finishHighlighterStroke() {
+    if (this.currentStrategy) {
+      this.currentStrategy.finish(this.currentLayer)
+    }
+    this.layerManager.updateLayerWithHistory(this.currentLayer.id, this.currentLayer)
+    this.isDrawing = false
+    this.currentStroke = null
+    this.currentStrategy = null
+  }
+
+  /**
+   * Start shape (arrow, line, rect, ellipse) - Using Strategy Pattern
    */
   startShape(pos, toolConfig) {
     let layer = this.layerManager.getSelectedLayer()

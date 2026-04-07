@@ -56,6 +56,20 @@ export const getContentBounds = (layerManager) => {
       }
     })
 
+    layer.highlighterStrokes?.forEach(stroke => {
+      if (stroke.points && stroke.points.length > 0) {
+        const padding = (stroke.size || 20) / 2
+        const xs = stroke.points.map(p => p.x)
+        const ys = stroke.points.map(p => p.y)
+        addRect(
+          Math.min(...xs) - padding, Math.min(...ys) - padding,
+          Math.max(...xs) - Math.min(...xs) + padding * 2,
+          Math.max(...ys) - Math.min(...ys) + padding * 2,
+          stroke.rotation
+        )
+      }
+    })
+
     layer.arrows?.forEach(arrow => {
       if (arrow.fromX !== undefined && arrow.toX !== undefined) {
         const padding = (arrow.size || 2) / 2
@@ -63,6 +77,17 @@ export const getContentBounds = (layerManager) => {
           Math.min(arrow.fromX, arrow.toX) - padding, Math.min(arrow.fromY, arrow.toY) - padding,
           Math.abs(arrow.toX - arrow.fromX) + padding * 2, Math.abs(arrow.toY - arrow.fromY) + padding * 2,
           arrow.rotation
+        )
+      }
+    })
+
+    layer.lines?.forEach(line => {
+      if (line.fromX !== undefined && line.toX !== undefined) {
+        const padding = (line.size || 2) / 2
+        addRect(
+          Math.min(line.fromX, line.toX) - padding, Math.min(line.fromY, line.toY) - padding,
+          Math.abs(line.toX - line.fromX) + padding * 2, Math.abs(line.toY - line.fromY) + padding * 2,
+          line.rotation
         )
       }
     })
@@ -153,8 +178,10 @@ export const createCroppedCanvas = (layerManager, shapeRenderer) => {
       if (layer.image) {
         shapeRenderer.renderShape(tempCtx, 'image', layer.image)
       }
+      layer.highlighterStrokes?.forEach(stroke => shapeRenderer.renderShape(tempCtx, 'highlighterStroke', stroke, stroke.color || '#ffff00'))
       layer.strokes?.forEach(stroke => shapeRenderer.renderShape(tempCtx, 'stroke', stroke, stroke.color || '#000000'))
       layer.arrows?.forEach(arrow => shapeRenderer.renderShape(tempCtx, 'arrow', arrow, arrow.color || '#000000'))
+      layer.lines?.forEach(line => shapeRenderer.renderShape(tempCtx, 'line', line, line.color || '#000000'))
       layer.rects?.forEach(rect => shapeRenderer.renderShape(tempCtx, 'rect', rect, rect.color || '#000000'))
       layer.ellipses?.forEach(ellipse => shapeRenderer.renderShape(tempCtx, 'ellipse', ellipse, ellipse.color || '#000000'))
       layer.texts?.forEach(text => shapeRenderer.renderShape(tempCtx, 'text', text, text.color || '#000000'))

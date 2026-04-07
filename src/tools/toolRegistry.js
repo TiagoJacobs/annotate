@@ -5,11 +5,26 @@
  */
 
 export const toolRegistry = {
+  select: {
+    id: 'select',
+    name: 'Select',
+    icon: 'pointer',
+    cursor: 'default',
+    shortcutKey: 'V',
+    properties: {},
+    handlers: {
+      onMouseDown: 'selectObject',
+      onMouseMove: 'dragObject',
+      onMouseUp: 'releaseObject',
+    },
+  },
+
   pen: {
     id: 'pen',
     name: 'Pen',
     icon: 'pen',
     cursor: 'crosshair',
+    shortcutKey: 'P',
     properties: {
       color: { type: 'color', default: '#000000' },
       size: { type: 'number', min: 1, max: 50, default: 3 },
@@ -26,11 +41,33 @@ export const toolRegistry = {
     },
   },
 
+  highlighter: {
+    id: 'highlighter',
+    name: 'Highlighter',
+    icon: 'highlighter',
+    cursor: 'crosshair',
+    shortcutKey: 'H',
+    properties: {
+      color: { type: 'color', default: '#ffff00' },
+      size: { type: 'number', min: 5, max: 80, default: 20 },
+    },
+    dataModel: {
+      type: 'highlighter',
+      highlighterStrokes: [],
+    },
+    handlers: {
+      onMouseDown: 'startHighlighterStroke',
+      onMouseMove: 'continueHighlighterStroke',
+      onMouseUp: 'finishHighlighterStroke',
+    },
+  },
+
   arrow: {
     id: 'arrow',
     name: 'Arrow',
     icon: 'arrow-right',
     cursor: 'crosshair',
+    shortcutKey: 'A',
     properties: {
       color: { type: 'color', default: '#000000' },
       size: { type: 'number', min: 1, max: 50, default: 2 },
@@ -47,11 +84,34 @@ export const toolRegistry = {
     },
   },
 
+  line: {
+    id: 'line',
+    name: 'Line',
+    icon: 'minus',
+    cursor: 'crosshair',
+    shortcutKey: 'L',
+    properties: {
+      color: { type: 'color', default: '#000000' },
+      size: { type: 'number', min: 1, max: 50, default: 2 },
+      lineStyle: { type: 'select', default: 'solid', options: ['solid', 'dashed', 'dotted', 'dashdot'] },
+    },
+    dataModel: {
+      type: 'line',
+      lines: [],
+    },
+    handlers: {
+      onMouseDown: 'startShape',
+      onMouseMove: 'previewShape',
+      onMouseUp: 'finishShape',
+    },
+  },
+
   rect: {
     id: 'rect',
     name: 'Rectangle',
     icon: 'square',
     cursor: 'crosshair',
+    shortcutKey: 'R',
     properties: {
       color: { type: 'color', default: '#000000' },
       fillColor: { type: 'color', default: '' },
@@ -74,6 +134,7 @@ export const toolRegistry = {
     name: 'Ellipse',
     icon: 'circle',
     cursor: 'crosshair',
+    shortcutKey: 'E',
     properties: {
       color: { type: 'color', default: '#000000' },
       fillColor: { type: 'color', default: '' },
@@ -96,6 +157,7 @@ export const toolRegistry = {
     name: 'Text',
     icon: 'type',
     cursor: 'text',
+    shortcutKey: 'T',
     properties: {
       color: { type: 'color', default: '#000000' },
       fontSize: { type: 'number', min: 10, max: 100, default: 20 },
@@ -109,16 +171,15 @@ export const toolRegistry = {
     },
   },
 
-  select: {
-    id: 'select',
-    name: 'Select',
-    icon: 'pointer',
-    cursor: 'default',
+  stamp: {
+    id: 'stamp',
+    name: 'Stamp',
+    icon: 'sticker',
+    cursor: 'crosshair',
+    shortcutKey: 'S',
     properties: {},
     handlers: {
-      onMouseDown: 'selectObject',
-      onMouseMove: 'dragObject',
-      onMouseUp: 'releaseObject',
+      onClick: 'placeStamp',
     },
   },
 
@@ -127,6 +188,7 @@ export const toolRegistry = {
     name: 'Connector',
     icon: 'cable',
     cursor: 'crosshair',
+    shortcutKey: 'C',
     properties: {
       color: { type: 'color', default: '#000000' },
       size: { type: 'number', min: 1, max: 50, default: 2 },
@@ -139,17 +201,7 @@ export const toolRegistry = {
     },
   },
 
-  stamp: {
-    id: 'stamp',
-    name: 'Stamp',
-    icon: 'sticker',
-    cursor: 'crosshair',
-    properties: {},
-    handlers: {
-      onClick: 'placeStamp',
-    },
-  },
-
+  // Pan is not shown in the toolbar but available via Space+drag and middle-click
   pan: {
     id: 'pan',
     name: 'Pan',

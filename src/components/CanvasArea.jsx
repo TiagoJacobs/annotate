@@ -4,9 +4,11 @@
  */
 
 import React, { useState, useCallback } from 'react'
+import { getToolConfig } from '../tools/toolRegistry'
 
 export const CanvasArea = ({
   canvasRef,
+  tool,
   inlineEditingText,
   setInlineEditingText,
   handleCanvasClick,
@@ -106,7 +108,7 @@ export const CanvasArea = ({
           handleCanvasMouseUp(e)
         }}
         className={`drawing-canvas ${layers.length > 0 ? 'has-image' : ''}`}
-        style={isCropping ? { cursor: 'crosshair' } : undefined}
+        style={isCropping ? { cursor: 'crosshair' } : { cursor: getToolConfig(tool)?.cursor || 'default' }}
       />
 
       {/* Crop selection overlay */}

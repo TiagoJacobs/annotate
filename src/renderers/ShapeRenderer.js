@@ -72,6 +72,55 @@ class StrokeRenderer extends BaseShapeRenderer {
 }
 
 /**
+ * Highlighter stroke renderer
+ */
+class HighlighterStrokeRenderer extends BaseShapeRenderer {
+  render(ctx, stroke, layerColor) {
+    if (!stroke.points || stroke.points.length === 0) return
+
+    ctx.save()
+    ctx.globalAlpha = stroke.opacity || 0.4
+    ctx.globalCompositeOperation = 'multiply'
+    ctx.strokeStyle = this.getShapeColor(stroke, layerColor)
+    ctx.lineWidth = stroke.size
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    ctx.beginPath()
+    ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
+
+    for (let i = 1; i < stroke.points.length; i++) {
+      ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
+    }
+
+    ctx.stroke()
+    ctx.restore()
+  }
+}
+
+/**
+ * Line renderer (straight line without arrowhead)
+ */
+class LineRenderer extends BaseShapeRenderer {
+  render(ctx, line, layerColor) {
+    const { fromX, fromY, toX, toY, size = 2 } = line
+    const color = this.getShapeColor(line, layerColor)
+
+    ctx.strokeStyle = color
+    ctx.lineWidth = size
+
+    this.applyLineStyle(ctx, line.lineStyle)
+
+    ctx.beginPath()
+    ctx.moveTo(fromX, fromY)
+    ctx.lineTo(toX, toY)
+    ctx.stroke()
+
+    this.resetLineStyle(ctx)
+  }
+}
+
+/**
  * Arrow renderer
  */
 class ArrowRenderer extends BaseShapeRenderer {
@@ -386,7 +435,9 @@ class ShapeRendererFactory {
   constructor(imageCache) {
     this.renderers = {
       stroke: new StrokeRenderer(),
+      highlighterStroke: new HighlighterStrokeRenderer(),
       arrow: new ArrowRenderer(),
+      line: new LineRenderer(),
       connector: new ConnectorRenderer(),
       rect: new RectRenderer(),
       ellipse: new EllipseRenderer(),
@@ -440,7 +491,9 @@ class ShapeRendererFactory {
 export {
   BaseShapeRenderer,
   StrokeRenderer,
+  HighlighterStrokeRenderer,
   ArrowRenderer,
+  LineRenderer,
   RectRenderer,
   EllipseRenderer,
   TextRenderer,

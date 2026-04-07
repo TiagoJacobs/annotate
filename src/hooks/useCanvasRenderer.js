@@ -43,9 +43,13 @@ export const useCanvasRenderer = (
           shapeRendererRef.current.renderShape(ctx, 'image', layer.image)
         }
 
+        // Render highlights first (underneath other shapes)
+        layer.highlighterStrokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'highlighterStroke', stroke, '#ffff00'))
+
         // Render shapes ON TOP of image
         layer.strokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'stroke', stroke, '#000000'))
         layer.arrows?.forEach(arrow => shapeRendererRef.current.renderShape(ctx, 'arrow', arrow, '#000000'))
+        layer.lines?.forEach(line => shapeRendererRef.current.renderShape(ctx, 'line', line, '#000000'))
         layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, '#000000'))
         layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
         layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))
@@ -347,9 +351,11 @@ export const useCanvasRenderer = (
           shapeRendererRef.current.renderShape(ctx, 'image', layer.image)
         }
 
-        // Render shapes ON TOP of image
+        layer.highlighterStrokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'highlighterStroke', stroke, '#ffff00'))
+
         layer.strokes?.forEach(stroke => shapeRendererRef.current.renderShape(ctx, 'stroke', stroke, '#000000'))
         layer.arrows?.forEach(arrow => shapeRendererRef.current.renderShape(ctx, 'arrow', arrow, '#000000'))
+        layer.lines?.forEach(line => shapeRendererRef.current.renderShape(ctx, 'line', line, '#000000'))
         layer.rects?.forEach(rect => shapeRendererRef.current.renderShape(ctx, 'rect', rect, '#000000'))
         layer.ellipses?.forEach(ellipse => shapeRendererRef.current.renderShape(ctx, 'ellipse', ellipse, '#000000'))
         layer.texts?.forEach(text => shapeRendererRef.current.renderShape(ctx, 'text', text, '#000000'))

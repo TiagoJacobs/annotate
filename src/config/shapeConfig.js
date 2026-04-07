@@ -6,7 +6,9 @@
 // Shape type to array name mapping
 export const SHAPE_ARRAY_MAP = {
   stroke: 'strokes',
+  highlighterStroke: 'highlighterStrokes',
   arrow: 'arrows',
+  line: 'lines',
   rect: 'rects',
   ellipse: 'ellipses',
   text: 'texts',
@@ -17,7 +19,9 @@ export const SHAPE_ARRAY_MAP = {
 // Shape types enum
 export const SHAPE_TYPES = {
   STROKE: 'stroke',
+  HIGHLIGHTER_STROKE: 'highlighterStroke',
   ARROW: 'arrow',
+  LINE: 'line',
   RECT: 'rect',
   ELLIPSE: 'ellipse',
   TEXT: 'text',

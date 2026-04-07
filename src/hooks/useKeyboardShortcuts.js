@@ -3,7 +3,7 @@
  * Handles all keyboard shortcuts and events
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { serializeShapesToClipboard, deserializeShapesFromClipboard, pasteShapesIntoLayer, clipboardStateManager, calculateIncrementalOffset } from '../utils/shapeClipboard'
 import { ShapeOperations } from '../services/ShapeOperations'
 
@@ -29,6 +29,9 @@ export const useKeyboardShortcuts = ({
   setShowKeyboardShortcuts,
   toolHandlerRef
 }) => {
+  const spaceHeldRef = useRef(false)
+  const previousToolRef = useRef(null)
+
   /**
    * Get all shapes from all visible layers
    */
@@ -57,11 +60,29 @@ export const useKeyboardShortcuts = ({
         })
       })
 
+      // Add all highlighter strokes
+      layer.highlighterStrokes?.forEach((_, index) => {
+        allShapes.push({
+          layerId: layer.id,
+          shapeType: 'highlighterStroke',
+          shapeIndex: index
+        })
+      })
+
       // Add all arrows
       layer.arrows?.forEach((_, index) => {
         allShapes.push({
           layerId: layer.id,
           shapeType: 'arrow',
+          shapeIndex: index
+        })
+      })
+
+      // Add all lines
+      layer.lines?.forEach((_, index) => {
+        allShapes.push({
+          layerId: layer.id,
+          shapeType: 'line',
           shapeIndex: index
         })
       })
@@ -173,13 +194,25 @@ export const useKeyboardShortcuts = ({
    * Tool ID mapping for keyboard shortcuts
    */
   const toolKeyMap = {
-    '1': 'pen',
-    '2': 'arrow',
-    '3': 'rect',
-    '4': 'ellipse',
-    '5': 'text',
-    '6': 'select',
-    '7': 'pan'
+    '1': 'select',
+    '2': 'pen',
+    '3': 'highlighter',
+    '4': 'arrow',
+    '5': 'line',
+    '6': 'rect',
+    '7': 'ellipse',
+    '8': 'text',
+    '9': 'stamp',
+    '0': 'connector',
+    'v': 'select',
+    'p': 'pen',
+    'h': 'highlighter',
+    'a': 'arrow',
+    'l': 'line',
+    'r': 'rect',
+    'e': 'ellipse',
+    't': 'text',
+    's': 'stamp',
   }
 
   /**
@@ -209,6 +242,17 @@ export const useKeyboardShortcuts = ({
     const handleKeyDown = (e) => {
       // Skip keyboard shortcuts if user is typing in an input
       if (isInputFocused()) return
+
+      // Space key for temporary pan mode
+      if ((e.key === ' ' || e.code === 'Space') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        if (!spaceHeldRef.current) {
+          spaceHeldRef.current = true
+          previousToolRef.current = tool
+          setTool('pan')
+        }
+        return
+      }
 
       // Undo/Redo with Ctrl+Z / Ctrl+Shift+Z
       if (e.ctrlKey || e.metaKey) {
@@ -357,28 +401,17 @@ export const useKeyboardShortcuts = ({
           }
         }
       }
-      // C key for color picker
-      else if (e.key === 'c' || e.key === 'C') {
+      // K key for keyboard shortcuts help
+      else if (e.key === 'k' || e.key === 'K') {
         e.preventDefault()
-        colorPickerRef.current?.focus()
-        colorPickerRef.current?.click()
+        setShowKeyboardShortcuts(true)
       }
       // W key for line weight (size slider)
       else if (e.key === 'w' || e.key === 'W') {
         e.preventDefault()
         sizeSliderRef.current?.focus()
       }
-      // S key for line style
-      else if (e.key === 's' || e.key === 'S') {
-        e.preventDefault()
-        lineStyleSelectRef.current?.focus()
-      }
-      // K key for keyboard shortcuts help
-      else if (e.key === 'k' || e.key === 'K') {
-        e.preventDefault()
-        setShowKeyboardShortcuts(true)
-      }
-      // Number key shortcuts for tool selection (1-7)
+      // Tool selection shortcuts (number keys and letter keys)
       else if (toolKeyMap[e.key]) {
         e.preventDefault()
         setTool(toolKeyMap[e.key])
@@ -398,7 +431,24 @@ export const useKeyboardShortcuts = ({
       }
     }
 
+    const handleKeyUp = (e) => {
+      if (e.key === ' ' || e.code === 'Space') {
+        if (spaceHeldRef.current) {
+          spaceHeldRef.current = false
+          // Restore previous tool
+          if (previousToolRef.current) {
+            setTool(previousToolRef.current)
+            previousToolRef.current = null
+          }
+        }
+      }
+    }
+
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
   }, [layerManagerRef, selectedShape, setSelectedShape, selectedShapeRef, deleteSelectedShape, updateLayersState, renderCanvas, zoomIn, zoomOut, panCanvas, setTool, tool, colorPickerRef, sizeSliderRef, lineStyleSelectRef, setShowKeyboardShortcuts])
 }

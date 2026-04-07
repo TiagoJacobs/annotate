@@ -17,9 +17,11 @@ export function getShapeCenterForType(shape, shapeType) {
     case 'image':
       return { x: shape.x + (shape.width || 0) / 2, y: shape.y + (shape.height || 0) / 2 }
     case 'arrow':
+    case 'line':
     case 'connector':
       return { x: (shape.fromX + shape.toX) / 2, y: (shape.fromY + shape.toY) / 2 }
     case 'stroke':
+    case 'highlighterStroke':
       if (!shape.points || shape.points.length === 0) return null
       {
         const xs = shape.points.map(p => p.x)
@@ -195,6 +197,19 @@ export class ShapeOperations {
         return { x: minX, y: minY, width: Math.abs(c.toX - c.fromX), height: Math.abs(c.toY - c.fromY) }
       },
       stroke: () => this.getBoundsFromPoints(layer.strokes[shapeIndex].points),
+      highlighterStroke: () => this.getBoundsFromPoints(layer.highlighterStrokes[shapeIndex].points),
+      line: () => {
+        const line = layer.lines[shapeIndex]
+        const padding = Math.ceil((line.size || 2) / 2) + 1
+        const minX = Math.min(line.fromX, line.toX)
+        const minY = Math.min(line.fromY, line.toY)
+        return {
+          x: minX - padding,
+          y: minY - padding,
+          width: Math.abs(line.toX - line.fromX) + padding * 2,
+          height: Math.abs(line.toY - line.fromY) + padding * 2
+        }
+      },
       arrow: () => {
         const arrow = layer.arrows[shapeIndex]
         const size = arrow.size || 2
@@ -342,12 +357,25 @@ export class ShapeOperations {
           y: p.y + dy
         }))
       },
+      highlighterStroke: () => {
+        layer.highlighterStrokes[shapeIndex].points = layer.highlighterStrokes[shapeIndex].points.map(p => ({
+          x: p.x + dx,
+          y: p.y + dy
+        }))
+      },
       arrow: () => {
         const arrow = layer.arrows[shapeIndex]
         arrow.fromX += dx
         arrow.fromY += dy
         arrow.toX += dx
         arrow.toY += dy
+      },
+      line: () => {
+        const line = layer.lines[shapeIndex]
+        line.fromX += dx
+        line.fromY += dy
+        line.toX += dx
+        line.toY += dy
       },
       rect: () => {
         layer.rects[shapeIndex].x += dx
@@ -662,13 +690,13 @@ export class ShapeOperations {
       // Store deep copy of ORIGINAL shape data (reverse-scaled if needed)
       const key = `${shape.layerId}-${shapeType}-${shapeIndex}`
 
-      if (shapeType === 'stroke') {
+      if (shapeType === 'stroke' || shapeType === 'highlighterStroke') {
         const reversedPoints = shapeData.points.map(p => ({
           x: groupBounds.x + (p.x - currentGroupBounds.x) / alreadyScaledX,
           y: groupBounds.y + (p.y - currentGroupBounds.y) / alreadyScaledY
         }))
         originalShapeData.set(key, { ...shapeData, points: reversedPoints })
-      } else if (shapeType === 'arrow' || shapeType === 'connector') {
+      } else if (shapeType === 'arrow' || shapeType === 'line' || shapeType === 'connector') {
         originalShapeData.set(key, {
           ...shapeData,
           fromX: groupBounds.x + (shapeData.fromX - currentGroupBounds.x) / alreadyScaledX,
@@ -729,7 +757,7 @@ export class ShapeOperations {
       // 2. Scale the relative position
       // 3. Add to the new group position
 
-      if (shapeType === 'arrow' || shapeType === 'connector') {
+      if (shapeType === 'arrow' || shapeType === 'line' || shapeType === 'connector') {
         const relFromX = originalData.fromX - groupBounds.x
         const relFromY = originalData.fromY - groupBounds.y
         const relToX = originalData.toX - groupBounds.x
@@ -766,7 +794,7 @@ export class ShapeOperations {
           const fontScale = Math.abs(scaleY)
           shapeData.fontSize = Math.max(8, Math.round(originalData.fontSize * fontScale))
         }
-      } else if (shapeType === 'stroke') {
+      } else if (shapeType === 'stroke' || shapeType === 'highlighterStroke') {
         shapeData.points = originalData.points.map(point => ({
           x: newGroupBounds.x + (point.x - groupBounds.x) * scaleX,
           y: newGroupBounds.y + (point.y - groupBounds.y) * scaleY
@@ -831,7 +859,9 @@ export class ShapeOperations {
 
       const shapeArrays = [
         { type: 'stroke', array: layer.strokes },
+        { type: 'highlighterStroke', array: layer.highlighterStrokes || [] },
         { type: 'arrow', array: layer.arrows },
+        { type: 'line', array: layer.lines || [] },
         { type: 'rect', array: layer.rects },
         { type: 'ellipse', array: layer.ellipses },
         { type: 'text', array: layer.texts },
@@ -881,7 +911,15 @@ export class ShapeOperations {
         const threshold = (arrow.size || 3) / 2
         return this.isPointNearLine(p.x, p.y, arrow.fromX, arrow.fromY, arrow.toX, arrow.toY, threshold)
       }},
+      { type: 'line', array: layer.lines || [], test: (line, p) => {
+        const threshold = (line.size || 3) / 2
+        return this.isPointNearLine(p.x, p.y, line.fromX, line.fromY, line.toX, line.toY, threshold)
+      }},
       { type: 'stroke', array: layer.strokes, test: (shape, p) => {
+        const threshold = (shape.size || 3) / 2
+        return this.isPointOnStroke(p.x, p.y, shape, threshold)
+      }},
+      { type: 'highlighterStroke', array: layer.highlighterStrokes || [], test: (shape, p) => {
         const threshold = (shape.size || 3) / 2
         return this.isPointOnStroke(p.x, p.y, shape, threshold)
       }},

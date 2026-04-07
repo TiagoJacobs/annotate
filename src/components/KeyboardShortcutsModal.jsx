@@ -21,13 +21,16 @@ export const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
 
   const shortcuts = [
     // Tool Selection
-    { key: '1', description: 'Select Pen tool' },
-    { key: '2', description: 'Select Arrow tool' },
-    { key: '3', description: 'Select Rectangle tool' },
-    { key: '4', description: 'Select Ellipse tool' },
-    { key: '5', description: 'Select Text tool' },
-    { key: '6', description: 'Select Selection tool' },
-    { key: '7', description: 'Select Pan tool' },
+    { key: 'V / 1', description: 'Select tool' },
+    { key: 'P / 2', description: 'Pen tool' },
+    { key: 'H / 3', description: 'Highlighter tool' },
+    { key: 'A / 4', description: 'Arrow tool' },
+    { key: 'L / 5', description: 'Line tool' },
+    { key: 'R / 6', description: 'Rectangle tool' },
+    { key: 'E / 7', description: 'Ellipse tool' },
+    { key: 'T / 8', description: 'Text tool' },
+    { key: 'S / 9', description: 'Stamp tool' },
+    { key: '0', description: 'Connector tool' },
 
     // Editing
     { key: 'Ctrl+Z', description: 'Undo' },
@@ -46,12 +49,11 @@ export const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
     { key: '-', description: 'Zoom out' },
     { key: 'Arrow Keys', description: 'Pan canvas / Move selected shape' },
     { key: 'Shift + Arrow', description: 'Move selected shape 10px' },
+    { key: 'Space + Drag', description: 'Pan canvas (any tool)' },
     { key: 'Middle Mouse Drag', description: 'Pan canvas (any tool)' },
 
     // Shape Properties
-    { key: 'C', description: 'Focus color picker' },
     { key: 'W', description: 'Focus line weight slider' },
-    { key: 'S', description: 'Focus line style selector' },
 
     // Other
     { key: 'K', description: 'Show keyboard shortcuts' },

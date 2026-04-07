@@ -47,6 +47,32 @@ export class FreehandStrokeStrategy extends ShapeCreationStrategy {
 }
 
 /**
+ * Highlighter Stroke Strategy
+ */
+export class HighlighterStrokeStrategy extends ShapeCreationStrategy {
+  start(layer, startPos, properties) {
+    const stroke = {
+      size: properties.size,
+      color: properties.color,
+      opacity: 0.4,
+      points: [startPos],
+      groupId: null,
+      rotation: 0,
+    }
+    layer.highlighterStrokes.push(stroke)
+    return stroke
+  }
+
+  continue(stroke, pos) {
+    stroke.points.push(pos)
+  }
+
+  finish() {
+    // No preview flag to remove for strokes
+  }
+}
+
+/**
  * Arrow Strategy
  */
 export class ArrowStrategy extends ShapeCreationStrategy {
@@ -151,6 +177,39 @@ export class EllipseStrategy extends ShapeCreationStrategy {
 }
 
 /**
+ * Line Strategy (straight line without arrowhead)
+ */
+export class LineStrategy extends ShapeCreationStrategy {
+  preview(layer, startPos, currentPos, properties) {
+    layer.lines = layer.lines.filter(l => !l.isPreview)
+
+    layer.lines.push({
+      fromX: startPos.x,
+      fromY: startPos.y,
+      toX: currentPos.x,
+      toY: currentPos.y,
+      size: properties.size,
+      color: properties.color,
+      lineStyle: properties.lineStyle,
+      groupId: null,
+      isPreview: true,
+    })
+  }
+
+  finish(layer) {
+    if (layer.lines.length > 0) {
+      const lastIndex = layer.lines.length - 1
+      const line = layer.lines[lastIndex]
+      if (line.fromX === line.toX && line.fromY === line.toY) {
+        layer.lines.splice(lastIndex, 1)
+        return
+      }
+      delete line.isPreview
+    }
+  }
+}
+
+/**
  * Text Strategy
  */
 export class TextStrategy extends ShapeCreationStrategy {
@@ -178,7 +237,9 @@ export class TextStrategy extends ShapeCreationStrategy {
 export class ShapeStrategyFactory {
   static strategies = {
     pen: new FreehandStrokeStrategy(),
+    highlighter: new HighlighterStrokeStrategy(),
     arrow: new ArrowStrategy(),
+    line: new LineStrategy(),
     rect: new RectStrategy(),
     ellipse: new EllipseStrategy(),
     text: new TextStrategy(),
