@@ -298,6 +298,12 @@ export const useCanvasEvents = ({
         setSelectedShape(null)
       }
       toolHandlerRef.current?.startFreehandStroke(coords, toolConfig, properties)
+    } else if (handler === 'startHighlighterStroke') {
+      if (selectedShapeRef.current) {
+        selectedShapeRef.current = null
+        setSelectedShape(null)
+      }
+      toolHandlerRef.current?.startHighlighterStroke(coords, toolConfig, properties)
     } else if (handler === 'startShape') {
       // Clear selection when starting to draw
       if (selectedShapeRef.current) {
@@ -375,6 +381,9 @@ export const useCanvasEvents = ({
     if (handler === 'continueFreehandStroke') {
       toolHandlerRef.current?.continueFreehandStroke(coords, toolConfig, properties)
       updateLayersState()
+    } else if (handler === 'continueHighlighterStroke') {
+      toolHandlerRef.current?.continueHighlighterStroke(coords, toolConfig, properties)
+      updateLayersState()
     } else if (handler === 'previewShape') {
       toolHandlerRef.current?.previewShape(coords, toolConfig, properties)
       updateLayersState()
@@ -410,6 +419,8 @@ export const useCanvasEvents = ({
 
     if (handler === 'finishFreehandStroke') {
       toolHandlerRef.current?.finishFreehandStroke()
+    } else if (handler === 'finishHighlighterStroke') {
+      toolHandlerRef.current?.finishHighlighterStroke()
     } else if (handler === 'finishShape') {
       toolHandlerRef.current?.finishShape()
     } else if (handler === 'finishConnector') {

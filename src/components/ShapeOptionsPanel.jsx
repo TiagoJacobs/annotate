@@ -258,37 +258,6 @@ export const ShapeOptionsPanel = React.forwardRef(({
         </div>
       )}
 
-      {/* Highlight Color */}
-      {showTextFormatting && (
-        <div className="tool-group">
-          <label>Highlight:</label>
-          <div className="option-btn-group">
-            <input
-              type="color"
-              value={(isTextShapeSelected ? getSelectedShapeHighlightColor() : highlightColor) || '#ffff00'}
-              onChange={(e) => {
-                if (isTextShapeSelected) {
-                  updateSelectedShapeTextFormat('highlightColor', e.target.value)
-                }
-                setHighlightColor(e.target.value)
-              }}
-              className="color-picker"
-            />
-            <button
-              className={`option-btn ${(isTextShapeSelected ? !getSelectedShapeHighlightColor() : !highlightColor) ? 'muted' : ''}`}
-              onClick={() => {
-                if (isTextShapeSelected) {
-                  updateSelectedShapeTextFormat('highlightColor', '')
-                }
-                setHighlightColor('')
-              }}
-              title="No highlight"
-            >
-              None
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Line Style Control */}
       {showLineStyle && (
