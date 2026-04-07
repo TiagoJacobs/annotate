@@ -1,51 +1,45 @@
 /**
  * Stamp Picker Component
- * Grid of available stamps for selection
+ * Grid of available stamps organized by category
  */
 
 import React from 'react'
-import { STAMPS, STAMP_IDS } from '../assets/stamps'
+import { STAMPS, STAMP_CATEGORIES } from '../assets/stamps'
 
 const stampImages = {}
-STAMP_IDS.forEach(id => {
-  const encoded = btoa(STAMPS[id].svg)
+for (const [id, stamp] of Object.entries(STAMPS)) {
+  const encoded = btoa(stamp.svg)
   stampImages[id] = `data:image/svg+xml;base64,${encoded}`
-})
+}
 
 export const StampPicker = ({ selectedStampId, onSelect }) => {
   return (
-    <div className="stamp-picker" style={{
-      display: 'flex',
-      gap: '2px',
-    }}>
-      {STAMP_IDS.map(id => {
-        const stamp = STAMPS[id]
-        const isSelected = selectedStampId === id
-        return (
-          <button
-            key={id}
-            className="layer-btn"
-            onClick={() => onSelect(id)}
-            title={stamp.name}
-            style={{
-              width: '32px',
-              height: '32px',
-              padding: '3px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: isSelected ? '#667eea' : undefined,
-              borderRadius: '4px',
-            }}
-          >
-            <img
-              src={stampImages[id]}
-              alt={stamp.name}
-              style={{ width: '24px', height: '24px', pointerEvents: 'none' }}
-            />
-          </button>
-        )
-      })}
+    <div className="stamp-picker">
+      {Object.entries(STAMP_CATEGORIES).map(([catKey, cat]) => (
+        <div key={catKey} className="stamp-category">
+          <span className="stamp-category-label">{cat.label}</span>
+          <div className="stamp-category-items">
+            {cat.ids.map(id => {
+              const stamp = STAMPS[id]
+              const isSelected = selectedStampId === id
+              return (
+                <button
+                  key={id}
+                  className={`stamp-btn ${isSelected ? 'active' : ''}`}
+                  onClick={() => onSelect(id)}
+                  title={stamp.name}
+                >
+                  <img
+                    src={stampImages[id]}
+                    alt={stamp.name}
+                    style={{ maxWidth: '28px', maxHeight: '28px', pointerEvents: 'none' }}
+                  />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
