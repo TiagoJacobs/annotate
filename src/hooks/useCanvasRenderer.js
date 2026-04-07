@@ -9,6 +9,7 @@ import { ShapeOperations } from '../services/ShapeOperations'
 import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
 
 import { collectLayerShapes, sortByZOrder } from '../utils/shapeOrderUtils'
+import { rotatePoint } from '../utils/rotationUtils'
 
 export const useCanvasRenderer = (
   canvasManagerRef,
@@ -275,10 +276,21 @@ export const useCanvasRenderer = (
       }
     }
 
-    const drawAnchorDots = (bounds, highlightAnchor) => {
+    // Get rotation for a shape
+    const getShapeRotation = (layer, shapeType, shapeIndex) => {
+      const arrayName = SHAPE_ARRAY_MAP[shapeType]
+      const shapeData = arrayName ? layer[arrayName]?.[shapeIndex] : null
+      return shapeData?.rotation || 0
+    }
+
+    const drawAnchorDots = (bounds, highlightAnchor, rotation) => {
       const dotRadius = 4 / canvasManager.zoom
+      const center = rotation ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 } : null
       for (const anchor of anchors) {
-        const pt = getAnchorPt(bounds, anchor)
+        let pt = getAnchorPt(bounds, anchor)
+        if (rotation && center) {
+          pt = rotatePoint(pt.x, pt.y, center.x, center.y, rotation)
+        }
         ctx.beginPath()
         ctx.arc(pt.x, pt.y, dotRadius, 0, Math.PI * 2)
         if (anchor === highlightAnchor) {
@@ -304,14 +316,27 @@ export const useCanvasRenderer = (
           canvasManager.save()
           canvasManager.applyTransform()
 
-          // Highlight rect around target shape
+          const rotation = getShapeRotation(layer, target.shapeType, target.shapeIndex)
+
+          // Highlight rect around target shape (with rotation)
           ctx.strokeStyle = '#4a9eff'
           ctx.lineWidth = 2 / canvasManager.zoom
           ctx.setLineDash([])
-          ctx.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6)
+          if (rotation) {
+            const cx = bounds.x + bounds.width / 2
+            const cy = bounds.y + bounds.height / 2
+            ctx.save()
+            ctx.translate(cx, cy)
+            ctx.rotate(rotation)
+            ctx.translate(-cx, -cy)
+            ctx.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6)
+            ctx.restore()
+          } else {
+            ctx.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6)
+          }
 
-          // Anchor dots with the snapped anchor highlighted
-          drawAnchorDots(bounds, target.anchor)
+          // Anchor dots with the snapped anchor highlighted (rotated to world space)
+          drawAnchorDots(bounds, target.anchor, rotation)
 
           canvasManager.resetTransform()
           canvasManager.restore()
@@ -327,9 +352,10 @@ export const useCanvasRenderer = (
       if (layer) {
         const bounds = ShapeOperations.getShapeBounds(layer, shape.shapeType, shape.shapeIndex)
         if (bounds) {
+          const rotation = getShapeRotation(layer, shape.shapeType, shape.shapeIndex)
           canvasManager.save()
           canvasManager.applyTransform()
-          drawAnchorDots(bounds, null)
+          drawAnchorDots(bounds, null, rotation)
           canvasManager.resetTransform()
           canvasManager.restore()
         }

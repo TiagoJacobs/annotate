@@ -307,20 +307,36 @@ export class ToolHandler {
           const bounds = this.getShapeBounds(layer, type, j)
           if (!bounds) continue
 
-          // Check if mouse is inside or near the shape's bounds
+          // Get rotation of this shape
+          const arrayName = SHAPE_ARRAY_MAP[type]
+          const shapeData = arrayName ? layer[arrayName]?.[j] : null
+          const rotation = shapeData?.rotation || 0
+
+          // For rotated shapes, inverse-rotate the mouse position into local space for hit testing
+          let testPos = pos
+          if (rotation) {
+            const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+            testPos = inverseRotatePoint(pos.x, pos.y, center.x, center.y, rotation)
+          }
+
+          // Check if mouse is inside or near the shape's bounds (in local space)
           const expanded = {
             x: bounds.x - padding,
             y: bounds.y - padding,
             width: bounds.width + padding * 2,
             height: bounds.height + padding * 2
           }
-          if (!ShapeOperations.isPointInRect(pos.x, pos.y, expanded)) continue
+          if (!ShapeOperations.isPointInRect(testPos.x, testPos.y, expanded)) continue
 
-          // Find the nearest anchor on this shape
+          // Find the nearest anchor, rotating anchor points to world space
           let bestAnchor = null
           let bestDist = Infinity
           for (const anchor of anchors) {
-            const pt = this.getAnchorPoint(bounds, anchor)
+            let pt = this.getAnchorPoint(bounds, anchor)
+            if (rotation) {
+              const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+              pt = rotatePoint(pt.x, pt.y, center.x, center.y, rotation)
+            }
             const dist = Math.hypot(pos.x - pt.x, pos.y - pt.y)
             if (dist < bestDist) {
               bestDist = dist
