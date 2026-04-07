@@ -20,7 +20,7 @@ import {
   MousePointer,
   Github,
   Monitor,
-  Stamp,
+  ListOrdered,
   Highlighter,
   Undo2,
   Redo2,
@@ -38,7 +38,7 @@ const iconMap = {
   type: <Type size={20} />,
   cable: <Spline size={20} />,
   pointer: <MousePointer size={20} />,
-  sticker: <Stamp size={20} />,
+  sticker: <ListOrdered size={20} />,
 }
 
 const toolGroups = [

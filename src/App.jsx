@@ -81,7 +81,7 @@ function Annotate() {
   const [layersPanelOpen, setLayersPanelOpen] = useState(false)
   const [canvasReady, setCanvasReady] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
-  const [selectedStampId, setSelectedStampId] = useState('cursor')
+  const [selectedStampId, setSelectedStampId] = useState('counter')
   const [isCropping, setIsCropping] = useState(false)
   const [cropRect, setCropRect] = useState(null) // { x, y, width, height } in canvas coords
 
