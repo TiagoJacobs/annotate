@@ -543,6 +543,8 @@ export class ToolHandler {
     this.isRotating = true
     this.rotationCenter = center
     this.rotationStartAngle = Math.atan2(pos.y - center.y, pos.x - center.x)
+    this.groupRotationDelta = 0
+    this.groupRotationBounds = { ...bounds }
 
     // Store starting rotations for all shapes being rotated
     if (this.selectedShapes) {
@@ -578,6 +580,8 @@ export class ToolHandler {
     if (isShiftHeld) {
       deltaAngle = snapAngle(deltaAngle)
     }
+
+    this.groupRotationDelta = deltaAngle
 
     if (this.selectedShapes) {
       // Group rotation: process non-connector shapes first, then update connectors
@@ -1391,6 +1395,8 @@ export class ToolHandler {
     this.rotationCenter = null
     this.shapeStartRotations = null
     this.shapeStartPositions = null
+    this.groupRotationDelta = 0
+    this.groupRotationBounds = null
   }
 
   /**

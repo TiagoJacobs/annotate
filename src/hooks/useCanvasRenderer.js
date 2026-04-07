@@ -126,7 +126,7 @@ export const useCanvasRenderer = (
     const shapeType = isSingle ? effectiveShape.shapeType : null
     const isEndpointShape = shapeType === 'arrow' || shapeType === 'connector'
 
-    // Get rotation for single selected shape
+    // Get rotation for selection box
     let shapeRotation = 0
     if (isSingle && !isEndpointShape) {
       const layer = layerManagerRef.current.getLayer(effectiveShape.layerId)
@@ -136,9 +136,17 @@ export const useCanvasRenderer = (
       shapeRotation = shapeData?.rotation || 0
     }
 
+    // For group rotation, use the live rotation delta and original bounds
+    let drawBounds = bounds
+    const handler = toolHandlerRef.current
+    if (!isSingle && handler?.isRotating && handler.groupRotationDelta && handler.groupRotationBounds) {
+      shapeRotation = handler.groupRotationDelta
+      drawBounds = handler.groupRotationBounds
+    }
+
     // Apply rotation transform for selection box
-    const centerX = bounds.x + bounds.width / 2
-    const centerY = bounds.y + bounds.height / 2
+    const centerX = drawBounds.x + drawBounds.width / 2
+    const centerY = drawBounds.y + drawBounds.height / 2
     if (shapeRotation) {
       ctx.translate(centerX, centerY)
       ctx.rotate(shapeRotation)
@@ -151,10 +159,10 @@ export const useCanvasRenderer = (
       ctx.lineWidth = 2 / canvasManager.zoom
       ctx.setLineDash([SELECTION_PADDING / canvasManager.zoom, SELECTION_PADDING / canvasManager.zoom])
       ctx.strokeRect(
-        bounds.x - padding,
-        bounds.y - padding,
-        bounds.width + padding * 2,
-        bounds.height + padding * 2
+        drawBounds.x - padding,
+        drawBounds.y - padding,
+        drawBounds.width + padding * 2,
+        drawBounds.height + padding * 2
       )
       ctx.setLineDash([])
     }
@@ -195,14 +203,14 @@ export const useCanvasRenderer = (
     } else {
       // Standard corner/edge handles for other shapes
       handles = [
-        { x: bounds.x - padding, y: bounds.y - padding, cursor: 'nw-resize' },
-        { x: bounds.x + bounds.width + padding, y: bounds.y - padding, cursor: 'ne-resize' },
-        { x: bounds.x - padding, y: bounds.y + bounds.height + padding, cursor: 'sw-resize' },
-        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding, cursor: 'se-resize' },
-        { x: bounds.x + bounds.width / 2, y: bounds.y - padding, cursor: 'n-resize' },
-        { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height + padding, cursor: 's-resize' },
-        { x: bounds.x - padding, y: bounds.y + bounds.height / 2, cursor: 'w-resize' },
-        { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height / 2, cursor: 'e-resize' },
+        { x: drawBounds.x - padding, y: drawBounds.y - padding, cursor: 'nw-resize' },
+        { x: drawBounds.x + drawBounds.width + padding, y: drawBounds.y - padding, cursor: 'ne-resize' },
+        { x: drawBounds.x - padding, y: drawBounds.y + drawBounds.height + padding, cursor: 'sw-resize' },
+        { x: drawBounds.x + drawBounds.width + padding, y: drawBounds.y + drawBounds.height + padding, cursor: 'se-resize' },
+        { x: drawBounds.x + drawBounds.width / 2, y: drawBounds.y - padding, cursor: 'n-resize' },
+        { x: drawBounds.x + drawBounds.width / 2, y: drawBounds.y + drawBounds.height + padding, cursor: 's-resize' },
+        { x: drawBounds.x - padding, y: drawBounds.y + drawBounds.height / 2, cursor: 'w-resize' },
+        { x: drawBounds.x + drawBounds.width + padding, y: drawBounds.y + drawBounds.height / 2, cursor: 'e-resize' },
       ]
     }
 
@@ -232,15 +240,15 @@ export const useCanvasRenderer = (
 
     // Draw rotation handle (skip for arrows/connectors)
     if (!isEndpointShape) {
-      const rotHandleX = bounds.x + bounds.width / 2
-      const rotHandleY = bounds.y - padding - ROTATION_HANDLE_OFFSET
+      const rotHandleX = drawBounds.x + drawBounds.width / 2
+      const rotHandleY = drawBounds.y - padding - ROTATION_HANDLE_OFFSET
       const rotRadius = ROTATION_HANDLE_RADIUS / canvasManager.zoom
 
       // Draw line from top-center to rotation handle
       ctx.strokeStyle = '#667eea'
       ctx.lineWidth = 1.5 / canvasManager.zoom
       ctx.beginPath()
-      ctx.moveTo(rotHandleX, bounds.y - padding)
+      ctx.moveTo(rotHandleX, drawBounds.y - padding)
       ctx.lineTo(rotHandleX, rotHandleY)
       ctx.stroke()
 
