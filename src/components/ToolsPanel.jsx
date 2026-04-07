@@ -73,6 +73,8 @@ export const ToolsPanel = ({
   showSnackbar,
   onUndo,
   onRedo,
+  canUndo,
+  canRedo,
 }) => {
   return (
     <div className="annotate-toolbar">
@@ -105,10 +107,10 @@ export const ToolsPanel = ({
 
       {/* Undo/Redo */}
       <div className="tool-group">
-        <button className="action-btn" onClick={onUndo} title="Undo (Ctrl+Z)">
+        <button className="action-btn" onClick={onUndo} title="Undo (Ctrl+Z)" disabled={!canUndo}>
           <Undo2 size={18} />
         </button>
-        <button className="action-btn" onClick={onRedo} title="Redo (Ctrl+Shift+Z)">
+        <button className="action-btn" onClick={onRedo} title="Redo (Ctrl+Shift+Z)" disabled={!canRedo}>
           <Redo2 size={18} />
         </button>
       </div>

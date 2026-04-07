@@ -1217,6 +1217,8 @@ function Annotate() {
           showSnackbar={showSnackbar}
           onUndo={handleUndo}
           onRedo={handleRedo}
+          canUndo={layerManagerRef.current?.canUndo() ?? false}
+          canRedo={layerManagerRef.current?.canRedo() ?? false}
         />
 
         {/* Options Toolbar - always visible but empty when no tool/shape is active */}
