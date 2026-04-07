@@ -53,6 +53,10 @@ export function collectLayerShapes(layer) {
  */
 export function sortByZOrder(shapes) {
   return shapes.sort((a, b) => {
+    // Preview shapes (actively being drawn) always render on top
+    if (a.shape.isPreview && !b.shape.isPreview) return 1
+    if (!a.shape.isPreview && b.shape.isPreview) return -1
+
     const za = a.shape.zOrder ?? -1
     const zb = b.shape.zOrder ?? -1
     if (za === zb) return a.legacyOrder - b.legacyOrder
