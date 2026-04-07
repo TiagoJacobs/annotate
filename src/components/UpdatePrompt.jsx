@@ -19,8 +19,16 @@ export const UpdatePrompt = () => {
   if (!needRefresh) return null
 
   const handleUpdate = async () => {
+    // Listen for the new service worker to take control before reloading
+    navigator.serviceWorker?.addEventListener('controllerchange', () => {
+      window.location.reload()
+    })
+    // Clear all caches so the reload fetches fresh assets
+    if ('caches' in window) {
+      const names = await caches.keys()
+      await Promise.all(names.map(name => caches.delete(name)))
+    }
     await updateServiceWorker(true)
-    window.location.reload()
   }
 
   return (
