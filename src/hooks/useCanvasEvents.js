@@ -262,16 +262,13 @@ export const useCanvasEvents = ({
         return
       }
 
-      canvas.style.cursor = 'crosshair'  // Thin crosshair when not hovering over anything
+      canvas.style.cursor = 'default'
       return
     }
 
-    // Default cursor based on tool
-    if (tool === 'pan') {
-      canvas.style.cursor = 'grab'
-    } else {
-      canvas.style.cursor = 'crosshair'
-    }
+    // Default cursor based on tool (from registry)
+    const toolCursor = getToolConfig(tool)?.cursor || 'default'
+    canvas.style.cursor = toolCursor
   }, [tool, selectedShapeRef, layerManagerRef, toolHandlerRef])
 
   /**
