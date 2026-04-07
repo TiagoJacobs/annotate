@@ -38,9 +38,9 @@ const iconMap = {
   cable: <Spline size={20} />,
   pointer: <MousePointer size={20} />,
   sticker: (
-    <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="14" fill="#FF4444" stroke="#CC0000" strokeWidth="1"/>
-      <text x="16" y="22" textAnchor="middle" fontFamily="Arial,sans-serif" fontSize="18" fontWeight="bold" fill="#fff">N</text>
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor">
+      <circle cx="16" cy="16" r="13" strokeWidth="2" fill="none"/>
+      <text x="16" y="22" textAnchor="middle" fontFamily="Arial,sans-serif" fontSize="16" fontWeight="bold" fill="currentColor" stroke="none">N</text>
     </svg>
   ),
 }
