@@ -1,11 +1,20 @@
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import '../styles/UpdatePrompt.css'
 
+const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000 // 1 hour
+
 export const UpdatePrompt = () => {
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
-  } = useRegisterSW()
+  } = useRegisterSW({
+    onRegisteredSW(swUrl, registration) {
+      if (!registration) return
+      setInterval(() => {
+        registration.update()
+      }, UPDATE_CHECK_INTERVAL)
+    },
+  })
 
   if (!needRefresh) return null
 
