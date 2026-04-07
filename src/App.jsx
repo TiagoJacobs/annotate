@@ -753,9 +753,10 @@ function Annotate() {
       }
 
       // Initialize canvas to match container size
+      // Use Math.floor to avoid sub-pixel overflow causing scrollbars
       const container = canvasRef.current.parentElement
       const rect = container.getBoundingClientRect()
-      canvasManagerRef.current.setDimensions(rect.width, rect.height)
+      canvasManagerRef.current.setDimensions(Math.floor(rect.width), Math.floor(rect.height))
 
       // Create initial default layer
       const defaultLayer = layerManagerRef.current.createLayer('Layer 1')
@@ -765,7 +766,7 @@ function Annotate() {
       // Handle window resize
       const handleResize = () => {
         const rect = container.getBoundingClientRect()
-        canvasManagerRef.current.setDimensions(rect.width, rect.height)
+        canvasManagerRef.current.setDimensions(Math.floor(rect.width), Math.floor(rect.height))
         renderCanvas()
       }
       window.addEventListener('resize', handleResize)
