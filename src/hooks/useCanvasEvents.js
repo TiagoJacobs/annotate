@@ -53,8 +53,8 @@ export const useCanvasEvents = ({
    * Handle canvas click for text tool - start inline editing
    */
   const handleCanvasClick = useCallback((e) => {
-    // Handle stamp tool click
-    if (tool === 'stamp') {
+    // Handle stamp/diagram tool click
+    if (tool === 'stamp' || tool === 'diagram') {
       const coords = getCanvasCoordinates(e)
       if (!coords) return
       const allLayers = layerManagerRef.current?.getAllLayers() || []

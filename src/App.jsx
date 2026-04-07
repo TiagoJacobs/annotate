@@ -82,6 +82,7 @@ function Annotate() {
   const [canvasReady, setCanvasReady] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [selectedStampId, setSelectedStampId] = useState('counter')
+  const [selectedDiagramId, setSelectedDiagramId] = useState('process')
   const [isCropping, setIsCropping] = useState(false)
   const [cropRect, setCropRect] = useState(null) // { x, y, width, height } in canvas coords
 
@@ -141,7 +142,7 @@ function Annotate() {
       fontSize,
       lineStyle,
       size: brushSize,
-      stampId: selectedStampId,
+      stampId: tool === 'diagram' ? selectedDiagramId : selectedStampId,
       ...Object.fromEntries(toolProperties)
     }
 
@@ -1268,6 +1269,8 @@ function Annotate() {
           onStartCrop={startCrop}
           selectedStampId={selectedStampId}
           setSelectedStampId={setSelectedStampId}
+          selectedDiagramId={selectedDiagramId}
+          setSelectedDiagramId={setSelectedDiagramId}
         />
 
         <div className="annotate-content">

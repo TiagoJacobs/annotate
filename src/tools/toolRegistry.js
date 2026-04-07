@@ -183,6 +183,18 @@ export const toolRegistry = {
     },
   },
 
+  diagram: {
+    id: 'diagram',
+    name: 'Diagram Shapes',
+    icon: 'shapes',
+    cursor: 'crosshair',
+    shortcutKey: 'D',
+    properties: {},
+    handlers: {
+      onClick: 'placeStamp',
+    },
+  },
+
   connector: {
     id: 'connector',
     name: 'Connector',

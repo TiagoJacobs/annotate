@@ -1,6 +1,6 @@
 /**
  * Stamp Picker Component
- * Grid of available stamps organized by category
+ * Grid of available stamps, optionally filtered by category
  */
 
 import React from 'react'
@@ -12,7 +12,35 @@ for (const [id, stamp] of Object.entries(STAMPS)) {
   stampImages[id] = `data:image/svg+xml;base64,${encoded}`
 }
 
-export const StampPicker = ({ selectedStampId, onSelect }) => {
+export const StampPicker = ({ selectedStampId, onSelect, category }) => {
+  // If a category is specified, show only that category's stamps (flat, no label)
+  if (category && STAMP_CATEGORIES[category]) {
+    const ids = STAMP_CATEGORIES[category].ids
+    return (
+      <div className="stamp-category-items">
+        {ids.map(id => {
+          const stamp = STAMPS[id]
+          const isSelected = selectedStampId === id
+          return (
+            <button
+              key={id}
+              className={`stamp-btn ${isSelected ? 'active' : ''}`}
+              onClick={() => onSelect(id)}
+              title={stamp.name}
+            >
+              <img
+                src={stampImages[id]}
+                alt={stamp.name}
+                style={{ maxWidth: '28px', maxHeight: '28px', pointerEvents: 'none' }}
+              />
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Show all categories
   return (
     <div className="stamp-picker">
       {Object.entries(STAMP_CATEGORIES).map(([catKey, cat]) => (

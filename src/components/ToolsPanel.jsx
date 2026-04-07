@@ -21,6 +21,7 @@ import {
   Github,
   Monitor,
   Highlighter,
+  Shapes,
   Undo2,
   Redo2,
 } from 'lucide-react'
@@ -37,6 +38,7 @@ const iconMap = {
   type: <Type size={20} />,
   cable: <Spline size={20} />,
   pointer: <MousePointer size={20} />,
+  shapes: <Shapes size={20} />,
   sticker: (
     <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor">
       <circle cx="16" cy="16" r="13" strokeWidth="2" fill="none"/>
@@ -50,7 +52,7 @@ const toolGroups = [
   ['pen', 'highlighter'],
   ['arrow', 'line', 'rect', 'ellipse'],
   ['text', 'stamp'],
-  ['connector'],
+  ['diagram', 'connector'],
 ]
 
 export const ToolsPanel = ({

@@ -55,10 +55,12 @@ export const ShapeOptionsPanel = React.forwardRef(({
   onStartCrop,
   selectedStampId,
   setSelectedStampId,
+  selectedDiagramId,
+  setSelectedDiagramId,
 }, _ref) => {
   const showFontSize = tool === 'text'
   const isImageSelected = selectedShape && selectedShape.shapeType === 'image'
-  const showOptions = (tool !== 'select' && tool !== 'pan' && tool !== 'stamp') || selectedShape
+  const showOptions = (tool !== 'select' && tool !== 'pan' && tool !== 'stamp' && tool !== 'diagram') || selectedShape
   const fillableTools = ['rect', 'ellipse']
   const isFillableShape = selectedShape && (
     Array.isArray(selectedShape)
@@ -108,7 +110,18 @@ export const ShapeOptionsPanel = React.forwardRef(({
       <div className="shape-toolbar">
         <div className="tool-group">
           <label>Stamp:</label>
-          <StampPicker selectedStampId={selectedStampId} onSelect={setSelectedStampId} />
+          <StampPicker selectedStampId={selectedStampId} onSelect={setSelectedStampId} category="annotation" />
+        </div>
+      </div>
+    )
+  }
+
+  if (tool === 'diagram') {
+    return (
+      <div className="shape-toolbar">
+        <div className="tool-group">
+          <label>Shape:</label>
+          <StampPicker selectedStampId={selectedDiagramId} onSelect={setSelectedDiagramId} category="diagram" />
         </div>
       </div>
     )

@@ -30,6 +30,7 @@ export const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
     { key: 'E / 7', description: 'Ellipse tool' },
     { key: 'T / 8', description: 'Text tool' },
     { key: 'S / 9', description: 'Stamp tool' },
+    { key: 'D', description: 'Diagram shapes tool' },
     { key: '0', description: 'Connector tool' },
 
     // Editing

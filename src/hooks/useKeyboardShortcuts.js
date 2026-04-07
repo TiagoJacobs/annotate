@@ -213,6 +213,7 @@ export const useKeyboardShortcuts = ({
     'e': 'ellipse',
     't': 'text',
     's': 'stamp',
+    'd': 'diagram',
   }
 
   /**
