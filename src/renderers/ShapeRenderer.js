@@ -219,7 +219,8 @@ class ConnectorRenderer extends BaseShapeRenderer {
       const midIdx = Math.floor(points.length / 2)
       const midX = (points[midIdx - 1].x + points[midIdx].x) / 2
       const midY = (points[midIdx - 1].y + points[midIdx].y) / 2
-      const labelFontSize = Math.max(12, size * 3)
+      const labelFontSize = connector.labelFontSize || Math.max(12, size * 3)
+      const labelColor = connector.labelColor || color
       ctx.save()
       ctx.font = `${labelFontSize}px Arial`
       ctx.textAlign = 'center'
@@ -229,7 +230,7 @@ class ConnectorRenderer extends BaseShapeRenderer {
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(midX - metrics.width / 2 - pad, midY - labelFontSize / 2 - pad,
                    metrics.width + pad * 2, labelFontSize + pad * 2)
-      ctx.fillStyle = color
+      ctx.fillStyle = labelColor
       ctx.fillText(connector.label, midX, midY)
       ctx.restore()
     }
@@ -253,8 +254,9 @@ class RectRenderer extends BaseShapeRenderer {
 
     // Render label if set
     if (rect.label) {
-      const fontSize = Math.min(rect.height * 0.4, 20)
-      ctx.fillStyle = this.getShapeColor(rect, layerColor)
+      const fontSize = rect.labelFontSize || Math.min(rect.height * 0.4, 20)
+      const labelColor = rect.labelColor || this.getShapeColor(rect, layerColor)
+      ctx.fillStyle = labelColor
       ctx.font = `${fontSize}px Arial`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -295,8 +297,9 @@ class EllipseRenderer extends BaseShapeRenderer {
 
     // Render label if set
     if (ellipse.label) {
-      const fontSize = Math.min(ellipse.height * 0.4, 20)
-      ctx.fillStyle = this.getShapeColor(ellipse, layerColor)
+      const fontSize = ellipse.labelFontSize || Math.min(ellipse.height * 0.4, 20)
+      const labelColor = ellipse.labelColor || this.getShapeColor(ellipse, layerColor)
+      ctx.fillStyle = labelColor
       ctx.font = `${fontSize}px Arial`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -438,7 +441,8 @@ class StampRenderer extends BaseShapeRenderer {
 
     // Render label below the stamp
     if (stamp.label) {
-      const fontSize = Math.min(stamp.height * 0.25, 16)
+      const fontSize = stamp.labelFontSize || Math.min(stamp.height * 0.25, 16)
+      const labelColor = stamp.labelColor || '#000000'
       ctx.save()
       ctx.font = `${fontSize}px Arial`
       ctx.textAlign = 'center'
@@ -449,7 +453,7 @@ class StampRenderer extends BaseShapeRenderer {
       const pad = 3
       ctx.fillStyle = 'rgba(255,255,255,0.85)'
       ctx.fillRect(centerX - metrics.width / 2 - pad, labelY - pad, metrics.width + pad * 2, fontSize + pad * 2)
-      ctx.fillStyle = '#000000'
+      ctx.fillStyle = labelColor
       ctx.fillText(stamp.label, centerX, labelY)
       ctx.restore()
     }

@@ -208,6 +208,53 @@ export const useShapeProperties = ({
   const updateTextDecoration = useCallback((v) => updateTextProperty('textDecoration', v), [updateTextProperty])
   const updateHighlightColor = useCallback((v) => updateTextProperty('highlightColor', v), [updateTextProperty])
 
+  // Label properties (for rect, ellipse, connector, stamp)
+  const labelableTypes = ['rect', 'ellipse', 'connector', 'stamp']
+
+  const hasLabel = useCallback(() => {
+    if (!selectedShape) return false
+    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
+    if (!labelableTypes.includes(shape.shapeType)) return false
+    const shapeData = getShapeData(shape)
+    return !!shapeData?.label
+  }, [selectedShape, getShapeData])
+
+  const getLabelFontSize = useCallback(() => {
+    if (!selectedShape) return null
+    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
+    if (!labelableTypes.includes(shape.shapeType)) return null
+    const shapeData = getShapeData(shape)
+    if (!shapeData?.label) return null
+    return shapeData.labelFontSize || 16
+  }, [selectedShape, getShapeData])
+
+  const getLabelColor = useCallback(() => {
+    if (!selectedShape) return null
+    const shape = Array.isArray(selectedShape) ? selectedShape[0] : selectedShape
+    if (!labelableTypes.includes(shape.shapeType)) return null
+    const shapeData = getShapeData(shape)
+    if (!shapeData?.label) return null
+    return shapeData.labelColor || '#000000'
+  }, [selectedShape, getShapeData])
+
+  const updateLabelFontSize = useCallback((newSize) => {
+    const updatedLayers = updateProperty((shapeData, shapeType) => {
+      if (labelableTypes.includes(shapeType) && shapeData.label) {
+        shapeData.labelFontSize = newSize
+      }
+    })
+    return updatedLayers
+  }, [updateProperty])
+
+  const updateLabelColor = useCallback((newColor) => {
+    const updatedLayers = updateProperty((shapeData, shapeType) => {
+      if (labelableTypes.includes(shapeType) && shapeData.label) {
+        shapeData.labelColor = newColor
+      }
+    })
+    return updatedLayers
+  }, [updateProperty])
+
   return {
     getColor,
     getSize,
@@ -226,5 +273,10 @@ export const useShapeProperties = ({
     updateFontStyle,
     updateTextDecoration,
     updateHighlightColor,
+    hasLabel,
+    getLabelFontSize,
+    getLabelColor,
+    updateLabelFontSize,
+    updateLabelColor,
   }
 }

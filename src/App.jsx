@@ -235,6 +235,27 @@ function Annotate() {
     }
   }
 
+  // Label formatting
+  const hasSelectedShapeLabel = () => shapePropertiesHook.hasLabel()
+  const getSelectedShapeLabelFontSize = () => shapePropertiesHook.getLabelFontSize()
+  const getSelectedShapeLabelColor = () => shapePropertiesHook.getLabelColor()
+
+  const updateSelectedShapeLabelFontSize = (newSize) => {
+    const updatedLayers = shapePropertiesHook.updateLabelFontSize(newSize)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
+    }
+  }
+
+  const updateSelectedShapeLabelColor = (newColor) => {
+    const updatedLayers = shapePropertiesHook.updateLabelColor(newColor)
+    if (updatedLayers && updatedLayers.size > 0) {
+      updateLayersState()
+      renderCanvas()
+    }
+  }
+
   // ==================== Crop Functions ====================
 
   const startCrop = () => {
@@ -439,28 +460,6 @@ function Annotate() {
   }
 
   // ==================== Export & Actions ====================
-
-  const copyToClipboard = async () => {
-    try {
-      const croppedCanvas = createCroppedCanvas(layerManagerRef.current, shapeRendererRef.current)
-
-      // Convert blob to promise-based format
-      const blob = await new Promise(resolve => croppedCanvas.toBlob(resolve, 'image/png'))
-
-      if (!blob || blob.size === 0) {
-        showSnackbar('Nothing to copy - canvas is empty')
-        return
-      }
-
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob })
-      ])
-      showSnackbar('Image copied to clipboard!')
-    } catch (error) {
-      console.error('Copy to clipboard failed:', error)
-      showSnackbar('Failed to copy image to clipboard')
-    }
-  }
 
   const downloadImage = (format) => {
     const fmt = format || downloadFormat
@@ -1268,6 +1267,11 @@ function Annotate() {
           getSelectedShapeTextDecoration={getSelectedShapeTextDecoration}
           getSelectedShapeHighlightColor={getSelectedShapeHighlightColor}
           updateSelectedShapeTextFormat={updateSelectedShapeTextFormat}
+          hasSelectedShapeLabel={hasSelectedShapeLabel}
+          getSelectedShapeLabelFontSize={getSelectedShapeLabelFontSize}
+          getSelectedShapeLabelColor={getSelectedShapeLabelColor}
+          updateSelectedShapeLabelFontSize={updateSelectedShapeLabelFontSize}
+          updateSelectedShapeLabelColor={updateSelectedShapeLabelColor}
           onStartCrop={startCrop}
           selectedStampId={selectedStampId}
           setSelectedStampId={setSelectedStampId}

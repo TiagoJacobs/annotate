@@ -52,6 +52,11 @@ export const ShapeOptionsPanel = React.forwardRef(({
   getSelectedShapeTextDecoration,
   getSelectedShapeHighlightColor,
   updateSelectedShapeTextFormat,
+  hasSelectedShapeLabel,
+  getSelectedShapeLabelFontSize,
+  getSelectedShapeLabelColor,
+  updateSelectedShapeLabelFontSize,
+  updateSelectedShapeLabelColor,
   onStartCrop,
   selectedStampId,
   setSelectedStampId,
@@ -84,9 +89,36 @@ export const ShapeOptionsPanel = React.forwardRef(({
     ? getSelectedShapeLineStyle() !== null
     : !!toolConfig?.properties?.lineStyle
 
-  // Show nothing for selected stamp/diagram shapes (no applicable properties)
+  const showLabelControls = hasSelectedShapeLabel?.() || false
+
+  // For selected stamp/diagram shapes, only show label controls if they have a label
   if (isStampSelected) {
-    return null
+    if (!showLabelControls) return null
+    return (
+      <div className="shape-toolbar">
+        <div className="tool-group">
+          <label>Label Color:</label>
+          <input
+            type="color"
+            value={getSelectedShapeLabelColor?.() || '#000000'}
+            onChange={(e) => updateSelectedShapeLabelColor?.(e.target.value)}
+            className="color-picker"
+          />
+        </div>
+        <div className="tool-group">
+          <label>Label Size:</label>
+          <input
+            type="range"
+            min="8"
+            max="60"
+            value={getSelectedShapeLabelFontSize?.() || 16}
+            onChange={(e) => updateSelectedShapeLabelFontSize?.(parseInt(e.target.value))}
+            className="size-slider"
+          />
+          <span className="size-display">{getSelectedShapeLabelFontSize?.() || 16}px</span>
+        </div>
+      </div>
+    )
   }
 
   // Show crop button for images
@@ -277,6 +309,33 @@ export const ShapeOptionsPanel = React.forwardRef(({
         </div>
       )}
 
+
+      {/* Label Formatting Controls */}
+      {showLabelControls && (
+        <>
+          <div className="tool-group">
+            <label>Label Color:</label>
+            <input
+              type="color"
+              value={getSelectedShapeLabelColor?.() || '#000000'}
+              onChange={(e) => updateSelectedShapeLabelColor?.(e.target.value)}
+              className="color-picker"
+            />
+          </div>
+          <div className="tool-group">
+            <label>Label Size:</label>
+            <input
+              type="range"
+              min="8"
+              max="60"
+              value={getSelectedShapeLabelFontSize?.() || 16}
+              onChange={(e) => updateSelectedShapeLabelFontSize?.(parseInt(e.target.value))}
+              className="size-slider"
+            />
+            <span className="size-display">{getSelectedShapeLabelFontSize?.() || 16}px</span>
+          </div>
+        </>
+      )}
 
       {/* Line Style Control */}
       {showLineStyle && (
