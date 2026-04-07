@@ -5,7 +5,8 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { getToolConfig } from '../tools/toolRegistry'
-import { RESIZE_HANDLE_SIZE, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE } from '../config/uiConstants'
+import { SHAPE_ARRAY_MAP } from '../config/shapeConfig'
+import { RESIZE_HANDLE_SIZE, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE, MIN_TEXT_SIZE, MAX_TEXT_SIZE } from '../config/uiConstants'
 
 /**
  * Map resize handle names to CSS cursor values
@@ -43,6 +44,20 @@ export const useCanvasEvents = ({
   toolRef.current = tool
 
   /**
+   * Auto-select the last shape of a given type in a layer
+   */
+  const autoSelectShape = useCallback((layerId, shapeType) => {
+    const layer = layerManagerRef.current?.getLayer(layerId)
+    if (!layer) return
+    const arrayName = SHAPE_ARRAY_MAP[shapeType]
+    if (!arrayName || !layer[arrayName] || layer[arrayName].length === 0) return
+    const shapeIndex = layer[arrayName].length - 1
+    const selection = { layerId, shapeType, shapeIndex }
+    selectedShapeRef.current = selection
+    setSelectedShape(selection)
+  }, [layerManagerRef, selectedShapeRef, setSelectedShape])
+
+  /**
    * Get coordinates from canvas event
    */
   const getCanvasCoordinates = useCallback((e) => {
@@ -63,7 +78,9 @@ export const useCanvasEvents = ({
         return
       }
       const properties = getToolProperties()
+      const layer = layerManagerRef.current?.getSelectedLayer()
       toolHandlerRef.current?.placeStamp(coords, getToolConfig(tool), properties)
+      if (layer) autoSelectShape(layer.id, 'stamp')
       updateLayersState()
       renderCanvas()
       return
@@ -121,7 +138,7 @@ export const useCanvasEvents = ({
 
     updateLayersState()
     renderCanvas()
-  }, [tool, getCanvasCoordinates, toolHandlerRef, layerManagerRef, canvasManagerRef, getToolProperties, setInlineEditingText, updateLayersState, renderCanvas, showSnackbar])
+  }, [tool, getCanvasCoordinates, toolHandlerRef, layerManagerRef, canvasManagerRef, getToolProperties, setInlineEditingText, updateLayersState, renderCanvas, showSnackbar, autoSelectShape])
 
   /**
    * Handle canvas double click
@@ -418,13 +435,22 @@ export const useCanvasEvents = ({
     const handler = toolConfig.handlers?.onMouseUp
 
     if (handler === 'finishFreehandStroke') {
+      const layerId = toolHandlerRef.current?.currentLayer?.id
       toolHandlerRef.current?.finishFreehandStroke()
+      if (layerId) autoSelectShape(layerId, 'stroke')
     } else if (handler === 'finishHighlighterStroke') {
+      const layerId = toolHandlerRef.current?.currentLayer?.id
       toolHandlerRef.current?.finishHighlighterStroke()
+      if (layerId) autoSelectShape(layerId, 'highlighterStroke')
     } else if (handler === 'finishShape') {
+      const layerId = toolHandlerRef.current?.currentLayer?.id
+      const shapeType = toolHandlerRef.current?.currentShapeType
       toolHandlerRef.current?.finishShape()
+      if (layerId && shapeType) autoSelectShape(layerId, shapeType)
     } else if (handler === 'finishConnector') {
+      const layerId = toolHandlerRef.current?.connectorLayer?.id
       toolHandlerRef.current?.finishConnector()
+      if (layerId) autoSelectShape(layerId, 'connector')
     } else if (handler === 'finishPan') {
       toolHandlerRef.current?.finishPan()
       return // Don't update layers for pan
@@ -447,7 +473,7 @@ export const useCanvasEvents = ({
     }
 
     updateLayersState()
-  }, [tool, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateLayersState, selectLayer])
+  }, [tool, toolHandlerRef, selectedShapeRef, setSelectedShape, renderCanvas, updateLayersState, selectLayer, autoSelectShape])
 
   /**
    * Setup wheel event listener with passive: false to allow preventDefault
@@ -470,9 +496,32 @@ export const useCanvasEvents = ({
         setZoom(canvasManagerRef.current.zoom)
         renderCanvas()
       } else {
-        // Plain scroll = adjust brush size for drawing tools
+        // Plain scroll = adjust size for drawing tools or selected shapes
         const drawingTools = ['pen', 'arrow', 'rect', 'ellipse']
-        if (drawingTools.includes(toolRef.current)) {
+        const selected = selectedShapeRef.current
+        const isSingleSelection = selected && !Array.isArray(selected)
+
+        if (isSingleSelection) {
+          // Adjust size of selected shape
+          const layer = layerManagerRef.current?.getLayer(selected.layerId)
+          if (!layer) return
+          const arrayName = SHAPE_ARRAY_MAP[selected.shapeType]
+          const shapeData = arrayName ? layer[arrayName]?.[selected.shapeIndex] : null
+          if (!shapeData) return
+
+          const delta = e.deltaY > 0 ? -1 : 1
+          if (selected.shapeType === 'text' && shapeData.fontSize != null) {
+            e.preventDefault()
+            shapeData.fontSize = Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, shapeData.fontSize + delta))
+            layerManagerRef.current.updateLayerWithHistory(layer.id, layer)
+            renderCanvas()
+          } else if (shapeData.size != null) {
+            e.preventDefault()
+            shapeData.size = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, shapeData.size + delta))
+            layerManagerRef.current.updateLayerWithHistory(layer.id, layer)
+            renderCanvas()
+          }
+        } else if (drawingTools.includes(toolRef.current)) {
           e.preventDefault()
           const delta = e.deltaY > 0 ? -1 : 1
           setBrushSize(prev => {
