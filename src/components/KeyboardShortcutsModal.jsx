@@ -47,6 +47,7 @@ export const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
     { key: 'Scroll Wheel', description: 'Adjust brush size (drawing tools)' },
     { key: '+', description: 'Zoom in' },
     { key: '-', description: 'Zoom out' },
+    { key: 'Ctrl+0', description: 'Reset zoom' },
     { key: 'Arrow Keys', description: 'Pan canvas / Move selected shape' },
     { key: 'Shift + Arrow', description: 'Move selected shape 10px' },
     { key: 'Space + Drag', description: 'Pan canvas (any tool)' },

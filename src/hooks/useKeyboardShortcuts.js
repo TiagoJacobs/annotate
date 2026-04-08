@@ -20,6 +20,7 @@ export const useKeyboardShortcuts = ({
   renderCanvas,
   zoomIn,
   zoomOut,
+  resetView,
   panCanvas,
   setTool,
   tool,
@@ -268,6 +269,11 @@ export const useKeyboardShortcuts = ({
           }
           updateLayersState()
           renderCanvas()
+        }
+        // Reset zoom with Ctrl+0
+        else if (e.key === '0') {
+          e.preventDefault()
+          resetView()
         }
         // Select All with Ctrl+A
         else if (e.key === 'a') {

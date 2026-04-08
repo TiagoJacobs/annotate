@@ -698,6 +698,7 @@ function Annotate() {
     renderCanvas,
     zoomIn,
     zoomOut,
+    resetView,
     panCanvas,
     setTool,
     tool,
